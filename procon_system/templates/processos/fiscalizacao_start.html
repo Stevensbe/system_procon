@@ -1,0 +1,7 @@
+{% extends 'processos/base.html' %}
+{% block title %}Iniciar Fiscalização{% endblock %}
+{% block content %}
+  <h2>Iniciar Fiscalização</h2>
+  <p>Para começar, crie um novo Auto de Constatação:</p>
+  <a href="{% url 'processos:constatacao_add' %}" class="button">Novo Auto de Constatação</a>
+{% endblock %}

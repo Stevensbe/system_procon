@@ -1,0 +1,10 @@
+{% extends 'processos/base.html' %}
+{% block title %}Anexar Documentos{% endblock %}
+{% block content %}
+  <h2>Documentos de Constatação</h2>
+  <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit">Salvar e Criar Infração →</button>
+  </form>
+{% endblock %}

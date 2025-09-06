@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(DJANGO_SETTINGS_MODULE=procon_system.settings pytest tests/test_models.py::TestMultaModel::test_multa_status_choices -v --tb=line)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

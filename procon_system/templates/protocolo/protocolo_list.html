@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% block title %}Protocolos{% endblock %}
+{% block content %}
+<h2>Protocolos</h2>
+<a href="{% url 'protocolo:criar_protocolo' %}" class="btn btn-primary mb-3">Novo Protocolo</a>
+<table class="table">
+  <thead>
+    <tr>
+      <th>ID</th>
+      <th>Descrição</th>
+      <th>Data</th>
+      <th>Ações</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for protocolo in protocolos %}
+      <tr>
+        <td>{{ protocolo.id }}</td>
+        <td>{{ protocolo.descricao }}</td>
+        <td>{{ protocolo.data }}</td>
+        <td>
+          <a href="{% url 'protocolo:editar_protocolo' protocolo.pk %}" class="btn btn-sm btn-warning">Editar</a>
+          <a href="{% url 'protocolo:excluir_protocolo' protocolo.pk %}" class="btn btn-sm btn-danger">Excluir</a>
+        </td>
+      </tr>
+    {% empty %}
+      <tr>
+        <td colspan="4">Nenhum protocolo cadastrado.</td>
+      </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

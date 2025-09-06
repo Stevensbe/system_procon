@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Multas</h2>
+<a href="{% url 'multas:criar_multa' %}">Nova Multa</a>
+<ul>
+  {% for multa in multas %}
+    <li>
+      {{ multa }}
+      <a href="{% url 'multas:editar_multa' multa.pk %}">Editar</a>
+      <a href="{% url 'multas:excluir_multa' multa.pk %}">Excluir</a>
+    </li>
+  {% empty %}
+    <li>Nenhuma multa cadastrada.</li>
+  {% endfor %}
+</ul>
+{% endblock %}

@@ -1,0 +1,628 @@
+{% extends 'base/base.html' %}
+{% load static %}
+
+{% block title %}SISPROCON - Portal do Cidadão{% endblock %}
+
+{% block meta_description %}Portal do Cidadão do PROCON - Faça denúncias, consulte processos, baixe formulários e acesse informações sobre defesa do consumidor{% endblock %}
+
+{% block extra_css %}
+<style>
+    .hero-section {
+        background: linear-gradient(135deg, var(--primary-color) 0%, #004499 100%);
+        color: white;
+        padding: 4rem 0;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .hero-section::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Ccircle cx='30' cy='30' r='4'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E") repeat;
+        z-index: 1;
+    }
+    
+    .hero-content {
+        position: relative;
+        z-index: 2;
+    }
+    
+    .banner-carousel .carousel-item {
+        height: 400px;
+        background-size: cover;
+        background-position: center;
+        position: relative;
+    }
+    
+    .banner-carousel .carousel-item::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.4);
+    }
+    
+    .banner-content {
+        position: relative;
+        z-index: 2;
+        color: white;
+    }
+    
+    .service-card {
+        border: none;
+        border-radius: 12px;
+        padding: 2rem 1.5rem;
+        text-align: center;
+        transition: all 0.3s ease;
+        height: 100%;
+        background: white;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    
+    .service-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+    }
+    
+    .service-card .icon {
+        width: 80px;
+        height: 80px;
+        margin: 0 auto 1.5rem;
+        background: linear-gradient(135deg, var(--primary-color), #0056b3);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 2rem;
+    }
+    
+    .service-card h5 {
+        color: var(--dark-color);
+        margin-bottom: 1rem;
+    }
+    
+    .service-card p {
+        color: #6c757d;
+        margin-bottom: 1.5rem;
+    }
+    
+    .stats-section {
+        background: var(--light-color);
+        padding: 3rem 0;
+    }
+    
+    .stat-item {
+        text-align: center;
+        padding: 1.5rem;
+    }
+    
+    .stat-number {
+        font-size: 2.5rem;
+        font-weight: 700;
+        color: var(--primary-color);
+        margin-bottom: 0.5rem;
+        display: block;
+    }
+    
+    .news-card {
+        border: none;
+        border-radius: 12px;
+        overflow: hidden;
+        transition: all 0.3s ease;
+        height: 100%;
+    }
+    
+    .news-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+    }
+    
+    .news-card img {
+        height: 200px;
+        object-fit: cover;
+        width: 100%;
+    }
+    
+    .quick-access {
+        background: white;
+        border-radius: 12px;
+        padding: 2rem;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        margin-top: -50px;
+        position: relative;
+        z-index: 10;
+    }
+    
+    .quick-access .btn {
+        margin-bottom: 1rem;
+    }
+    
+    @media (max-width: 768px) {
+        .hero-section {
+            padding: 2rem 0;
+        }
+        
+        .service-card {
+            margin-bottom: 2rem;
+        }
+        
+        .banner-carousel .carousel-item {
+            height: 250px;
+        }
+        
+        .quick-access {
+            margin-top: 0;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+<section class="hero-section">
+    <div class="container hero-content">
+        <div class="row align-items-center">
+            <div class="col-lg-8">
+                <h1 class="display-4 fw-bold mb-4">
+                    Bem-vindo ao Portal do Cidadão
+                </h1>
+                <p class="lead mb-4">
+                    Sistema de Controle de Processos Administrativos do PROCON. 
+                    Aqui você pode fazer denúncias, consultar processos, baixar formulários 
+                    e acessar informações sobre defesa do consumidor.
+                </p>
+                <div class="d-flex flex-wrap gap-3">
+                    <a href="{% url 'portal_cidadao:nova_peticao_cidadao' %}" class="btn btn-light btn-lg">
+                        <i class="fas fa-plus-circle me-2"></i>Nova Petição
+                    </a>
+                    <a href="{% url 'portal_cidadao:consulta_publica' %}" class="btn btn-outline-light btn-lg">
+                        <i class="fas fa-search me-2"></i>Consultar Processo
+                    </a>
+                </div>
+            </div>
+            <div class="col-lg-4 text-center">
+                <i class="fas fa-shield-alt" style="font-size: 8rem; opacity: 0.3;"></i>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Quick Access Bar -->
+<div class="container">
+    <div class="row">
+        <div class="col-12">
+            <div class="quick-access">
+                <div class="row">
+                    <div class="col-md-3 col-6">
+                        <a href="{% url 'portal:nova_denuncia' %}" class="btn btn-outline-primary w-100">
+                            <i class="fas fa-exclamation-triangle d-block mb-2" style="font-size: 1.5rem;"></i>
+                            Fazer Denúncia
+                        </a>
+                    </div>
+                    <div class="col-md-3 col-6">
+                        <a href="{% url 'portal:lista_formularios' %}" class="btn btn-outline-primary w-100">
+                            <i class="fas fa-download d-block mb-2" style="font-size: 1.5rem;"></i>
+                            Formulários
+                        </a>
+                    </div>
+                    <div class="col-md-3 col-6">
+                        <a href="{% url 'portal:orientacoes' %}" class="btn btn-outline-primary w-100">
+                            <i class="fas fa-info-circle d-block mb-2" style="font-size: 1.5rem;"></i>
+                            Orientações
+                        </a>
+                    </div>
+                    <div class="col-md-3 col-6">
+                        <a href="{% url 'portal:faq' %}" class="btn btn-outline-primary w-100">
+                            <i class="fas fa-question-circle d-block mb-2" style="font-size: 1.5rem;"></i>
+                            FAQ
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Banners Carousel -->
+{% if banners %}
+<section class="my-5">
+    <div class="container">
+        <div id="bannerCarousel" class="carousel slide banner-carousel" data-bs-ride="carousel">
+            <div class="carousel-indicators">
+                {% for banner in banners %}
+                <button type="button" data-bs-target="#bannerCarousel" data-bs-slide-to="{{ forloop.counter0 }}" 
+                        {% if forloop.first %}class="active"{% endif %}></button>
+                {% endfor %}
+            </div>
+            
+            <div class="carousel-inner">
+                {% for banner in banners %}
+                <div class="carousel-item {% if forloop.first %}active{% endif %}"
+                     {% if banner.imagem %}style="background-image: url('{{ banner.imagem.url }}');"{% endif %}>
+                    <div class="d-flex align-items-center h-100">
+                        <div class="container">
+                            <div class="banner-content">
+                                <h3 class="mb-3">{{ banner.titulo }}</h3>
+                                {% if banner.subtitulo %}<p class="lead mb-3">{{ banner.subtitulo }}</p>{% endif %}
+                                {% if banner.texto %}<p class="mb-4">{{ banner.texto }}</p>{% endif %}
+                                {% if banner.link %}
+                                <a href="{{ banner.link }}" class="btn btn-primary btn-lg" 
+                                   onclick="trackBannerClick({{ banner.id }})">
+                                    {{ banner.link_texto|default:"Saiba Mais" }}
+                                </a>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            
+            <button class="carousel-control-prev" type="button" data-bs-target="#bannerCarousel" data-bs-slide="prev">
+                <span class="carousel-control-prev-icon"></span>
+            </button>
+            <button class="carousel-control-next" type="button" data-bs-target="#bannerCarousel" data-bs-slide="next">
+                <span class="carousel-control-next-icon"></span>
+            </button>
+        </div>
+    </div>
+</section>
+{% endif %}
+
+<!-- Services Section -->
+<section class="py-5">
+    <div class="container">
+        <div class="row mb-5">
+            <div class="col-lg-8 mx-auto text-center">
+                <h2 class="section-title h1 fw-bold">Nossos Serviços</h2>
+                <p class="lead text-muted">
+                    Acesse os principais serviços do PROCON de forma rápida e fácil
+                </p>
+            </div>
+        </div>
+        
+        <div class="row g-4">
+            <div class="col-lg-3 col-md-6">
+                <div class="service-card">
+                    <div class="icon">
+                        <i class="fas fa-file-alt"></i>
+                    </div>
+                    <h5>Petições Online</h5>
+                    <p>Protocole suas petições e acompanhe o andamento pelo sistema.</p>
+                    <a href="{% url 'portal:nova_peticao_cidadao' %}" class="btn btn-primary">
+                        Iniciar Petição
+                    </a>
+                </div>
+            </div>
+            
+            <div class="col-lg-3 col-md-6">
+                <div class="service-card">
+                    <div class="icon">
+                        <i class="fas fa-search"></i>
+                    </div>
+                    <h5>Consulta de Processos</h5>
+                    <p>Consulte o andamento de seus processos usando CPF/CNPJ e protocolo.</p>
+                    <a href="{% url 'portal:consulta_publica' %}" class="btn btn-primary">
+                        Consultar
+                    </a>
+                </div>
+            </div>
+            
+            <div class="col-lg-3 col-md-6">
+                <div class="service-card">
+                    <div class="icon">
+                        <i class="fas fa-exclamation-triangle"></i>
+                    </div>
+                    <h5>Denúncias</h5>
+                    <p>Faça denúncias contra empresas que violaram seus direitos.</p>
+                    <a href="{% url 'portal:nova_denuncia' %}" class="btn btn-primary">
+                        Denunciar
+                    </a>
+                </div>
+            </div>
+            
+            <div class="col-lg-3 col-md-6">
+                <div class="service-card">
+                    <div class="icon">
+                        <i class="fas fa-download"></i>
+                    </div>
+                    <h5>Formulários</h5>
+                    <p>Baixe formulários oficiais para diversos tipos de solicitações.</p>
+                    <a href="{% url 'portal:lista_formularios' %}" class="btn btn-primary">
+                        Ver Formulários
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Stats Section -->
+<section class="stats-section">
+    <div class="container">
+        <div class="row">
+            <div class="col-md-3 col-6">
+                <div class="stat-item">
+                    <span class="stat-number" data-count="1250">0</span>
+                    <p class="text-muted">Processos Atendidos</p>
+                </div>
+            </div>
+            <div class="col-md-3 col-6">
+                <div class="stat-item">
+                    <span class="stat-number" data-count="850">0</span>
+                    <p class="text-muted">Problemas Resolvidos</p>
+                </div>
+            </div>
+            <div class="col-md-3 col-6">
+                <div class="stat-item">
+                    <span class="stat-number" data-count="95">0</span>
+                    <p class="text-muted">% Satisfação</p>
+                </div>
+            </div>
+            <div class="col-md-3 col-6">
+                <div class="stat-item">
+                    <span class="stat-number" data-count="24">0</span>
+                    <p class="text-muted">Horas Funcionamento</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Content in Highlight -->
+{% if conteudos_destaque %}
+<section class="py-5">
+    <div class="container">
+        <div class="row mb-4">
+            <div class="col-lg-8 mx-auto text-center">
+                <h2 class="section-title h1 fw-bold">Conteúdo em Destaque</h2>
+                <p class="lead text-muted">
+                    Informações importantes para você conhecer seus direitos
+                </p>
+            </div>
+        </div>
+        
+        <div class="row g-4">
+            {% for conteudo in conteudos_destaque %}
+            <div class="col-lg-4 col-md-6">
+                <article class="card news-card h-100">
+                    {% if conteudo.imagem_destaque %}
+                    <img src="{{ conteudo.imagem_destaque.url }}" class="card-img-top" alt="{{ conteudo.titulo }}">
+                    {% else %}
+                    <div class="card-img-top bg-light d-flex align-items-center justify-content-center" style="height: 200px;">
+                        <i class="fas fa-file-alt text-muted" style="font-size: 3rem;"></i>
+                    </div>
+                    {% endif %}
+                    
+                    <div class="card-body d-flex flex-column">
+                        <span class="badge bg-primary mb-2 align-self-start">{{ conteudo.get_tipo_display }}</span>
+                        <h5 class="card-title">{{ conteudo.titulo }}</h5>
+                        <p class="card-text flex-grow-1">{{ conteudo.resumo|truncatewords:15 }}</p>
+                        <div class="mt-auto">
+                            <small class="text-muted">
+                                <i class="fas fa-calendar me-1"></i>
+                                {{ conteudo.data_publicacao|date:"d/m/Y" }}
+                            </small>
+                            <a href="{% url 'portal:detalhe_conteudo' slug=conteudo.slug %}" 
+                               class="btn btn-outline-primary btn-sm float-end">
+                                Ler Mais
+                            </a>
+                        </div>
+                    </div>
+                </article>
+            </div>
+            {% endfor %}
+        </div>
+        
+        <div class="text-center mt-4">
+            <a href="{% url 'portal:lista_conteudo' %}" class="btn btn-outline-primary btn-lg">
+                Ver Todos os Conteúdos
+            </a>
+        </div>
+    </div>
+</section>
+{% endif %}
+
+<!-- News Section -->
+{% if noticias %}
+<section class="py-5 bg-light">
+    <div class="container">
+        <div class="row mb-4">
+            <div class="col-lg-8 mx-auto text-center">
+                <h2 class="section-title h1 fw-bold">Últimas Notícias</h2>
+                <p class="lead text-muted">
+                    Fique por dentro das novidades do PROCON
+                </p>
+            </div>
+        </div>
+        
+        <div class="row g-4">
+            {% for noticia in noticias %}
+            <div class="col-lg-6">
+                <article class="card news-card">
+                    <div class="row g-0">
+                        <div class="col-md-4">
+                            {% if noticia.imagem_destaque %}
+                            <img src="{{ noticia.imagem_destaque.url }}" class="img-fluid h-100 object-fit-cover" alt="{{ noticia.titulo }}">
+                            {% else %}
+                            <div class="bg-light h-100 d-flex align-items-center justify-content-center">
+                                <i class="fas fa-newspaper text-muted" style="font-size: 2rem;"></i>
+                            </div>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-8">
+                            <div class="card-body">
+                                <h6 class="card-title">{{ noticia.titulo }}</h6>
+                                <p class="card-text">{{ noticia.resumo|truncatewords:10 }}</p>
+                                <small class="text-muted">
+                                    {{ noticia.data_publicacao|date:"d/m/Y" }}
+                                </small>
+                                <a href="{% url 'portal:detalhe_noticia' slug=noticia.slug %}" 
+                                   class="btn btn-sm btn-outline-primary float-end">
+                                    Ler
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </article>
+            </div>
+            {% endfor %}
+        </div>
+        
+        <div class="text-center mt-4">
+            <a href="{% url 'portal:lista_noticias' %}" class="btn btn-outline-primary btn-lg">
+                Todas as Notícias
+            </a>
+        </div>
+    </div>
+</section>
+{% endif %}
+
+<!-- Formularios em Destaque -->
+{% if formularios %}
+<section class="py-5">
+    <div class="container">
+        <div class="row mb-4">
+            <div class="col-lg-8 mx-auto text-center">
+                <h2 class="section-title h1 fw-bold">Formulários em Destaque</h2>
+                <p class="lead text-muted">
+                    Os formulários mais utilizados pelos cidadãos
+                </p>
+            </div>
+        </div>
+        
+        <div class="row g-4">
+            {% for formulario in formularios %}
+            <div class="col-lg-6">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <div class="d-flex align-items-start">
+                            <div class="me-3">
+                                <i class="fas fa-file-pdf text-danger" style="font-size: 2rem;"></i>
+                            </div>
+                            <div class="flex-grow-1">
+                                <h6 class="card-title">{{ formulario.nome }}</h6>
+                                <p class="card-text text-muted">{{ formulario.descricao|truncatewords:12 }}</p>
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <small class="text-muted">
+                                        <i class="fas fa-download me-1"></i>
+                                        {{ formulario.downloads }} downloads
+                                        <span class="ms-2">{{ formulario.tamanho_formatado }}</span>
+                                    </small>
+                                    <a href="{% url 'portal:download_formulario' formulario_id=formulario.id %}" 
+                                       class="btn btn-primary btn-sm">
+                                        <i class="fas fa-download me-1"></i>Download
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        
+        <div class="text-center mt-4">
+            <a href="{% url 'portal:lista_formularios' %}" class="btn btn-outline-primary btn-lg">
+                Todos os Formulários
+            </a>
+        </div>
+    </div>
+</section>
+{% endif %}
+
+<!-- Call to Action -->
+<section class="py-5 bg-primary text-white">
+    <div class="container text-center">
+        <div class="row">
+            <div class="col-lg-8 mx-auto">
+                <h2 class="mb-4">Precisa de Ajuda?</h2>
+                <p class="lead mb-4">
+                    Nossa equipe está pronta para atender você. Entre em contato conosco 
+                    ou avalie nossos serviços para nos ajudar a melhorar.
+                </p>
+                <div class="d-flex flex-wrap justify-content-center gap-3">
+                    <a href="{% url 'portal:contato' %}" class="btn btn-light btn-lg">
+                        <i class="fas fa-envelope me-2"></i>Entre em Contato
+                    </a>
+                    <a href="{% url 'portal:avaliacao_servico' %}" class="btn btn-outline-light btn-lg">
+                        <i class="fas fa-star me-2"></i>Avalie Nossos Serviços
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Track banner clicks
+function trackBannerClick(bannerId) {
+    fetch(`/api/portal/api/banner-clique/${bannerId}/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': getCookie('csrftoken'),
+            'Content-Type': 'application/json',
+        }
+    });
+}
+
+// Animate stats counter
+function animateValue(element, start, end, duration) {
+    let startTimestamp = null;
+    const step = (timestamp) => {
+        if (!startTimestamp) startTimestamp = timestamp;
+        const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+        element.textContent = Math.floor(progress * (end - start) + start);
+        if (progress < 1) {
+            window.requestAnimationFrame(step);
+        }
+    };
+    window.requestAnimationFrame(step);
+}
+
+// Initialize stats animation when visible
+const observerCallback = (entries, observer) => {
+    entries.forEach(entry => {
+        if (entry.isIntersecting) {
+            const statNumbers = entry.target.querySelectorAll('.stat-number');
+            statNumbers.forEach(stat => {
+                const endValue = parseInt(stat.getAttribute('data-count'));
+                animateValue(stat, 0, endValue, 2000);
+            });
+            observer.unobserve(entry.target);
+        }
+    });
+};
+
+const observer = new IntersectionObserver(observerCallback);
+const statsSection = document.querySelector('.stats-section');
+if (statsSection) {
+    observer.observe(statsSection);
+}
+
+// Get CSRF token
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+</script>
+{% endblock %}

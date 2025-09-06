@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Recursos Administrativos</title>
+</head>
+<body>
+    <h1>Recursos Administrativos</h1>
+    
+    <p>Total de recursos: {{ stats.total_recursos }}</p>
+    <p>Em análise: {{ stats.em_analise }}</p>
+    <p>Vencidos: {{ stats.vencidos }}</p>
+    <p>Este mês: {{ stats.mes_atual }}</p>
+    
+    <h2>Lista de Recursos</h2>
+    {% if recursos %}
+        <ul>
+        {% for recurso in recursos %}
+            <li>{{ recurso.numero_protocolo }} - {{ recurso.requerente_nome }} - {{ recurso.get_status_display }}</li>
+        {% endfor %}
+        </ul>
+    {% else %}
+        <p>Nenhum recurso encontrado.</p>
+    {% endif %}
+</body>
+</html>

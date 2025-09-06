@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Diagnóstico de Câmera - Sistema PROCON</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .camera-container {
+            width: 100%;
+            max-width: 640px;
+            margin: 20px auto;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            overflow: hidden;
+            background: #000;
+        }
+        #video {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .success { background-color: #d4edda; color: #155724; }
+        .error { background-color: #f8d7da; color: #721c24; }
+        .info { background-color: #d1ecf1; color: #0c5460; }
+        .warning { background-color: #fff3cd; color: #856404; }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        .log {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 10px;
+            margin: 10px 0;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .test-section {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 10px 0;
+        }
+        .test-section h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        @media (max-width: 768px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Diagnóstico de Câmera - Sistema PROCON</h1>
+        
+        <div id="status" class="status info">
+            Iniciando diagnóstico...
+        </div>
+    </div>
+
+    <div class="grid">
+        <div class="container">
+            <div class="test-section">
+                <h3>📹 Teste de Câmera Nativa</h3>
+                <div class="camera-container">
+                    <video id="video" autoplay playsinline muted></video>
+                </div>
+                <div>
+                    <button id="startBtn" onclick="startCamera()">🎥 Iniciar Câmera</button>
+                    <button id="stopBtn" onclick="stopCamera()" disabled>⏹️ Parar Câmera</button>
+                </div>
+                <div id="cameraLog" class="log">
+                    <strong>Log da Câmera:</strong><br>
+                    <span id="cameraLogContent"></span>
+                </div>
+            </div>
+        </div>
+
+        <div class="container">
+            <div class="test-section">
+                <h3>📱 Teste do Quagga</h3>
+                <div class="camera-container">
+                    <div id="quaggaContainer" style="width: 100%; height: 300px; background: #000; display: flex; align-items: center; justify-content: center; color: white;">
+                        Área do Quagga
+                    </div>
+                </div>
+                <div>
+                    <button id="startQuaggaBtn" onclick="startQuagga()">📱 Iniciar Quagga</button>
+                    <button id="stopQuaggaBtn" onclick="stopQuagga()" disabled>⏹️ Parar Quagga</button>
+                </div>
+                <div id="quaggaLog" class="log">
+                    <strong>Log do Quagga:</strong><br>
+                    <span id="quaggaLogContent"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="test-section">
+            <h3>🔧 Informações do Sistema</h3>
+            <div id="systemInfo">
+                <p><strong>Navegador:</strong> <span id="browserInfo"></span></p>
+                <p><strong>HTTPS:</strong> <span id="httpsInfo"></span></p>
+                <p><strong>getUserMedia:</strong> <span id="getUserMediaInfo"></span></p>
+                <p><strong>Quagga:</strong> <span id="quaggaInfo"></span></p>
+                <p><strong>User Agent:</strong> <span id="userAgentInfo"></span></p>
+                <p><strong>Plataforma:</strong> <span id="platformInfo"></span></p>
+                <p><strong>Cookies:</strong> <span id="cookiesInfo"></span></p>
+                <p><strong>Local Storage:</strong> <span id="localStorageInfo"></span></p>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="test-section">
+            <h3>🚨 Problemas Detectados</h3>
+            <div id="problemsList">
+                <p>Analisando sistema...</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/quagga@0.12.1/dist/quagga.min.js"></script>
+    <script>
+        let stream = null;
+        let quaggaActive = false;
+        const video = document.getElementById('video');
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const startQuaggaBtn = document.getElementById('startQuaggaBtn');
+        const stopQuaggaBtn = document.getElementById('stopQuaggaBtn');
+        const status = document.getElementById('status');
+        const cameraLogContent = document.getElementById('cameraLogContent');
+        const quaggaLogContent = document.getElementById('quaggaLogContent');
+
+        function logCamera(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            cameraLogContent.innerHTML += `[${timestamp}] ${message}<br>`;
+            cameraLogContent.scrollTop = cameraLogContent.scrollHeight;
+            console.log('[CAMERA]', message);
+        }
+
+        function logQuagga(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            quaggaLogContent.innerHTML += `[${timestamp}] ${message}<br>`;
+            quaggaLogContent.scrollTop = quaggaLogContent.scrollHeight;
+            console.log('[QUAGGA]', message);
+        }
+
+        function updateStatus(message, type = 'info') {
+            status.textContent = message;
+            status.className = `status ${type}`;
+        }
+
+        function checkSystemInfo() {
+            document.getElementById('browserInfo').textContent = navigator.userAgent.split(' ').pop();
+            document.getElementById('httpsInfo').textContent = location.protocol === 'https:' ? 'Sim' : 'Não';
+            document.getElementById('getUserMediaInfo').textContent = 
+                navigator.mediaDevices && navigator.mediaDevices.getUserMedia ? 'Suportado' : 'Não suportado';
+            document.getElementById('quaggaInfo').textContent = typeof Quagga !== 'undefined' ? 'Carregado' : 'Não carregado';
+            document.getElementById('userAgentInfo').textContent = navigator.userAgent;
+            document.getElementById('platformInfo').textContent = navigator.platform;
+            document.getElementById('cookiesInfo').textContent = navigator.cookieEnabled ? 'Habilitado' : 'Desabilitado';
+            document.getElementById('localStorageInfo').textContent = typeof(Storage) !== "undefined" ? 'Suportado' : 'Não suportado';
+        }
+
+        function detectProblems() {
+            const problems = [];
+            
+            if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+                problems.push('⚠️ <strong>HTTPS:</strong> A câmera pode não funcionar sem HTTPS em alguns navegadores');
+            }
+            
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                problems.push('❌ <strong>getUserMedia:</strong> Não suportado neste navegador');
+            }
+            
+            if (typeof Quagga === 'undefined') {
+                problems.push('❌ <strong>Quagga:</strong> Biblioteca não carregada');
+            }
+            
+            if (navigator.userAgent.includes('Safari') && !navigator.userAgent.includes('Chrome')) {
+                problems.push('⚠️ <strong>Safari:</strong> Pode ter limitações com câmera');
+            }
+            
+            if (problems.length === 0) {
+                problems.push('✅ <strong>Nenhum problema detectado</strong>');
+            }
+            
+            document.getElementById('problemsList').innerHTML = problems.map(p => `<p>${p}</p>`).join('');
+        }
+
+        async function startCamera() {
+            try {
+                logCamera('Iniciando teste de câmera...');
+                updateStatus('Solicitando permissão de câmera...', 'info');
+                
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    throw new Error('getUserMedia não é suportado neste navegador');
+                }
+
+                stream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        width: { ideal: 640 },
+                        height: { ideal: 480 },
+                        facingMode: 'environment'
+                    }
+                });
+
+                video.srcObject = stream;
+                await video.play();
+
+                logCamera('✅ Câmera iniciada com sucesso!');
+                updateStatus('Câmera funcionando!', 'success');
+                
+                startBtn.disabled = true;
+                stopBtn.disabled = false;
+
+            } catch (error) {
+                logCamera(`❌ Erro ao iniciar câmera: ${error.message}`);
+                updateStatus(`Erro: ${error.message}`, 'error');
+                
+                // Tentar configuração alternativa
+                try {
+                    logCamera('Tentando configuração alternativa...');
+                    stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                    video.srcObject = stream;
+                    await video.play();
+                    
+                    logCamera('✅ Câmera iniciada com configuração alternativa!');
+                    updateStatus('Câmera funcionando (configuração alternativa)!', 'success');
+                    
+                    startBtn.disabled = true;
+                    stopBtn.disabled = false;
+                } catch (error2) {
+                    logCamera(`❌ Erro na configuração alternativa: ${error2.message}`);
+                    updateStatus(`Erro: ${error2.message}`, 'error');
+                }
+            }
+        }
+
+        function stopCamera() {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                stream = null;
+                video.srcObject = null;
+                
+                logCamera('🛑 Câmera parada');
+                updateStatus('Câmera parada', 'info');
+                
+                startBtn.disabled = false;
+                stopBtn.disabled = true;
+            }
+        }
+
+        function startQuagga() {
+            if (typeof Quagga === 'undefined') {
+                logQuagga('❌ Quagga não está carregado');
+                updateStatus('Quagga não está disponível', 'error');
+                return;
+            }
+
+            logQuagga('🧪 Iniciando Quagga...');
+            updateStatus('Iniciando Quagga...', 'info');
+
+            try {
+                Quagga.init({
+                    inputStream: {
+                        name: "Live",
+                        type: "LiveStream",
+                        target: document.getElementById('quaggaContainer'),
+                        constraints: {
+                            width: { min: 320, ideal: 640, max: 1280 },
+                            height: { min: 240, ideal: 480, max: 720 },
+                            facingMode: "environment"
+                        },
+                    },
+                    locator: {
+                        patchSize: "small",
+                        halfSample: true
+                    },
+                    numOfWorkers: 1,
+                    frequency: 5,
+                    decoder: {
+                        readers: [
+                            "ean_reader",
+                            "ean_8_reader",
+                            "code_128_reader",
+                            "code_39_reader",
+                            "upc_reader",
+                            "upc_e_reader"
+                        ]
+                    },
+                    locate: true
+                }, (err) => {
+                    if (err) {
+                        logQuagga(`❌ Erro ao inicializar Quagga: ${err.message}`);
+                        updateStatus(`Erro Quagga: ${err.message}`, 'error');
+                    } else {
+                        logQuagga('✅ Quagga inicializado com sucesso!');
+                        updateStatus('Quagga funcionando!', 'success');
+                        
+                        Quagga.start();
+                        quaggaActive = true;
+                        logQuagga('🔄 Quagga iniciado - escaneando...');
+                        
+                        startQuaggaBtn.disabled = true;
+                        stopQuaggaBtn.disabled = false;
+                    }
+                });
+
+                Quagga.onDetected((result) => {
+                    const code = result.codeResult.code;
+                    logQuagga(`🎯 Código detectado: ${code}`);
+                });
+
+                Quagga.onProcessed((result) => {
+                    if (result && result.codeResult && result.codeResult.code) {
+                        logQuagga(`📊 Processando: ${result.codeResult.code}`);
+                    }
+                });
+
+            } catch (error) {
+                logQuagga(`❌ Erro no teste do Quagga: ${error.message}`);
+                updateStatus(`Erro: ${error.message}`, 'error');
+            }
+        }
+
+        function stopQuagga() {
+            if (quaggaActive && Quagga) {
+                try {
+                    Quagga.stop();
+                    quaggaActive = false;
+                    logQuagga('🛑 Quagga parado');
+                    updateStatus('Quagga parado', 'info');
+                    
+                    startQuaggaBtn.disabled = false;
+                    stopQuaggaBtn.disabled = true;
+                } catch (error) {
+                    logQuagga(`❌ Erro ao parar Quagga: ${error.message}`);
+                }
+            }
+        }
+
+        // Inicializar
+        checkSystemInfo();
+        detectProblems();
+        logCamera('Página carregada - pronto para testes');
+        logQuagga('Página carregada - pronto para testes');
+        updateStatus('Diagnóstico pronto. Clique nos botões para testar.', 'info');
+    </script>
+</body>
+</html>

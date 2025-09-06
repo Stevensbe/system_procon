@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Análises</h2>
+<a href="{% url 'multas:criar_analise' %}">Nova Análise</a>
+<ul>
+  {% for analise in analises %}
+    <li>
+      {{ analise }}
+      <a href="{% url 'multas:editar_analise' analise.pk %}">Editar</a>
+      <a href="{% url 'multas:excluir_analise' analise.pk %}">Excluir</a>
+    </li>
+  {% empty %}
+    <li>Nenhuma análise cadastrada.</li>
+  {% endfor %}
+</ul>
+{% endblock %}

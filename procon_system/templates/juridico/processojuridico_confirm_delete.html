@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Confirmar Exclusão - Processo {{ object.numero }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3 mb-0 text-gray-800">Confirmar Exclusão</h1>
+        <a href="{% url 'juridico:listar_processo' %}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> Voltar
+        </a>
+    </div>
+
+    <div class="card shadow mb-4">
+        <div class="card-header py-3 bg-danger">
+            <h6 class="m-0 font-weight-bold text-white">
+                <i class="fas fa-exclamation-triangle"></i> Atenção
+            </h6>
+        </div>
+        <div class="card-body">
+            <div class="alert alert-warning">
+                <h5 class="alert-heading">
+                    <i class="fas fa-exclamation-triangle"></i> 
+                    Tem certeza que deseja excluir este processo?
+                </h5>
+                <p class="mb-0">Esta ação não pode ser desfeita. Todos os dados relacionados a este processo serão permanentemente removidos.</p>
+            </div>
+
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <h6 class="font-weight-bold">Detalhes do Processo:</h6>
+                    <ul class="list-unstyled">
+                        <li><strong>Número:</strong> {{ object.numero }}</li>
+                        <li><strong>Parte:</strong> {{ object.parte }}</li>
+                        <li><strong>Assunto:</strong> {{ object.assunto }}</li>
+                        <li><strong>Status:</strong> 
+                            <span class="badge badge-{% if object.status == 'EM_ANDAMENTO' %}warning{% elif object.status == 'CONCLUIDO' %}success{% elif object.status == 'SUSPENSO' %}secondary{% else %}info{% endif %}">
+                                {{ object.get_status_display }}
+                            </span>
+                        </li>
+                        <li><strong>Criado em:</strong> {{ object.data_abertura|date:"d/m/Y H:i" }}</li>
+                    </ul>
+                </div>
+                
+                <div class="col-md-6">
+                    <h6 class="font-weight-bold">Dados Relacionados que serão excluídos:</h6>
+                    <ul class="list-unstyled text-muted">
+                        <li><i class="fas fa-file-alt"></i> Análises jurídicas</li>
+                        <li><i class="fas fa-reply"></i> Respostas</li>
+                        <li><i class="fas fa-calendar-alt"></i> Prazos</li>
+                        <li><i class="fas fa-paperclip"></i> Documentos anexos</li>
+                        <li><i class="fas fa-history"></i> Histórico de alterações</li>
+                    </ul>
+                </div>
+            </div>
+
+            <form method="post">
+                {% csrf_token %}
+                <div class="text-right">
+                    <a href="{% url 'juridico:listar_processo' %}" class="btn btn-secondary mr-3">
+                        <i class="fas fa-times"></i> Cancelar
+                    </a>
+                    <button type="submit" class="btn btn-danger">
+                        <i class="fas fa-trash"></i> Sim, Excluir Processo
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

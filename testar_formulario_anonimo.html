@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste Formulário Denúncia Anônima</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, select, textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        .checkbox-group {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 5px;
+            border: 1px solid #2196f3;
+        }
+        .checkbox-group input[type="checkbox"] {
+            width: auto;
+            margin-right: 10px;
+        }
+        .hidden {
+            display: none;
+        }
+        .btn {
+            background: #f44336;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .btn:hover {
+            background: #d32f2f;
+        }
+        .success {
+            background: #4caf50;
+            color: white;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Teste - Formulário de Denúncia Anônima</h1>
+        <p>Este é um teste para verificar se a funcionalidade de denúncia anônima está funcionando corretamente.</p>
+
+        <form id="denunciaForm">
+            <div class="form-group">
+                <label for="tipo_denuncia">Tipo de Denúncia *</label>
+                <select id="tipo_denuncia" name="tipo_denuncia" required>
+                    <option value="GERAL">Denúncia Geral</option>
+                    <option value="BANCO">Instituição Bancária</option>
+                    <option value="TELEFONIA">Operadora de Telefonia</option>
+                    <option value="ENERGIA">Concessionária de Energia</option>
+                    <option value="OUTROS">Outros</option>
+                </select>
+            </div>
+
+            <div class="form-group checkbox-group">
+                <input type="checkbox" id="denuncia_anonima" name="denuncia_anonima">
+                <label for="denuncia_anonima">Denúncia Anônima</label>
+                <p style="margin-top: 10px; font-size: 14px; color: #666;">
+                    Marque esta opção se deseja manter sua identidade em sigilo. 
+                    Seus dados pessoais não serão coletados.
+                </p>
+            </div>
+
+            <div id="motivo_anonimato_group" class="form-group hidden">
+                <label for="motivo_anonimato">Motivo do Anonimato *</label>
+                <textarea id="motivo_anonimato" name="motivo_anonimato" rows="3" 
+                    placeholder="Explique brevemente o motivo para manter o anonimato..."></textarea>
+                <p style="font-size: 14px; color: #666;">Mínimo 10 caracteres. Esta informação será mantida em sigilo.</p>
+            </div>
+
+            <div id="dados_pessoais">
+                <h3>Dados do Denunciante</h3>
+                
+                <div class="form-group">
+                    <label for="nome_denunciante">Nome Completo *</label>
+                    <input type="text" id="nome_denunciante" name="nome_denunciante" 
+                        placeholder="Seu nome completo" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="email">Email *</label>
+                    <input type="email" id="email" name="email" 
+                        placeholder="seu@email.com" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="telefone">Telefone *</label>
+                    <input type="tel" id="telefone" name="telefone" 
+                        placeholder="(00) 00000-0000" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="cpf_cnpj">CPF/CNPJ *</label>
+                    <input type="text" id="cpf_cnpj" name="cpf_cnpj" 
+                        placeholder="000.000.000-00 ou 00.000.000/0000-00" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="endereco">Endereço</label>
+                    <input type="text" id="endereco" name="endereco" 
+                        placeholder="Rua, número, bairro, cidade - UF">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="empresa_denunciada">Nome da Empresa Denunciada *</label>
+                <input type="text" id="empresa_denunciada" name="empresa_denunciada" 
+                    placeholder="Nome da empresa denunciada" required>
+            </div>
+
+            <div class="form-group">
+                <label for="descricao_fatos">Descrição dos Fatos *</label>
+                <textarea id="descricao_fatos" name="descricao_fatos" rows="6" 
+                    placeholder="Descreva detalhadamente os fatos que motivaram a denúncia..." required></textarea>
+                <p style="font-size: 14px; color: #666;">Mínimo 50 caracteres. Descreva com detalhes para melhor análise.</p>
+            </div>
+
+            <div class="form-group">
+                <label for="data_ocorrencia">Data da Ocorrência *</label>
+                <input type="date" id="data_ocorrencia" name="data_ocorrencia" required>
+            </div>
+
+            <button type="submit" class="btn">Enviar Denúncia</button>
+        </form>
+
+        <div id="resultado" class="success hidden">
+            <h3>✅ Denúncia Enviada com Sucesso!</h3>
+            <p>Sua denúncia foi registrada e será analisada por nossos fiscais.</p>
+            <div id="info_anonima" class="hidden">
+                <p><strong>Denúncia Anônima:</strong> Sua identidade foi preservada e não será divulgada.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const form = document.getElementById('denunciaForm');
+        const anonimaCheckbox = document.getElementById('denuncia_anonima');
+        const motivoGroup = document.getElementById('motivo_anonimato_group');
+        const dadosPessoais = document.getElementById('dados_pessoais');
+        const resultado = document.getElementById('resultado');
+        const infoAnonima = document.getElementById('info_anonima');
+
+        // Toggle campos baseado na opção de anonimato
+        anonimaCheckbox.addEventListener('change', function() {
+            if (this.checked) {
+                motivoGroup.classList.remove('hidden');
+                dadosPessoais.classList.add('hidden');
+                
+                // Limpar campos pessoais
+                document.getElementById('nome_denunciante').value = '';
+                document.getElementById('email').value = '';
+                document.getElementById('telefone').value = '';
+                document.getElementById('cpf_cnpj').value = '';
+                document.getElementById('endereco').value = '';
+                
+                // Remover required dos campos pessoais
+                document.getElementById('nome_denunciante').removeAttribute('required');
+                document.getElementById('email').removeAttribute('required');
+                document.getElementById('telefone').removeAttribute('required');
+                document.getElementById('cpf_cnpj').removeAttribute('required');
+                
+                // Adicionar required ao motivo
+                document.getElementById('motivo_anonimato').setAttribute('required', '');
+            } else {
+                motivoGroup.classList.add('hidden');
+                dadosPessoais.classList.remove('hidden');
+                
+                // Limpar motivo
+                document.getElementById('motivo_anonimato').value = '';
+                
+                // Adicionar required aos campos pessoais
+                document.getElementById('nome_denunciante').setAttribute('required', '');
+                document.getElementById('email').setAttribute('required', '');
+                document.getElementById('telefone').setAttribute('required', '');
+                document.getElementById('cpf_cnpj').setAttribute('required', '');
+                
+                // Remover required do motivo
+                document.getElementById('motivo_anonimato').removeAttribute('required');
+            }
+        });
+
+        // Validação do formulário
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const isAnonima = anonimaCheckbox.checked;
+            const motivo = document.getElementById('motivo_anonimato').value;
+            
+            // Validação específica para denúncia anônima
+            if (isAnonima) {
+                if (motivo.trim().length < 10) {
+                    alert('Para denúncias anônimas, o motivo deve ter pelo menos 10 caracteres.');
+                    return;
+                }
+            }
+            
+            // Simular envio
+            console.log('Dados do formulário:', {
+                tipo_denuncia: document.getElementById('tipo_denuncia').value,
+                denuncia_anonima: isAnonima,
+                motivo_anonimato: isAnonima ? motivo : '',
+                nome_denunciante: isAnonima ? '' : document.getElementById('nome_denunciante').value,
+                email: isAnonima ? '' : document.getElementById('email').value,
+                telefone: isAnonima ? '' : document.getElementById('telefone').value,
+                cpf_cnpj: isAnonima ? '' : document.getElementById('cpf_cnpj').value,
+                endereco: isAnonima ? '' : document.getElementById('endereco').value,
+                empresa_denunciada: document.getElementById('empresa_denunciada').value,
+                descricao_fatos: document.getElementById('descricao_fatos').value,
+                data_ocorrencia: document.getElementById('data_ocorrencia').value
+            });
+            
+            // Mostrar resultado
+            resultado.classList.remove('hidden');
+            if (isAnonima) {
+                infoAnonima.classList.remove('hidden');
+            } else {
+                infoAnonima.classList.add('hidden');
+            }
+            
+            // Scroll para o resultado
+            resultado.scrollIntoView({ behavior: 'smooth' });
+        });
+
+        // Definir data atual como máximo para o campo de data
+        const hoje = new Date().toISOString().split('T')[0];
+        document.getElementById('data_ocorrencia').setAttribute('max', hoje);
+    </script>
+</body>
+</html>

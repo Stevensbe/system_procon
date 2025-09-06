@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste Câmera Chrome - PROCON</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 6px;
+            font-weight: bold;
+            border-left: 4px solid;
+        }
+        .success { background-color: #d4edda; color: #155724; border-left-color: #28a745; }
+        .error { background-color: #f8d7da; color: #721c24; border-left-color: #dc3545; }
+        .warning { background-color: #fff3cd; color: #856404; border-left-color: #ffc107; }
+        .info { background-color: #d1ecf1; color: #0c5460; border-left-color: #17a2b8; }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin: 8px;
+            font-size: 14px;
+        }
+        button:hover { background-color: #0056b3; }
+        button:disabled { background-color: #6c757d; cursor: not-allowed; }
+        video {
+            width: 100%;
+            max-width: 500px;
+            border: 3px solid #ddd;
+            border-radius: 8px;
+            margin: 15px 0;
+        }
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .info-item {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            border-left: 4px solid #007bff;
+        }
+        .info-label { font-weight: bold; color: #495057; margin-bottom: 5px; }
+        .info-value { color: #6c757d; }
+        .steps {
+            background: #e9ecef;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .steps h3 { color: #495057; margin-top: 0; }
+        .steps ol { margin: 0; padding-left: 20px; }
+        .steps li { margin: 8px 0; color: #495057; }
+        .chrome-specific {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 15px 0;
+        }
+        .chrome-specific h4 { color: #856404; margin-top: 0; }
+        .chrome-specific ul { margin: 10px 0; padding-left: 20px; }
+        .chrome-specific li { margin: 5px 0; color: #856404; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📱 Teste de Câmera - Chrome Específico</h1>
+        <p>Esta página foi criada especificamente para resolver problemas de câmera no Chrome.</p>
+
+        <div class="chrome-specific">
+            <h4>🔧 Problema Identificado: Chrome Bloqueando Câmera</h4>
+            <p><strong>Solução Rápida:</strong></p>
+            <ul>
+                <li>1. Clique no ícone de câmera na barra de endereços (ao lado do endereço)</li>
+                <li>2. Selecione "Sempre permitir" ou "Permitir"</li>
+                <li>3. Recarregue a página</li>
+                <li>4. Tente novamente</li>
+            </ul>
+        </div>
+
+        <div id="status" class="status info">
+            Aguardando teste...
+        </div>
+
+        <div class="info-grid">
+            <div class="info-item">
+                <div class="info-label">Protocolo:</div>
+                <div class="info-value" id="protocol">Verificando...</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">Navegador:</div>
+                <div class="info-value" id="browser">Verificando...</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">getUserMedia:</div>
+                <div class="info-value" id="getusermedia">Verificando...</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">Câmeras:</div>
+                <div class="info-value" id="cameras">Verificando...</div>
+            </div>
+        </div>
+
+        <div class="steps">
+            <h3>📋 Passos para Resolver no Chrome:</h3>
+            <ol>
+                <li><strong>Clique no ícone de câmera</strong> na barra de endereços (ao lado do endereço)</li>
+                <li><strong>Selecione "Sempre permitir"</strong> ou "Permitir"</li>
+                <li><strong>Recarregue a página</strong> (F5 ou Ctrl+R)</li>
+                <li><strong>Clique em "Testar Câmera"</strong> abaixo</li>
+                <li>Se ainda não funcionar, siga os passos avançados</li>
+            </ol>
+        </div>
+
+        <div>
+            <button onclick="testCamera()" id="testBtn">🎥 Testar Câmera</button>
+            <button onclick="listCameras()" id="listBtn">📋 Listar Câmeras</button>
+            <button onclick="checkPermissions()" id="permBtn">🔐 Verificar Permissões</button>
+            <button onclick="resetPermissions()" id="resetBtn" style="background-color: #dc3545;">🔄 Resetar Permissões</button>
+        </div>
+
+        <div id="videoContainer" style="display: none; margin: 20px 0;">
+            <h3>Vídeo da Câmera:</h3>
+            <video id="video" autoplay playsinline></video>
+            <button onclick="stopCamera()" style="background-color: #dc3545;">⏹️ Parar Câmera</button>
+        </div>
+
+        <div id="results"></div>
+
+        <div class="steps">
+            <h3>🔧 Soluções Avançadas (se o teste não funcionar):</h3>
+            <ol>
+                <li><strong>Digite na barra de endereços:</strong> <code>chrome://settings/content/camera</code></li>
+                <li><strong>Procure pelo site</strong> e remova da lista de bloqueados</li>
+                <li><strong>Digite na barra de endereços:</strong> <code>chrome://settings/privacy</code></li>
+                <li><strong>Verifique se "Sites podem solicitar acesso à câmera" está habilitado</strong></li>
+                <li><strong>Tente em modo incógnito</strong> (Ctrl+Shift+N)</li>
+                <li><strong>Reinicie o Chrome</strong> completamente</li>
+            </ol>
+        </div>
+    </div>
+
+    <script>
+        let currentStream = null;
+
+        function updateStatus(message, type = 'info') {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = `status ${type}`;
+        }
+
+        function updateInfo(id, value) {
+            const element = document.getElementById(id);
+            if (element) element.textContent = value;
+        }
+
+        function detectBrowser() {
+            const userAgent = navigator.userAgent;
+            if (userAgent.includes('Chrome')) return 'Chrome';
+            if (userAgent.includes('Firefox')) return 'Firefox';
+            if (userAgent.includes('Safari')) return 'Safari';
+            if (userAgent.includes('Edge')) return 'Edge';
+            return 'Desconhecido';
+        }
+
+        function checkBasicInfo() {
+            // Protocolo
+            const protocol = location.protocol;
+            updateInfo('protocol', protocol);
+            
+            // Navegador
+            const browser = detectBrowser();
+            updateInfo('browser', browser);
+            
+            // getUserMedia
+            const hasGetUserMedia = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+            updateInfo('getusermedia', hasGetUserMedia ? '✅ Suportado' : '❌ Não suportado');
+            
+            // Verificar se HTTPS é necessário
+            if (protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+                updateStatus('⚠️ Aviso: HTTPS pode ser necessário para acesso à câmera', 'warning');
+            } else {
+                updateStatus('✅ Protocolo adequado para acesso à câmera', 'success');
+            }
+
+            // Verificar se é Chrome
+            if (browser === 'Chrome') {
+                updateStatus('✅ Chrome detectado. Siga os passos acima para permitir acesso à câmera.', 'info');
+            }
+        }
+
+        async function testCamera() {
+            updateStatus('🎥 Testando acesso à câmera...', 'info');
+            
+            try {
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    throw new Error('Navegador não suporta getUserMedia');
+                }
+
+                // Tentar diferentes configurações
+                let stream;
+                let cameraType = '';
+
+                try {
+                    // Primeira tentativa: câmera traseira
+                    stream = await navigator.mediaDevices.getUserMedia({ 
+                        video: { facingMode: 'environment' } 
+                    });
+                    cameraType = 'traseira';
+                } catch (envError) {
+                    try {
+                        // Segunda tentativa: câmera frontal
+                        stream = await navigator.mediaDevices.getUserMedia({ 
+                            video: { facingMode: 'user' } 
+                        });
+                        cameraType = 'frontal';
+                    } catch (userError) {
+                        // Terceira tentativa: qualquer câmera
+                        stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                        cameraType = 'genérica';
+                    }
+                }
+
+                currentStream = stream;
+                
+                // Mostrar vídeo
+                const video = document.getElementById('video');
+                video.srcObject = stream;
+                document.getElementById('videoContainer').style.display = 'block';
+                
+                updateStatus(`✅ Câmera ${cameraType} acessada com sucesso!`, 'success');
+                updateInfo('cameras', `✅ ${cameraType} funcionando`);
+                
+                // Mostrar informações da câmera
+                const tracks = stream.getVideoTracks();
+                if (tracks.length > 0) {
+                    const track = tracks[0];
+                    const settings = track.getSettings();
+                    
+                    let info = `Câmera: ${track.label || 'Sem nome'}\n`;
+                    info += `Resolução: ${settings.width}x${settings.height}\n`;
+                    info += `FPS: ${settings.frameRate || 'N/A'}`;
+                    
+                    document.getElementById('results').innerHTML = `
+                        <div class="info-item">
+                            <div class="info-label">Informações da Câmera:</div>
+                            <div class="info-value" style="white-space: pre-line;">${info}</div>
+                        </div>
+                    `;
+                }
+
+            } catch (error) {
+                console.error('Erro ao testar câmera:', error);
+                updateStatus(`❌ Erro: ${error.message}`, 'error');
+                updateInfo('cameras', '❌ Erro no acesso');
+                
+                let errorDetails = '';
+                if (error.name === 'NotAllowedError') {
+                    errorDetails = 'Permissão negada. Clique no ícone de câmera na barra de endereços e selecione "Permitir".';
+                } else if (error.name === 'NotFoundError') {
+                    errorDetails = 'Nenhuma câmera encontrada no dispositivo.';
+                } else if (error.name === 'NotReadableError') {
+                    errorDetails = 'Câmera está sendo usada por outro aplicativo.';
+                } else if (error.name === 'OverconstrainedError') {
+                    errorDetails = 'Câmera não atende aos requisitos.';
+                }
+                
+                if (errorDetails) {
+                    document.getElementById('results').innerHTML = `
+                        <div class="info-item">
+                            <div class="info-label">Detalhes do Erro:</div>
+                            <div class="info-value">${errorDetails}</div>
+                        </div>
+                    `;
+                }
+            }
+        }
+
+        async function listCameras() {
+            updateStatus('📋 Listando câmeras disponíveis...', 'info');
+            
+            try {
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const cameras = devices.filter(device => device.kind === 'videoinput');
+                
+                if (cameras.length === 0) {
+                    updateInfo('cameras', '❌ Nenhuma câmera encontrada');
+                    updateStatus('❌ Nenhuma câmera encontrada no dispositivo', 'error');
+                } else {
+                    updateInfo('cameras', `✅ ${cameras.length} câmera(s) encontrada(s)`);
+                    updateStatus(`✅ ${cameras.length} câmera(s) encontrada(s)`, 'success');
+                    
+                    let cameraList = '';
+                    cameras.forEach((camera, index) => {
+                        cameraList += `${index + 1}. ${camera.label || `Câmera ${index + 1}`}\n`;
+                    });
+                    
+                    document.getElementById('results').innerHTML = `
+                        <div class="info-item">
+                            <div class="info-label">Câmeras Disponíveis:</div>
+                            <div class="info-value" style="white-space: pre-line;">${cameraList}</div>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Erro ao listar câmeras:', error);
+                updateStatus(`❌ Erro ao listar câmeras: ${error.message}`, 'error');
+            }
+        }
+
+        async function checkPermissions() {
+            updateStatus('🔐 Verificando permissões...', 'info');
+            
+            try {
+                if (!navigator.permissions) {
+                    updateStatus('❌ API de permissões não suportada', 'error');
+                    return;
+                }
+
+                const permission = await navigator.permissions.query({ name: 'camera' });
+                
+                let status = '';
+                switch (permission.state) {
+                    case 'granted':
+                        status = '✅ Permissão concedida';
+                        break;
+                    case 'denied':
+                        status = '❌ Permissão negada - Clique no ícone de câmera na barra de endereços';
+                        break;
+                    case 'prompt':
+                        status = '❓ Permissão não definida - Será solicitada ao testar';
+                        break;
+                }
+                
+                updateStatus(status, permission.state === 'granted' ? 'success' : 'warning');
+                
+                document.getElementById('results').innerHTML = `
+                    <div class="info-item">
+                        <div class="info-label">Status da Permissão:</div>
+                        <div class="info-value">${permission.state}</div>
+                    </div>
+                `;
+                
+            } catch (error) {
+                console.error('Erro ao verificar permissões:', error);
+                updateStatus(`❌ Erro ao verificar permissões: ${error.message}`, 'error');
+            }
+        }
+
+        function resetPermissions() {
+            updateStatus('🔄 Tentando resetar permissões...', 'info');
+            
+            // Tentar revogar permissões existentes
+            if (currentStream) {
+                currentStream.getTracks().forEach(track => track.stop());
+                currentStream = null;
+            }
+            
+            // Mostrar instruções
+            document.getElementById('results').innerHTML = `
+                <div class="info-item">
+                    <div class="info-label">Instruções para Resetar Permissões:</div>
+                    <div class="info-value">
+                        1. Digite na barra de endereços: <code>chrome://settings/content/camera</code><br>
+                        2. Procure por este site e remova da lista<br>
+                        3. Recarregue esta página<br>
+                        4. Tente testar a câmera novamente
+                    </div>
+                </div>
+            `;
+            
+            updateStatus('🔄 Permissões resetadas. Recarregue a página e tente novamente.', 'warning');
+        }
+
+        function stopCamera() {
+            if (currentStream) {
+                currentStream.getTracks().forEach(track => track.stop());
+                currentStream = null;
+                document.getElementById('videoContainer').style.display = 'none';
+                updateStatus('⏹️ Câmera parada', 'info');
+            }
+        }
+
+        // Inicializar
+        checkBasicInfo();
+    </script>
+</body>
+</html>

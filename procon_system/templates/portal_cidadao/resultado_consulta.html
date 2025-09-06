@@ -1,0 +1,524 @@
+{% extends 'base/base.html' %}
+{% load static %}
+
+{% block title %}Resultado da Consulta - SISPROCON{% endblock %}
+
+{% block meta_description %}Resultado da consulta do protocolo {{ numero_protocolo }} no sistema PROCON{% endblock %}
+
+{% block breadcrumb %}
+<div class="bg-light py-2">
+    <div class="container">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item"><a href="{% url 'portal:home' %}">Início</a></li>
+                <li class="breadcrumb-item"><a href="{% url 'portal:consulta_publica' %}">Consulta Pública</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Resultado</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .result-card {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        border: none;
+        overflow: hidden;
+        margin-bottom: 2rem;
+    }
+    
+    .result-header {
+        padding: 2rem;
+        text-align: center;
+    }
+    
+    .result-header.success {
+        background: linear-gradient(135deg, #28a745, #20c997);
+        color: white;
+    }
+    
+    .result-header.not-found {
+        background: linear-gradient(135deg, #ffc107, #fd7e14);
+        color: white;
+    }
+    
+    .result-icon {
+        font-size: 4rem;
+        margin-bottom: 1rem;
+        display: block;
+    }
+    
+    .result-content {
+        padding: 2rem;
+    }
+    
+    .process-info {
+        background: #f8f9fa;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+    }
+    
+    .info-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.5rem 0;
+        border-bottom: 1px solid #e9ecef;
+    }
+    
+    .info-row:last-child {
+        border-bottom: none;
+    }
+    
+    .info-label {
+        font-weight: 600;
+        color: #495057;
+    }
+    
+    .info-value {
+        color: #212529;
+    }
+    
+    .status-badge {
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+        font-size: 0.875rem;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+    
+    .status-pending {
+        background: #fff3cd;
+        color: #856404;
+        border: 1px solid #ffeaa7;
+    }
+    
+    .status-processing {
+        background: #cff4fc;
+        color: #055160;
+        border: 1px solid #9eeaf9;
+    }
+    
+    .status-completed {
+        background: #d1e7dd;
+        color: #0f5132;
+        border: 1px solid #a3cfbb;
+    }
+    
+    .status-archived {
+        background: #e2e3e5;
+        color: #41464b;
+        border: 1px solid #c6c8ca;
+    }
+    
+    .timeline {
+        position: relative;
+        padding-left: 2rem;
+    }
+    
+    .timeline::before {
+        content: '';
+        position: absolute;
+        left: 1rem;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background: linear-gradient(180deg, var(--primary-color), #e9ecef);
+    }
+    
+    .timeline-item {
+        position: relative;
+        margin-bottom: 2rem;
+        background: white;
+        border-radius: 8px;
+        padding: 1.5rem;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        margin-left: 1rem;
+    }
+    
+    .timeline-item::before {
+        content: '';
+        position: absolute;
+        left: -1.5rem;
+        top: 1.5rem;
+        width: 12px;
+        height: 12px;
+        background: var(--primary-color);
+        border-radius: 50%;
+        border: 3px solid white;
+    }
+    
+    .timeline-date {
+        font-size: 0.875rem;
+        color: #6c757d;
+        margin-bottom: 0.5rem;
+    }
+    
+    .timeline-title {
+        font-weight: 600;
+        color: #212529;
+        margin-bottom: 0.5rem;
+    }
+    
+    .timeline-description {
+        color: #495057;
+        line-height: 1.5;
+    }
+    
+    .no-result-illustration {
+        text-align: center;
+        padding: 3rem 2rem;
+    }
+    
+    .no-result-illustration i {
+        font-size: 6rem;
+        color: #ffc107;
+        margin-bottom: 1.5rem;
+        display: block;
+    }
+    
+    .help-section {
+        background: #e3f2fd;
+        border: 1px solid #2196f3;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin-top: 2rem;
+    }
+    
+    .action-buttons {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+        justify-content: center;
+        margin-top: 2rem;
+    }
+    
+    @media (max-width: 768px) {
+        .result-header {
+            padding: 1.5rem;
+        }
+        
+        .result-content {
+            padding: 1.5rem;
+        }
+        
+        .info-row {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 0.25rem;
+        }
+        
+        .timeline {
+            padding-left: 1rem;
+        }
+        
+        .timeline::before {
+            left: 0.5rem;
+        }
+        
+        .timeline-item {
+            margin-left: 0.5rem;
+        }
+        
+        .timeline-item::before {
+            left: -1rem;
+        }
+        
+        .action-buttons {
+            flex-direction: column;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    {% if resultado.encontrado %}
+    <!-- Processo Encontrado -->
+    <div class="result-card">
+        <div class="result-header success">
+            <i class="fas fa-check-circle result-icon"></i>
+            <h2 class="mb-3">Processo Encontrado!</h2>
+            <p class="mb-0 lead">Protocolo: {{ numero_protocolo }}</p>
+        </div>
+        
+        <div class="result-content">
+            <!-- Informações do Processo -->
+            <div class="process-info">
+                <h5 class="mb-3">
+                    <i class="fas fa-info-circle me-2"></i>
+                    Informações do Processo
+                </h5>
+                
+                <div class="info-row">
+                    <span class="info-label">Número do Protocolo:</span>
+                    <span class="info-value">{{ resultado.dados.numero_protocolo|default:numero_protocolo }}</span>
+                </div>
+                
+                <div class="info-row">
+                    <span class="info-label">Tipo:</span>
+                    <span class="info-value">{{ resultado.dados.tipo|default:"Petição" }}</span>
+                </div>
+                
+                <div class="info-row">
+                    <span class="info-label">Data de Protocolo:</span>
+                    <span class="info-value">{{ resultado.dados.data_protocolo|default:"15/08/2025"|date:"d/m/Y" }}</span>
+                </div>
+                
+                <div class="info-row">
+                    <span class="info-label">Status Atual:</span>
+                    <span class="status-badge status-processing">{{ resultado.dados.status|default:"Em Análise" }}</span>
+                </div>
+                
+                <div class="info-row">
+                    <span class="info-label">Responsável:</span>
+                    <span class="info-value">{{ resultado.dados.responsavel|default:"Departamento Jurídico" }}</span>
+                </div>
+                
+                {% if resultado.dados.prazo_resposta %}
+                <div class="info-row">
+                    <span class="info-label">Prazo para Resposta:</span>
+                    <span class="info-value">{{ resultado.dados.prazo_resposta|date:"d/m/Y" }}</span>
+                </div>
+                {% endif %}
+            </div>
+            
+            <!-- Histórico de Tramitação -->
+            <h5 class="mb-4">
+                <i class="fas fa-history me-2"></i>
+                Histórico de Tramitação
+            </h5>
+            
+            <div class="timeline">
+                <div class="timeline-item">
+                    <div class="timeline-date">17/08/2025 - 14:30</div>
+                    <div class="timeline-title">Processo em Análise Jurídica</div>
+                    <div class="timeline-description">
+                        O processo foi encaminhado para o departamento jurídico para análise 
+                        dos aspectos legais da solicitação.
+                    </div>
+                </div>
+                
+                <div class="timeline-item">
+                    <div class="timeline-date">16/08/2025 - 09:15</div>
+                    <div class="timeline-title">Documentação Validada</div>
+                    <div class="timeline-description">
+                        Toda a documentação apresentada foi validada e está conforme 
+                        os requisitos estabelecidos.
+                    </div>
+                </div>
+                
+                <div class="timeline-item">
+                    <div class="timeline-date">15/08/2025 - 16:45</div>
+                    <div class="timeline-title">Processo Protocolado</div>
+                    <div class="timeline-description">
+                        Petição recebida e protocolada no sistema. Número do protocolo: {{ numero_protocolo }}.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    {% else %}
+    <!-- Processo Não Encontrado -->
+    <div class="result-card">
+        <div class="result-header not-found">
+            <i class="fas fa-search result-icon"></i>
+            <h2 class="mb-3">Processo Não Encontrado</h2>
+            <p class="mb-0 lead">Protocolo: {{ numero_protocolo }}</p>
+        </div>
+        
+        <div class="result-content">
+            <div class="no-result-illustration">
+                <i class="fas fa-folder-open"></i>
+                <h4 class="mb-3">Nenhum resultado encontrado</h4>
+                <p class="text-muted mb-0">
+                    Não foi possível localizar um processo com o protocolo informado. 
+                    Verifique se o número está correto e tente novamente.
+                </p>
+            </div>
+            
+            <div class="help-section">
+                <h6 class="mb-3">
+                    <i class="fas fa-lightbulb me-2"></i>
+                    Possíveis causas:
+                </h6>
+                <ul class="mb-0">
+                    <li>Número do protocolo digitado incorretamente</li>
+                    <li>CPF/CNPJ não corresponde ao titular do processo</li>
+                    <li>Processo ainda não foi inserido no sistema</li>
+                    <li>Processo arquivado ou transferido para outro órgão</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
+    <!-- Ações -->
+    <div class="action-buttons">
+        <a href="{% url 'portal:consulta_publica' %}" class="btn btn-primary btn-lg">
+            <i class="fas fa-search me-2"></i>
+            Nova Consulta
+        </a>
+        
+        {% if not resultado.encontrado %}
+        <a href="{% url 'portal:nova_peticao_cidadao' %}" class="btn btn-outline-primary btn-lg">
+            <i class="fas fa-plus-circle me-2"></i>
+            Fazer Nova Petição
+        </a>
+        {% endif %}
+        
+        <a href="{% url 'portal:contato' %}" class="btn btn-outline-secondary btn-lg">
+            <i class="fas fa-envelope me-2"></i>
+            Entrar em Contato
+        </a>
+        
+        <button onclick="window.print()" class="btn btn-outline-info btn-lg">
+            <i class="fas fa-print me-2"></i>
+            Imprimir Resultado
+        </button>
+    </div>
+    
+    <!-- Informações Importantes -->
+    <div class="row mt-5">
+        <div class="col-lg-8 mx-auto">
+            <div class="card border-info">
+                <div class="card-header bg-info text-white">
+                    <h6 class="mb-0">
+                        <i class="fas fa-info-circle me-2"></i>
+                        Informações Importantes
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>Prazos de Resposta:</h6>
+                            <ul class="list-unstyled">
+                                <li><i class="fas fa-clock text-primary me-2"></i>Reclamações: até 30 dias</li>
+                                <li><i class="fas fa-clock text-primary me-2"></i>Denúncias: até 45 dias</li>
+                                <li><i class="fas fa-clock text-primary me-2"></i>Recursos: até 15 dias</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Contatos para Dúvidas:</h6>
+                            <ul class="list-unstyled">
+                                <li><i class="fas fa-phone text-primary me-2"></i>(11) 1234-5678</li>
+                                <li><i class="fas fa-envelope text-primary me-2"></i>contato@procon.gov.br</li>
+                                <li><i class="fas fa-clock text-primary me-2"></i>Seg-Sex: 8h às 17h</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Animar entrada dos elementos da timeline
+    const timelineItems = document.querySelectorAll('.timeline-item');
+    
+    const observerCallback = (entries, observer) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                entry.target.style.animation = 'slideInLeft 0.6s ease forwards';
+                observer.unobserve(entry.target);
+            }
+        });
+    };
+    
+    const observer = new IntersectionObserver(observerCallback, {
+        threshold: 0.1
+    });
+    
+    timelineItems.forEach(item => {
+        item.style.opacity = '0';
+        item.style.transform = 'translateX(-20px)';
+        observer.observe(item);
+    });
+    
+    // Adicionar animações CSS
+    const style = document.createElement('style');
+    style.textContent = `
+        @keyframes slideInLeft {
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+    `;
+    document.head.appendChild(style);
+    
+    // Função para compartilhar resultado
+    window.compartilharResultado = function() {
+        if (navigator.share) {
+            navigator.share({
+                title: 'Resultado da Consulta - SISPROCON',
+                text: 'Consultei meu processo no PROCON. Protocolo: {{ numero_protocolo }}',
+                url: window.location.href
+            });
+        } else {
+            // Fallback para navegadores que não suportam Web Share API
+            const url = window.location.href;
+            navigator.clipboard.writeText(url).then(() => {
+                SISPROCON.showToast('Link copiado para a área de transferência!', 'success');
+            });
+        }
+    };
+    
+    // Auto-refresh para processos em andamento
+    {% if resultado.encontrado and resultado.dados.status != 'FINALIZADO' %}
+    // Verificar atualizações a cada 5 minutos para processos ativos
+    setInterval(function() {
+        // Implementar verificação de atualizações via AJAX
+        console.log('Verificando atualizações do processo...');
+    }, 5 * 60 * 1000);
+    {% endif %}
+});
+
+// Melhorar a função de impressão
+function melhorarImpressao() {
+    window.addEventListener('beforeprint', function() {
+        document.body.classList.add('printing');
+    });
+    
+    window.addEventListener('afterprint', function() {
+        document.body.classList.remove('printing');
+    });
+    
+    // Adicionar estilos específicos para impressão
+    const printStyle = document.createElement('style');
+    printStyle.textContent = `
+        @media print {
+            .action-buttons,
+            .help-section,
+            nav,
+            footer {
+                display: none !important;
+            }
+            
+            .result-card {
+                box-shadow: none !important;
+                border: 1px solid #000 !important;
+            }
+            
+            .timeline-item {
+                break-inside: avoid;
+                box-shadow: none !important;
+                border: 1px solid #ccc !important;
+            }
+        }
+    `;
+    document.head.appendChild(printStyle);
+}
+
+melhorarImpressao();
+</script>
+{% endblock %}

@@ -1,0 +1,909 @@
+{% extends 'admin_layouts/base_admin.html' %}
+{% load static %}
+
+{% block title %}{{ form_title|default:"Formulário" }} - SISPROCON{% endblock %}
+
+{% block extra_css %}
+<style>
+    .form-container {
+        background: white;
+        border-radius: var(--border-radius);
+        box-shadow: var(--box-shadow);
+        overflow: hidden;
+    }
+    
+    .form-header {
+        background: linear-gradient(135deg, var(--admin-primary), var(--admin-secondary));
+        color: white;
+        padding: 2rem;
+        text-align: center;
+    }
+    
+    .form-header h2 {
+        margin: 0;
+        font-weight: 600;
+    }
+    
+    .form-header p {
+        margin: 0.5rem 0 0 0;
+        opacity: 0.9;
+    }
+    
+    .form-body {
+        padding: 2rem;
+    }
+    
+    .form-section {
+        margin-bottom: 2rem;
+        padding-bottom: 2rem;
+        border-bottom: 1px solid #e9ecef;
+    }
+    
+    .form-section:last-child {
+        border-bottom: none;
+        margin-bottom: 0;
+    }
+    
+    .section-title {
+        font-size: 1.125rem;
+        font-weight: 600;
+        color: var(--admin-dark);
+        margin-bottom: 1rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 2px solid var(--admin-accent);
+        display: inline-block;
+    }
+    
+    .section-description {
+        color: #6c757d;
+        font-size: 0.875rem;
+        margin-bottom: 1.5rem;
+    }
+    
+    .form-group {
+        margin-bottom: 1.5rem;
+    }
+    
+    .form-label {
+        font-weight: 500;
+        color: var(--admin-dark);
+        margin-bottom: 0.5rem;
+    }
+    
+    .required-field .form-label::after {
+        content: ' *';
+        color: var(--admin-danger);
+    }
+    
+    .form-control, .form-select {
+        border-radius: var(--border-radius);
+        border: 1px solid #ced4da;
+        transition: var(--transition);
+        padding: 0.75rem 1rem;
+    }
+    
+    .form-control:focus, .form-select:focus {
+        border-color: var(--admin-accent);
+        box-shadow: 0 0 0 0.2rem rgba(52, 152, 219, 0.25);
+    }
+    
+    .form-text {
+        color: #6c757d;
+        font-size: 0.875rem;
+        margin-top: 0.5rem;
+    }
+    
+    .input-group-text {
+        background: #f8f9fa;
+        border-color: #ced4da;
+        color: #6c757d;
+    }
+    
+    .file-upload-area {
+        border: 2px dashed #e9ecef;
+        border-radius: var(--border-radius);
+        padding: 2rem;
+        text-align: center;
+        transition: var(--transition);
+        cursor: pointer;
+        background: #f8f9fa;
+    }
+    
+    .file-upload-area:hover {
+        border-color: var(--admin-accent);
+        background: rgba(52, 152, 219, 0.05);
+    }
+    
+    .file-upload-area.dragover {
+        border-color: var(--admin-accent);
+        background: rgba(52, 152, 219, 0.1);
+    }
+    
+    .file-upload-icon {
+        font-size: 3rem;
+        color: var(--admin-accent);
+        margin-bottom: 1rem;
+    }
+    
+    .file-list {
+        margin-top: 1rem;
+    }
+    
+    .file-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.75rem;
+        background: white;
+        border: 1px solid #e9ecef;
+        border-radius: var(--border-radius);
+        margin-bottom: 0.5rem;
+    }
+    
+    .file-info {
+        display: flex;
+        align-items: center;
+    }
+    
+    .file-icon {
+        font-size: 1.5rem;
+        margin-right: 0.75rem;
+        color: var(--admin-accent);
+    }
+    
+    .character-counter {
+        font-size: 0.75rem;
+        color: #6c757d;
+        text-align: right;
+        margin-top: 0.25rem;
+    }
+    
+    .character-counter.warning {
+        color: var(--admin-warning);
+    }
+    
+    .character-counter.danger {
+        color: var(--admin-danger);
+    }
+    
+    .form-actions {
+        background: #f8f9fa;
+        padding: 2rem;
+        border-top: 1px solid #e9ecef;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .form-actions-left {
+        display: flex;
+        gap: 0.5rem;
+    }
+    
+    .form-actions-right {
+        display: flex;
+        gap: 0.5rem;
+    }
+    
+    .btn-save {
+        background: var(--admin-success);
+        border-color: var(--admin-success);
+        color: white;
+        min-width: 120px;
+    }
+    
+    .btn-save:hover {
+        background: #239f5b;
+        border-color: #239f5b;
+        color: white;
+    }
+    
+    .validation-summary {
+        background: #f8d7da;
+        border: 1px solid #f5c6cb;
+        border-radius: var(--border-radius);
+        padding: 1rem;
+        margin-bottom: 2rem;
+    }
+    
+    .validation-title {
+        font-weight: 600;
+        color: #721c24;
+        margin-bottom: 0.5rem;
+    }
+    
+    .validation-list {
+        margin: 0;
+        padding-left: 1.5rem;
+        color: #721c24;
+    }
+    
+    .form-wizard {
+        background: white;
+        border-radius: var(--border-radius);
+        box-shadow: var(--box-shadow);
+        overflow: hidden;
+    }
+    
+    .wizard-steps {
+        background: #f8f9fa;
+        padding: 1.5rem;
+        border-bottom: 1px solid #e9ecef;
+        display: flex;
+        justify-content: center;
+    }
+    
+    .wizard-step {
+        display: flex;
+        align-items: center;
+        margin: 0 1rem;
+        color: #6c757d;
+        font-size: 0.875rem;
+    }
+    
+    .wizard-step.active {
+        color: var(--admin-accent);
+        font-weight: 600;
+    }
+    
+    .wizard-step.completed {
+        color: var(--admin-success);
+    }
+    
+    .step-number {
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 0.5rem;
+        font-weight: bold;
+        border: 2px solid #e9ecef;
+        background: white;
+    }
+    
+    .wizard-step.active .step-number {
+        background: var(--admin-accent);
+        color: white;
+        border-color: var(--admin-accent);
+    }
+    
+    .wizard-step.completed .step-number {
+        background: var(--admin-success);
+        color: white;
+        border-color: var(--admin-success);
+    }
+    
+    .wizard-content {
+        padding: 2rem;
+    }
+    
+    .wizard-navigation {
+        background: #f8f9fa;
+        padding: 1.5rem;
+        border-top: 1px solid #e9ecef;
+        display: flex;
+        justify-content: space-between;
+    }
+    
+    .form-preview {
+        background: #e3f2fd;
+        border: 1px solid #2196f3;
+        border-radius: var(--border-radius);
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+    }
+    
+    .preview-title {
+        font-weight: 600;
+        color: #1976d2;
+        margin-bottom: 1rem;
+    }
+    
+    .preview-item {
+        display: flex;
+        justify-content: space-between;
+        padding: 0.5rem 0;
+        border-bottom: 1px solid rgba(33, 150, 243, 0.2);
+    }
+    
+    .preview-item:last-child {
+        border-bottom: none;
+    }
+    
+    .preview-label {
+        font-weight: 500;
+        color: #1565c0;
+    }
+    
+    .preview-value {
+        color: #0d47a1;
+    }
+    
+    @media (max-width: 768px) {
+        .form-container {
+            margin: -1rem;
+            border-radius: 0;
+        }
+        
+        .form-header {
+            padding: 1.5rem;
+        }
+        
+        .form-body {
+            padding: 1.5rem;
+        }
+        
+        .form-actions {
+            padding: 1.5rem;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        
+        .form-actions-left,
+        .form-actions-right {
+            width: 100%;
+            justify-content: center;
+        }
+        
+        .wizard-steps {
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+        
+        .wizard-step {
+            margin: 0;
+            font-size: 0.75rem;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Form Container -->
+<div class="form-container">
+    {% if form_title or form_description %}
+    <div class="form-header">
+        <h2>{{ form_title|default:"Formulário" }}</h2>
+        {% if form_description %}
+        <p>{{ form_description }}</p>
+        {% endif %}
+    </div>
+    {% endif %}
+    
+    <!-- Validation Errors -->
+    {% if form.errors or formset.errors %}
+    <div class="validation-summary">
+        <div class="validation-title">
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            Corrija os erros abaixo:
+        </div>
+        <ul class="validation-list">
+            {% for field, errors in form.errors.items %}
+                {% for error in errors %}
+                <li>{{ field }}: {{ error }}</li>
+                {% endfor %}
+            {% endfor %}
+            {% if formset.errors %}
+                {% for error in formset.errors %}
+                <li>{{ error }}</li>
+                {% endfor %}
+            {% endif %}
+        </ul>
+    </div>
+    {% endif %}
+    
+    <form method="post" enctype="multipart/form-data" id="mainForm" novalidate>
+        {% csrf_token %}
+        
+        <div class="form-body">
+            {% block form_content %}
+            <!-- Section 1: Basic Information -->
+            <div class="form-section">
+                <h5 class="section-title">Informações Básicas</h5>
+                <p class="section-description">Preencha as informações principais do registro.</p>
+                
+                <div class="row g-3">
+                    {% block basic_fields %}
+                    <div class="col-md-8">
+                        <div class="form-group required-field">
+                            <label class="form-label">Nome/Título</label>
+                            <input type="text" class="form-control" name="nome" required maxlength="100">
+                            <div class="form-text">Nome principal ou título do registro</div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-4">
+                        <div class="form-group required-field">
+                            <label class="form-label">Status</label>
+                            <select class="form-select" name="status" required>
+                                <option value="">Selecione...</option>
+                                <option value="ativo">Ativo</option>
+                                <option value="inativo">Inativo</option>
+                                <option value="pendente">Pendente</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="col-12">
+                        <div class="form-group">
+                            <label class="form-label">Descrição</label>
+                            <textarea class="form-control" name="descricao" rows="4" maxlength="500"></textarea>
+                            <div class="character-counter" data-target="descricao" data-max="500">0/500</div>
+                            <div class="form-text">Descrição detalhada (opcional)</div>
+                        </div>
+                    </div>
+                    {% endblock %}
+                </div>
+            </div>
+            
+            <!-- Section 2: Additional Details -->
+            <div class="form-section">
+                <h5 class="section-title">Detalhes Adicionais</h5>
+                <p class="section-description">Informações complementares e configurações específicas.</p>
+                
+                <div class="row g-3">
+                    {% block additional_fields %}
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label class="form-label">Data de Início</label>
+                            <input type="date" class="form-control" name="data_inicio">
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label class="form-label">Data de Fim</label>
+                            <input type="date" class="form-control" name="data_fim">
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label class="form-label">Prioridade</label>
+                            <select class="form-select" name="prioridade">
+                                <option value="baixa">Baixa</option>
+                                <option value="media" selected>Média</option>
+                                <option value="alta">Alta</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label class="form-label">Categoria</label>
+                            <select class="form-select" name="categoria">
+                                <option value="">Selecione...</option>
+                                <option value="categoria1">Categoria 1</option>
+                                <option value="categoria2">Categoria 2</option>
+                                <option value="categoria3">Categoria 3</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label class="form-label">Responsável</label>
+                            <select class="form-select" name="responsavel">
+                                <option value="">Selecione...</option>
+                                <option value="user1">João Silva</option>
+                                <option value="user2">Maria Santos</option>
+                                <option value="user3">Pedro Oliveira</option>
+                            </select>
+                        </div>
+                    </div>
+                    {% endblock %}
+                </div>
+            </div>
+            
+            <!-- Section 3: File Uploads -->
+            {% block file_section %}
+            <div class="form-section">
+                <h5 class="section-title">Documentos e Anexos</h5>
+                <p class="section-description">Faça upload de documentos relacionados (opcional).</p>
+                
+                <div class="file-upload-area" id="fileUploadArea">
+                    <i class="fas fa-cloud-upload-alt file-upload-icon"></i>
+                    <h6>Arraste arquivos aqui ou clique para selecionar</h6>
+                    <p class="text-muted mb-0">
+                        Formatos aceitos: PDF, JPG, PNG, DOC, DOCX<br>
+                        Tamanho máximo: 10MB por arquivo
+                    </p>
+                    <input type="file" id="fileInput" name="anexos" multiple 
+                           accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" style="display: none;">
+                </div>
+                
+                <div class="file-list" id="fileList"></div>
+            </div>
+            {% endblock %}
+            
+            <!-- Section 4: Permissions/Settings -->
+            {% block settings_section %}
+            <div class="form-section">
+                <h5 class="section-title">Configurações</h5>
+                <p class="section-description">Defina permissões e configurações específicas.</p>
+                
+                <div class="row g-3">
+                    <div class="col-12">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="publico" id="publico">
+                            <label class="form-check-label" for="publico">
+                                Tornar público no portal
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="col-12">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="notificacoes" id="notificacoes" checked>
+                            <label class="form-check-label" for="notificacoes">
+                                Receber notificações por e-mail
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="col-12">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="destaque" id="destaque">
+                            <label class="form-check-label" for="destaque">
+                                Destacar no dashboard
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endblock %}
+            {% endblock %}
+        </div>
+        
+        <!-- Form Actions -->
+        <div class="form-actions">
+            <div class="form-actions-left">
+                {% block form_actions_left %}
+                <a href="{{ cancel_url|default:'javascript:history.back()' }}" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left me-2"></i>Voltar
+                </a>
+                {% if object %}
+                <button type="button" class="btn btn-outline-danger" onclick="deleteRecord()">
+                    <i class="fas fa-trash me-2"></i>Excluir
+                </button>
+                {% endif %}
+                {% endblock %}
+            </div>
+            
+            <div class="form-actions-right">
+                {% block form_actions_right %}
+                <button type="button" class="btn btn-outline-primary" onclick="saveAsDraft()">
+                    <i class="fas fa-save me-2"></i>Salvar Rascunho
+                </button>
+                <button type="submit" class="btn btn-save" id="submitBtn">
+                    <i class="fas fa-check me-2"></i>
+                    <span class="btn-text">{{ submit_text|default:"Salvar" }}</span>
+                    <span class="spinner-border spinner-border-sm d-none" role="status"></span>
+                </button>
+                {% endblock %}
+            </div>
+        </div>
+    </form>
+</div>
+
+{% block modals %}
+<!-- Preview Modal -->
+<div class="modal fade" id="previewModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Pré-visualização</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="previewContent"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                <button type="button" class="btn btn-admin-primary" onclick="confirmSubmit()">
+                    <i class="fas fa-check me-2"></i>Confirmar e Salvar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('mainForm');
+    const submitBtn = document.getElementById('submitBtn');
+    
+    // Character counters
+    function setupCharacterCounters() {
+        document.querySelectorAll('.character-counter').forEach(counter => {
+            const target = counter.dataset.target;
+            const max = parseInt(counter.dataset.max);
+            const field = document.querySelector(`[name="${target}"]`);
+            
+            if (field) {
+                function updateCounter() {
+                    const current = field.value.length;
+                    counter.textContent = `${current}/${max}`;
+                    
+                    counter.classList.remove('warning', 'danger');
+                    if (current > max * 0.9) {
+                        counter.classList.add('danger');
+                    } else if (current > max * 0.8) {
+                        counter.classList.add('warning');
+                    }
+                }
+                
+                field.addEventListener('input', updateCounter);
+                updateCounter();
+            }
+        });
+    }
+    
+    setupCharacterCounters();
+    
+    // File upload
+    function setupFileUpload() {
+        const fileUploadArea = document.getElementById('fileUploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const fileList = document.getElementById('fileList');
+        
+        if (!fileUploadArea || !fileInput) return;
+        
+        let uploadedFiles = [];
+        
+        fileUploadArea.addEventListener('click', () => fileInput.click());
+        
+        fileUploadArea.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            this.classList.add('dragover');
+        });
+        
+        fileUploadArea.addEventListener('dragleave', function(e) {
+            e.preventDefault();
+            this.classList.remove('dragover');
+        });
+        
+        fileUploadArea.addEventListener('drop', function(e) {
+            e.preventDefault();
+            this.classList.remove('dragover');
+            handleFiles(e.dataTransfer.files);
+        });
+        
+        fileInput.addEventListener('change', function(e) {
+            handleFiles(e.target.files);
+        });
+        
+        function handleFiles(files) {
+            Array.from(files).forEach(file => {
+                if (validateFile(file)) {
+                    uploadedFiles.push(file);
+                    addFileToList(file);
+                }
+            });
+        }
+        
+        function validateFile(file) {
+            const maxSize = 10 * 1024 * 1024; // 10MB
+            const allowedTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png', 
+                                 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+            
+            if (file.size > maxSize) {
+                ADMIN.showToast('Arquivo muito grande. Máximo 10MB por arquivo.', 'warning');
+                return false;
+            }
+            
+            if (!allowedTypes.includes(file.type)) {
+                ADMIN.showToast('Tipo de arquivo não permitido.', 'warning');
+                return false;
+            }
+            
+            return true;
+        }
+        
+        function addFileToList(file) {
+            const fileItem = document.createElement('div');
+            fileItem.className = 'file-item';
+            
+            const iconClass = getFileIcon(file.type);
+            const fileSize = formatFileSize(file.size);
+            
+            fileItem.innerHTML = `
+                <div class="file-info">
+                    <i class="${iconClass} file-icon"></i>
+                    <div>
+                        <div class="fw-medium">${file.name}</div>
+                        <small class="text-muted">${fileSize}</small>
+                    </div>
+                </div>
+                <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeFile(this, '${file.name}')">
+                    <i class="fas fa-trash"></i>
+                </button>
+            `;
+            
+            fileList.appendChild(fileItem);
+        }
+        
+        function getFileIcon(type) {
+            if (type.includes('pdf')) return 'fas fa-file-pdf';
+            if (type.includes('image')) return 'fas fa-file-image';
+            if (type.includes('word')) return 'fas fa-file-word';
+            return 'fas fa-file';
+        }
+        
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+        
+        window.removeFile = function(button, fileName) {
+            const fileItem = button.closest('.file-item');
+            uploadedFiles = uploadedFiles.filter(file => file.name !== fileName);
+            fileItem.remove();
+        };
+    }
+    
+    setupFileUpload();
+    
+    // Form validation
+    function validateForm() {
+        const requiredFields = form.querySelectorAll('[required]');
+        let isValid = true;
+        
+        requiredFields.forEach(field => {
+            if (!field.value.trim()) {
+                field.classList.add('is-invalid');
+                isValid = false;
+            } else {
+                field.classList.remove('is-invalid');
+                field.classList.add('is-valid');
+            }
+        });
+        
+        return isValid;
+    }
+    
+    // Form submission
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        if (!validateForm()) {
+            ADMIN.showToast('Por favor, preencha todos os campos obrigatórios', 'warning');
+            return;
+        }
+        
+        // Show loading state
+        const btnText = submitBtn.querySelector('.btn-text');
+        const spinner = submitBtn.querySelector('.spinner-border');
+        
+        btnText.textContent = 'Salvando...';
+        spinner.classList.remove('d-none');
+        submitBtn.disabled = true;
+        
+        // Simulate form submission
+        setTimeout(() => {
+            ADMIN.showToast('Registro salvo com sucesso!', 'success');
+            
+            // Reset form or redirect
+            setTimeout(() => {
+                window.history.back();
+            }, 1500);
+        }, 2000);
+    });
+    
+    // Real-time validation
+    form.addEventListener('input', function(e) {
+        if (e.target.hasAttribute('required')) {
+            if (e.target.value.trim()) {
+                e.target.classList.remove('is-invalid');
+                e.target.classList.add('is-valid');
+            } else {
+                e.target.classList.remove('is-valid');
+            }
+        }
+    });
+    
+    // Auto-save draft (every 30 seconds)
+    let draftTimer;
+    function startDraftTimer() {
+        draftTimer = setInterval(() => {
+            saveAsDraft(true); // Silent save
+        }, 30000);
+    }
+    
+    // Only start timer if form has content
+    form.addEventListener('input', function() {
+        if (!draftTimer) {
+            startDraftTimer();
+        }
+    }, { once: true });
+});
+
+// Save as draft function
+function saveAsDraft(silent = false) {
+    const formData = new FormData(document.getElementById('mainForm'));
+    
+    if (!silent) {
+        ADMIN.showToast('Rascunho salvo!', 'info');
+    }
+    
+    // Here you would send the data to save as draft
+    console.log('Saving draft...', Object.fromEntries(formData));
+}
+
+// Delete record function
+function deleteRecord() {
+    ADMIN.confirm(
+        'Tem certeza que deseja excluir este registro? Esta ação não pode ser desfeita.',
+        function() {
+            ADMIN.showToast('Registro excluído com sucesso!', 'success');
+            setTimeout(() => {
+                window.history.back();
+            }, 1500);
+        }
+    );
+}
+
+// Confirm submit function
+function confirmSubmit() {
+    const modal = bootstrap.Modal.getInstance(document.getElementById('previewModal'));
+    modal.hide();
+    
+    document.getElementById('mainForm').submit();
+}
+
+// Preview function
+function showPreview() {
+    const formData = new FormData(document.getElementById('mainForm'));
+    const previewContent = document.getElementById('previewContent');
+    
+    let html = '<div class="form-preview">';
+    html += '<div class="preview-title">Dados do Formulário:</div>';
+    
+    for (let [key, value] of formData.entries()) {
+        if (value && key !== 'csrfmiddlewaretoken') {
+            html += `
+                <div class="preview-item">
+                    <span class="preview-label">${key}:</span>
+                    <span class="preview-value">${value}</span>
+                </div>
+            `;
+        }
+    }
+    
+    html += '</div>';
+    previewContent.innerHTML = html;
+    
+    const modal = new bootstrap.Modal(document.getElementById('previewModal'));
+    modal.show();
+}
+
+// Keyboard shortcuts
+document.addEventListener('keydown', function(e) {
+    // Ctrl+S to save
+    if (e.ctrlKey && e.key === 's') {
+        e.preventDefault();
+        document.getElementById('submitBtn').click();
+    }
+    
+    // Ctrl+D to save as draft
+    if (e.ctrlKey && e.key === 'd') {
+        e.preventDefault();
+        saveAsDraft();
+    }
+    
+    // Ctrl+P to preview
+    if (e.ctrlKey && e.key === 'p') {
+        e.preventDefault();
+        showPreview();
+    }
+});
+</script>
+{% endblock %}

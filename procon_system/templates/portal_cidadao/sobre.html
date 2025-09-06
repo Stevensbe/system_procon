@@ -1,0 +1,246 @@
+{% extends "portal_cidadao/base.html" %}
+
+{% block title %}Sobre o PROCON - Portal do Cidadão{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+<section class="hero-section">
+    <div class="container">
+        <div class="row align-items-center">
+            <div class="col-lg-8">
+                <h1 class="display-4 fw-bold mb-4">
+                    <i class="fas fa-shield-alt me-3"></i>
+                    Sobre o PROCON
+                </h1>
+                <p class="lead mb-4">
+                    O PROCON - Fundação de Proteção e Defesa do Consumidor do Amazonas é uma instituição pública 
+                    dedicada a proteger os direitos do consumidor e promover a justiça social.
+                </p>
+                <div class="d-flex gap-3">
+                    <a href="{% url 'portal_cidadao:contato' %}" class="btn btn-light btn-lg">
+                        <i class="fas fa-envelope me-2"></i>Entre em Contato
+                    </a>
+                    <a href="{% url 'portal_cidadao:orientacoes' %}" class="btn btn-outline-light btn-lg">
+                        <i class="fas fa-info-circle me-2"></i>Orientações
+                    </a>
+                </div>
+            </div>
+            <div class="col-lg-4 text-center">
+                <i class="fas fa-balance-scale" style="font-size: 8rem; opacity: 0.3;"></i>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Missão, Visão e Valores -->
+<section class="py-5">
+    <div class="container">
+        <div class="row g-4">
+            <div class="col-md-4">
+                <div class="card h-100 text-center">
+                    <div class="card-body">
+                        <div class="service-icon">
+                            <i class="fas fa-bullseye"></i>
+                        </div>
+                        <h4 class="card-title">Missão</h4>
+                        <p class="card-text">
+                            Proteger e defender os direitos do consumidor, promovendo a cidadania e a justiça social, 
+                            através de ações educativas, preventivas e repressivas, contribuindo para o desenvolvimento 
+                            de relações de consumo mais justas e equilibradas.
+                        </p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card h-100 text-center">
+                    <div class="card-body">
+                        <div class="service-icon">
+                            <i class="fas fa-eye"></i>
+                        </div>
+                        <h4 class="card-title">Visão</h4>
+                        <p class="card-text">
+                            Ser reconhecida como uma instituição de excelência na defesa do consumidor, 
+                            referência nacional em qualidade de atendimento e eficiência na resolução de conflitos, 
+                            contribuindo para uma sociedade mais justa e consciente.
+                        </p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card h-100 text-center">
+                    <div class="card-body">
+                        <div class="service-icon">
+                            <i class="fas fa-heart"></i>
+                        </div>
+                        <h4 class="card-title">Valores</h4>
+                        <p class="card-text">
+                            <strong>Ética:</strong> Transparência e honestidade em todas as ações<br>
+                            <strong>Compromisso:</strong> Dedicação ao cidadão e à sociedade<br>
+                            <strong>Excelência:</strong> Busca constante pela qualidade<br>
+                            <strong>Inovação:</strong> Modernização e melhoria contínua
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Sobre a Instituição -->
+<section class="py-5 bg-light">
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-8">
+                <h2 class="mb-4">
+                    <i class="fas fa-info-circle me-2 text-primary"></i>
+                    Sobre a Instituição
+                </h2>
+                <p class="lead">
+                    O PROCON do Amazonas foi criado com o objetivo de defender os direitos do consumidor 
+                    e promover a cidadania através de ações educativas e preventivas.
+                </p>
+                <p>
+                    Nossa instituição atua em diversas frentes para garantir que os direitos do consumidor 
+                    sejam respeitados e que as relações de consumo sejam mais justas e equilibradas. 
+                    Trabalhamos diariamente para:
+                </p>
+                <ul class="list-unstyled">
+                    <li class="mb-2">
+                        <i class="fas fa-check-circle text-success me-2"></i>
+                        <strong>Atendimento ao Cidadão:</strong> Orientação e esclarecimento de dúvidas
+                    </li>
+                    <li class="mb-2">
+                        <i class="fas fa-check-circle text-success me-2"></i>
+                        <strong>Mediação de Conflitos:</strong> Resolução pacífica de disputas
+                    </li>
+                    <li class="mb-2">
+                        <i class="fas fa-check-circle text-success me-2"></i>
+                        <strong>Fiscalização:</strong> Inspeção e monitoramento de estabelecimentos
+                    </li>
+                    <li class="mb-2">
+                        <i class="fas fa-check-circle text-success me-2"></i>
+                        <strong>Educação:</strong> Campanhas de conscientização e orientação
+                    </li>
+                    <li class="mb-2">
+                        <i class="fas fa-check-circle text-success me-2"></i>
+                        <strong>Processamento:</strong> Análise e tramitação de processos
+                    </li>
+                </ul>
+            </div>
+            <div class="col-lg-4">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <i class="fas fa-chart-line me-2 text-primary"></i>
+                            Nossos Números
+                        </h5>
+                        <div class="row text-center">
+                            <div class="col-6 mb-3">
+                                <div class="stats-number text-primary">50K+</div>
+                                <small class="text-muted">Atendimentos</small>
+                            </div>
+                            <div class="col-6 mb-3">
+                                <div class="stats-number text-success">95%</div>
+                                <small class="text-muted">Resolução</small>
+                            </div>
+                            <div class="col-6 mb-3">
+                                <div class="stats-number text-warning">24h</div>
+                                <small class="text-muted">Prazo Médio</small>
+                            </div>
+                            <div class="col-6 mb-3">
+                                <div class="stats-number text-info">100%</div>
+                                <small class="text-muted">Gratuito</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Estrutura Organizacional -->
+<section class="py-5">
+    <div class="container">
+        <h2 class="text-center mb-5">
+            <i class="fas fa-sitemap me-2 text-primary"></i>
+            Estrutura Organizacional
+        </h2>
+        <div class="row g-4">
+            <div class="col-md-6 col-lg-3">
+                <div class="card text-center h-100">
+                    <div class="card-body">
+                        <div class="service-icon">
+                            <i class="fas fa-user-tie"></i>
+                        </div>
+                        <h5 class="card-title">Diretoria</h5>
+                        <p class="card-text">
+                            Coordenação geral das atividades e definição de políticas institucionais.
+                        </p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-3">
+                <div class="card text-center h-100">
+                    <div class="card-body">
+                        <div class="service-icon">
+                            <i class="fas fa-users"></i>
+                        </div>
+                        <h5 class="card-title">Atendimento</h5>
+                        <p class="card-text">
+                            Equipe dedicada ao atendimento presencial e online dos cidadãos.
+                        </p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-3">
+                <div class="card text-center h-100">
+                    <div class="card-body">
+                        <div class="service-icon">
+                            <i class="fas fa-gavel"></i>
+                        </div>
+                        <h5 class="card-title">Jurídico</h5>
+                        <p class="card-text">
+                            Análise e processamento de petições e processos jurídicos.
+                        </p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-3">
+                <div class="card text-center h-100">
+                    <div class="card-body">
+                        <div class="service-icon">
+                            <i class="fas fa-search"></i>
+                        </div>
+                        <h5 class="card-title">Fiscalização</h5>
+                        <p class="card-text">
+                            Inspeção e monitoramento de estabelecimentos comerciais.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- CTA Section -->
+<section class="py-5 bg-primary text-white">
+    <div class="container text-center">
+        <h2 class="mb-4">Precisa de Ajuda?</h2>
+        <p class="lead mb-4">
+            Nossa equipe está pronta para atendê-lo e orientá-lo sobre seus direitos como consumidor.
+        </p>
+        <div class="d-flex justify-content-center gap-3 flex-wrap">
+            <a href="{% url 'portal_cidadao:consulta_publica' %}" class="btn btn-light btn-lg">
+                <i class="fas fa-search me-2"></i>Consultar Processo
+            </a>
+            <a href="{% url 'portal_cidadao:nova_peticao_cidadao' %}" class="btn btn-outline-light btn-lg">
+                <i class="fas fa-file-alt me-2"></i>Nova Petição
+            </a>
+            <a href="{% url 'portal_cidadao:contato' %}" class="btn btn-outline-light btn-lg">
+                <i class="fas fa-envelope me-2"></i>Fale Conosco
+            </a>
+        </div>
+    </div>
+</section>
+{% endblock %}

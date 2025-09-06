@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Autos de Infração</h1>
+<table class="table mt-3">
+  <thead>
+    <tr><th>ID</th><th>Auto Constatação</th><th>Data</th><th>Valor</th><th>Ações</th></tr>
+  </thead>
+  <tbody>
+    {% for obj in object_list %}
+    <tr>
+      <td>{{ obj.pk }}</td>
+      <td>{{ obj.constatacao }}</td>
+      <td>{{ obj.data_infracao }}</td>
+      <td>{{ obj.valor_multa }}</td>
+      <td>
+        <a href="{% url 'processos:infracao_detail' obj.pk %}">Ver</a> |
+        <a href="{% url 'processos:infracao_update' obj.pk %}">Editar</a>
+      </td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="5">Nenhuma infração cadastrada.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

@@ -1,0 +1,1039 @@
+{% extends 'base/base.html' %}
+{% load static %}
+
+{% block title %}Nova Petição - SISPROCON{% endblock %}
+
+{% block meta_description %}Formulário para protocolar nova petição no PROCON - reclamações, denúncias e solicitações{% endblock %}
+
+{% block breadcrumb %}
+<div class="bg-light py-2">
+    <div class="container">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item"><a href="{% url 'portal:home' %}">Início</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Nova Petição</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .petition-container {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        overflow: hidden;
+        margin-bottom: 2rem;
+    }
+    
+    .petition-header {
+        background: linear-gradient(135deg, var(--primary-color), #0056b3);
+        color: white;
+        padding: 2rem;
+        text-align: center;
+    }
+    
+    .petition-form {
+        padding: 2rem;
+    }
+    
+    .step-indicator {
+        display: flex;
+        justify-content: center;
+        margin-bottom: 2rem;
+        padding: 1rem 0;
+        border-bottom: 1px solid #e9ecef;
+    }
+    
+    .step {
+        display: flex;
+        align-items: center;
+        margin: 0 1rem;
+        color: #6c757d;
+        font-size: 0.875rem;
+    }
+    
+    .step.active {
+        color: var(--primary-color);
+        font-weight: 600;
+    }
+    
+    .step.completed {
+        color: var(--success-color);
+    }
+    
+    .step-number {
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 0.5rem;
+        font-weight: bold;
+        font-size: 0.875rem;
+        border: 2px solid #e9ecef;
+        background: white;
+    }
+    
+    .step.active .step-number {
+        background: var(--primary-color);
+        color: white;
+        border-color: var(--primary-color);
+    }
+    
+    .step.completed .step-number {
+        background: var(--success-color);
+        color: white;
+        border-color: var(--success-color);
+    }
+    
+    .form-step {
+        display: none;
+    }
+    
+    .form-step.active {
+        display: block;
+        animation: fadeIn 0.3s ease;
+    }
+    
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .petition-type-selector {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 1rem;
+        margin-bottom: 2rem;
+    }
+    
+    .type-option {
+        border: 2px solid #e9ecef;
+        border-radius: 12px;
+        padding: 1.5rem;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        background: white;
+    }
+    
+    .type-option:hover {
+        border-color: var(--primary-color);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,102,204,0.15);
+    }
+    
+    .type-option.selected {
+        border-color: var(--primary-color);
+        background: rgba(0,102,204,0.05);
+    }
+    
+    .type-icon {
+        font-size: 3rem;
+        color: var(--primary-color);
+        margin-bottom: 1rem;
+        display: block;
+    }
+    
+    .type-title {
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+        color: #212529;
+    }
+    
+    .type-description {
+        color: #6c757d;
+        font-size: 0.875rem;
+        line-height: 1.4;
+    }
+    
+    .form-floating label {
+        color: #6c757d;
+    }
+    
+    .character-counter {
+        font-size: 0.75rem;
+        color: #6c757d;
+        text-align: right;
+        margin-top: 0.25rem;
+    }
+    
+    .character-counter.warning {
+        color: #fd7e14;
+    }
+    
+    .character-counter.danger {
+        color: #dc3545;
+    }
+    
+    .file-upload-area {
+        border: 2px dashed #e9ecef;
+        border-radius: 12px;
+        padding: 2rem;
+        text-align: center;
+        transition: all 0.3s ease;
+        cursor: pointer;
+        background: #f8f9fa;
+    }
+    
+    .file-upload-area:hover {
+        border-color: var(--primary-color);
+        background: rgba(0,102,204,0.05);
+    }
+    
+    .file-upload-area.dragover {
+        border-color: var(--primary-color);
+        background: rgba(0,102,204,0.1);
+    }
+    
+    .file-list {
+        margin-top: 1rem;
+    }
+    
+    .file-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.75rem;
+        background: white;
+        border: 1px solid #e9ecef;
+        border-radius: 8px;
+        margin-bottom: 0.5rem;
+    }
+    
+    .file-info {
+        display: flex;
+        align-items: center;
+    }
+    
+    .file-icon {
+        font-size: 1.5rem;
+        margin-right: 0.75rem;
+        color: var(--primary-color);
+    }
+    
+    .file-details {
+        flex-grow: 1;
+    }
+    
+    .file-name {
+        font-weight: 500;
+        margin-bottom: 0.25rem;
+    }
+    
+    .file-size {
+        font-size: 0.75rem;
+        color: #6c757d;
+    }
+    
+    .progress-container {
+        background: #f8f9fa;
+        border-radius: 8px;
+        padding: 1.5rem;
+        text-align: center;
+        margin: 2rem 0;
+    }
+    
+    .progress-circle {
+        width: 80px;
+        height: 80px;
+        margin: 0 auto 1rem;
+        border-radius: 50%;
+        background: conic-gradient(var(--primary-color) 0deg, #e9ecef 0deg);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+        font-weight: bold;
+        color: var(--primary-color);
+    }
+    
+    .summary-section {
+        background: #f8f9fa;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+    }
+    
+    .summary-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        padding: 0.75rem 0;
+        border-bottom: 1px solid #e9ecef;
+    }
+    
+    .summary-item:last-child {
+        border-bottom: none;
+    }
+    
+    .summary-label {
+        font-weight: 600;
+        color: #495057;
+        margin-right: 1rem;
+    }
+    
+    .summary-value {
+        color: #212529;
+        text-align: right;
+        flex-grow: 1;
+    }
+    
+    .navigation-buttons {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 2rem;
+        padding-top: 2rem;
+        border-top: 1px solid #e9ecef;
+    }
+    
+    .btn-navigation {
+        min-width: 120px;
+    }
+    
+    .required-indicator {
+        color: #dc3545;
+        margin-left: 0.25rem;
+    }
+    
+    .help-text {
+        font-size: 0.875rem;
+        color: #6c757d;
+        margin-top: 0.5rem;
+        line-height: 1.4;
+    }
+    
+    @media (max-width: 768px) {
+        .petition-header {
+            padding: 1.5rem;
+        }
+        
+        .petition-form {
+            padding: 1.5rem;
+        }
+        
+        .step-indicator {
+            flex-wrap: wrap;
+            justify-content: flex-start;
+        }
+        
+        .step {
+            margin: 0.5rem;
+            font-size: 0.75rem;
+        }
+        
+        .petition-type-selector {
+            grid-template-columns: 1fr;
+        }
+        
+        .navigation-buttons {
+            flex-direction: column;
+            gap: 1rem;
+        }
+        
+        .btn-navigation {
+            width: 100%;
+        }
+        
+        .summary-item {
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        
+        .summary-value {
+            text-align: left;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-lg-8 mx-auto text-center">
+            <h1 class="display-6 fw-bold mb-3">
+                <i class="fas fa-file-plus me-3"></i>Nova Petição
+            </h1>
+            <p class="lead text-muted">
+                Preencha os dados abaixo para protocolar sua petição no PROCON
+            </p>
+        </div>
+    </div>
+    
+    <div class="row">
+        <div class="col-lg-10 mx-auto">
+            <div class="petition-container">
+                <div class="petition-header">
+                    <h3 class="mb-3">Formulário de Petição</h3>
+                    <p class="mb-0">
+                        Seus dados estão protegidos e serão utilizados conforme a LGPD
+                    </p>
+                </div>
+                
+                <div class="petition-form">
+                    <!-- Step Indicator -->
+                    <div class="step-indicator">
+                        <div class="step active" data-step="1">
+                            <div class="step-number">1</div>
+                            <span>Tipo</span>
+                        </div>
+                        <div class="step" data-step="2">
+                            <div class="step-number">2</div>
+                            <span>Dados</span>
+                        </div>
+                        <div class="step" data-step="3">
+                            <div class="step-number">3</div>
+                            <span>Detalhes</span>
+                        </div>
+                        <div class="step" data-step="4">
+                            <div class="step-number">4</div>
+                            <span>Anexos</span>
+                        </div>
+                        <div class="step" data-step="5">
+                            <div class="step-number">5</div>
+                            <span>Revisão</span>
+                        </div>
+                    </div>
+                    
+                    <form id="petitionForm" method="post" enctype="multipart/form-data">
+                        {% csrf_token %}
+                        
+                        <!-- Step 1: Tipo de Petição -->
+                        <div class="form-step active" data-step="1">
+                            <h5 class="mb-4">Selecione o tipo da sua petição:</h5>
+                            
+                            <div class="petition-type-selector">
+                                <div class="type-option" data-type="RECLAMACAO">
+                                    <i class="fas fa-exclamation-triangle type-icon"></i>
+                                    <h6 class="type-title">Reclamação</h6>
+                                    <p class="type-description">
+                                        Problemas com produtos ou serviços adquiridos
+                                    </p>
+                                </div>
+                                
+                                <div class="type-option" data-type="DENUNCIA">
+                                    <i class="fas fa-flag type-icon"></i>
+                                    <h6 class="type-title">Denúncia</h6>
+                                    <p class="type-description">
+                                        Práticas abusivas ou ilegais de empresas
+                                    </p>
+                                </div>
+                                
+                                <div class="type-option" data-type="CONSULTA">
+                                    <i class="fas fa-question-circle type-icon"></i>
+                                    <h6 class="type-title">Consulta</h6>
+                                    <p class="type-description">
+                                        Dúvidas sobre direitos do consumidor
+                                    </p>
+                                </div>
+                                
+                                <div class="type-option" data-type="SUGESTAO">
+                                    <i class="fas fa-lightbulb type-icon"></i>
+                                    <h6 class="type-title">Sugestão</h6>
+                                    <p class="type-description">
+                                        Melhorias para os serviços do PROCON
+                                    </p>
+                                </div>
+                            </div>
+                            
+                            <input type="hidden" name="tipo_peticao" id="tipoPeticao" required>
+                        </div>
+                        
+                        <!-- Step 2: Dados Pessoais -->
+                        <div class="form-step" data-step="2">
+                            <h5 class="mb-4">Seus dados pessoais:</h5>
+                            
+                            <div class="row g-3">
+                                <div class="col-md-8">
+                                    <div class="form-floating">
+                                        <input type="text" class="form-control" id="nomeCompleto" 
+                                               name="nome_completo" placeholder="Nome completo" 
+                                               required maxlength="100">
+                                        <label for="nomeCompleto">
+                                            Nome Completo <span class="required-indicator">*</span>
+                                        </label>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-4">
+                                    <div class="form-floating">
+                                        <input type="text" class="form-control" id="cpfCnpj" 
+                                               name="cpf_cnpj" placeholder="CPF ou CNPJ" 
+                                               required maxlength="20">
+                                        <label for="cpfCnpj">
+                                            CPF ou CNPJ <span class="required-indicator">*</span>
+                                        </label>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-6">
+                                    <div class="form-floating">
+                                        <input type="email" class="form-control" id="email" 
+                                               name="email" placeholder="E-mail" required>
+                                        <label for="email">
+                                            E-mail <span class="required-indicator">*</span>
+                                        </label>
+                                    </div>
+                                    <div class="help-text">
+                                        Você receberá atualizações sobre sua petição neste e-mail
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-6">
+                                    <div class="form-floating">
+                                        <input type="tel" class="form-control" id="telefone" 
+                                               name="telefone" placeholder="Telefone" required>
+                                        <label for="telefone">
+                                            Telefone <span class="required-indicator">*</span>
+                                        </label>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-8">
+                                    <div class="form-floating">
+                                        <input type="text" class="form-control" id="endereco" 
+                                               name="endereco" placeholder="Endereço completo" maxlength="200">
+                                        <label for="endereco">Endereço Completo</label>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-4">
+                                    <div class="form-floating">
+                                        <input type="text" class="form-control" id="cep" 
+                                               name="cep" placeholder="CEP" maxlength="9">
+                                        <label for="cep">CEP</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Step 3: Detalhes da Petição -->
+                        <div class="form-step" data-step="3">
+                            <h5 class="mb-4">Detalhes da sua petição:</h5>
+                            
+                            <div class="row g-3">
+                                <div class="col-md-8">
+                                    <div class="form-floating">
+                                        <input type="text" class="form-control" id="empresaEnvolvida" 
+                                               name="empresa_envolvida" placeholder="Empresa envolvida" maxlength="100">
+                                        <label for="empresaEnvolvida">Empresa Envolvida</label>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-4">
+                                    <div class="form-floating">
+                                        <input type="text" class="form-control" id="cnpjEmpresa" 
+                                               name="cnpj_empresa" placeholder="CNPJ da empresa" maxlength="20">
+                                        <label for="cnpjEmpresa">CNPJ da Empresa</label>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-12">
+                                    <div class="form-floating">
+                                        <input type="text" class="form-control" id="assunto" 
+                                               name="assunto" placeholder="Assunto da petição" 
+                                               required maxlength="150">
+                                        <label for="assunto">
+                                            Assunto <span class="required-indicator">*</span>
+                                        </label>
+                                    </div>
+                                    <div class="character-counter" data-target="assunto" data-max="150">0/150</div>
+                                </div>
+                                
+                                <div class="col-12">
+                                    <div class="form-floating">
+                                        <textarea class="form-control" id="descricao" name="descricao" 
+                                                  placeholder="Descrição detalhada" required 
+                                                  style="height: 150px" maxlength="2000"></textarea>
+                                        <label for="descricao">
+                                            Descrição Detalhada <span class="required-indicator">*</span>
+                                        </label>
+                                    </div>
+                                    <div class="character-counter" data-target="descricao" data-max="2000">0/2000</div>
+                                    <div class="help-text">
+                                        Descreva sua situação de forma clara e detalhada. 
+                                        Inclua datas, valores e outras informações relevantes.
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-6">
+                                    <div class="form-floating">
+                                        <input type="date" class="form-control" id="dataOcorrencia" 
+                                               name="data_ocorrencia">
+                                        <label for="dataOcorrencia">Data da Ocorrência</label>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-6">
+                                    <div class="form-floating">
+                                        <input type="number" class="form-control" id="valorEnvolvido" 
+                                               name="valor_envolvido" placeholder="0,00" 
+                                               step="0.01" min="0">
+                                        <label for="valorEnvolvido">Valor Envolvido (R$)</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Step 4: Anexos -->
+                        <div class="form-step" data-step="4">
+                            <h5 class="mb-4">Anexar documentos (opcional):</h5>
+                            
+                            <div class="file-upload-area" id="fileUploadArea">
+                                <i class="fas fa-cloud-upload-alt" style="font-size: 3rem; color: var(--primary-color); margin-bottom: 1rem;"></i>
+                                <h6>Arraste arquivos aqui ou clique para selecionar</h6>
+                                <p class="text-muted mb-0">
+                                    Formatos aceitos: PDF, JPG, PNG, DOC, DOCX<br>
+                                    Tamanho máximo: 5MB por arquivo
+                                </p>
+                                <input type="file" id="fileInput" name="anexos" multiple 
+                                       accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" style="display: none;">
+                            </div>
+                            
+                            <div class="file-list" id="fileList"></div>
+                            
+                            <div class="help-text mt-3">
+                                <strong>Documentos recomendados:</strong>
+                                <ul class="mt-2">
+                                    <li>Nota fiscal ou comprovante de compra</li>
+                                    <li>Prints de conversas ou e-mails</li>
+                                    <li>Fotos do produto (se aplicável)</li>
+                                    <li>Contratos ou termos de serviço</li>
+                                </ul>
+                            </div>
+                        </div>
+                        
+                        <!-- Step 5: Revisão -->
+                        <div class="form-step" data-step="5">
+                            <h5 class="mb-4">Revise suas informações:</h5>
+                            
+                            <div class="summary-section">
+                                <h6 class="mb-3">Resumo da Petição</h6>
+                                <div id="summaryContent">
+                                    <!-- Conteúdo será preenchido via JavaScript -->
+                                </div>
+                            </div>
+                            
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="termsAccept" 
+                                       name="aceita_termos" required>
+                                <label class="form-check-label" for="termsAccept">
+                                    Declaro que as informações fornecidas são verdadeiras e 
+                                    aceito os <a href="#" target="_blank">termos de uso</a> 
+                                    e <a href="#" target="_blank">política de privacidade</a>
+                                    <span class="required-indicator">*</span>
+                                </label>
+                            </div>
+                            
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="communicationAccept" 
+                                       name="aceita_comunicacao">
+                                <label class="form-check-label" for="communicationAccept">
+                                    Autorizo o PROCON a entrar em contato comigo por e-mail 
+                                    e telefone sobre esta petição
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <!-- Navigation Buttons -->
+                        <div class="navigation-buttons">
+                            <button type="button" class="btn btn-outline-secondary btn-navigation" 
+                                    id="prevBtn" style="display: none;">
+                                <i class="fas fa-chevron-left me-2"></i>Anterior
+                            </button>
+                            
+                            <div class="text-center flex-grow-1">
+                                <div class="progress-container" id="progressContainer" style="display: none;">
+                                    <div class="progress-circle" id="progressCircle">0%</div>
+                                    <p class="text-muted mb-0">Enviando petição...</p>
+                                </div>
+                            </div>
+                            
+                            <button type="button" class="btn btn-primary btn-navigation" id="nextBtn">
+                                Próximo <i class="fas fa-chevron-right ms-2"></i>
+                            </button>
+                            
+                            <button type="submit" class="btn btn-success btn-navigation" 
+                                    id="submitBtn" style="display: none;">
+                                <i class="fas fa-paper-plane me-2"></i>Enviar Petição
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    let currentStep = 1;
+    const totalSteps = 5;
+    const form = document.getElementById('petitionForm');
+    const prevBtn = document.getElementById('prevBtn');
+    const nextBtn = document.getElementById('nextBtn');
+    const submitBtn = document.getElementById('submitBtn');
+    
+    // Seleção de tipo de petição
+    const typeOptions = document.querySelectorAll('.type-option');
+    const tipoPeticaoInput = document.getElementById('tipoPeticao');
+    
+    typeOptions.forEach(option => {
+        option.addEventListener('click', function() {
+            typeOptions.forEach(opt => opt.classList.remove('selected'));
+            this.classList.add('selected');
+            tipoPeticaoInput.value = this.dataset.type;
+        });
+    });
+    
+    // Navegação entre steps
+    function updateStepIndicator() {
+        document.querySelectorAll('.step').forEach((step, index) => {
+            const stepNum = index + 1;
+            step.classList.remove('active', 'completed');
+            
+            if (stepNum < currentStep) {
+                step.classList.add('completed');
+            } else if (stepNum === currentStep) {
+                step.classList.add('active');
+            }
+        });
+    }
+    
+    function showStep(step) {
+        document.querySelectorAll('.form-step').forEach(stepEl => {
+            stepEl.classList.remove('active');
+        });
+        
+        document.querySelector(`[data-step="${step}"]`).classList.add('active');
+        
+        // Update buttons
+        prevBtn.style.display = step > 1 ? 'block' : 'none';
+        nextBtn.style.display = step < totalSteps ? 'block' : 'none';
+        submitBtn.style.display = step === totalSteps ? 'block' : 'none';
+        
+        updateStepIndicator();
+    }
+    
+    function validateStep(step) {
+        const currentStepEl = document.querySelector(`[data-step="${step}"]`);
+        const requiredFields = currentStepEl.querySelectorAll('[required]');
+        let isValid = true;
+        
+        requiredFields.forEach(field => {
+            if (!field.value.trim()) {
+                field.classList.add('is-invalid');
+                isValid = false;
+            } else {
+                field.classList.remove('is-invalid');
+                field.classList.add('is-valid');
+            }
+        });
+        
+        // Validação específica por step
+        if (step === 1 && !tipoPeticaoInput.value) {
+            SISPROCON.showToast('Por favor, selecione o tipo de petição', 'warning');
+            isValid = false;
+        }
+        
+        return isValid;
+    }
+    
+    nextBtn.addEventListener('click', function() {
+        if (validateStep(currentStep)) {
+            currentStep++;
+            showStep(currentStep);
+            
+            if (currentStep === 5) {
+                updateSummary();
+            }
+        }
+    });
+    
+    prevBtn.addEventListener('click', function() {
+        currentStep--;
+        showStep(currentStep);
+    });
+    
+    // Contadores de caracteres
+    function setupCharacterCounters() {
+        document.querySelectorAll('.character-counter').forEach(counter => {
+            const target = counter.dataset.target;
+            const max = parseInt(counter.dataset.max);
+            const field = document.getElementById(target);
+            
+            function updateCounter() {
+                const current = field.value.length;
+                counter.textContent = `${current}/${max}`;
+                
+                counter.classList.remove('warning', 'danger');
+                if (current > max * 0.9) {
+                    counter.classList.add('danger');
+                } else if (current > max * 0.8) {
+                    counter.classList.add('warning');
+                }
+            }
+            
+            field.addEventListener('input', updateCounter);
+            updateCounter();
+        });
+    }
+    
+    setupCharacterCounters();
+    
+    // Máscaras de entrada
+    function setupInputMasks() {
+        const cpfCnpjField = document.getElementById('cpfCnpj');
+        const telefoneField = document.getElementById('telefone');
+        const cepField = document.getElementById('cep');
+        
+        cpfCnpjField.addEventListener('input', function(e) {
+            let value = e.target.value.replace(/\D/g, '');
+            
+            if (value.length <= 11) {
+                value = value.replace(/(\d{3})(\d)/, '$1.$2');
+                value = value.replace(/(\d{3})(\d)/, '$1.$2');
+                value = value.replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+            } else {
+                value = value.replace(/^(\d{2})(\d)/, '$1.$2');
+                value = value.replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3');
+                value = value.replace(/\.(\d{3})(\d)/, '.$1/$2');
+                value = value.replace(/(\d{4})(\d)/, '$1-$2');
+            }
+            
+            e.target.value = value;
+        });
+        
+        telefoneField.addEventListener('input', function(e) {
+            let value = e.target.value.replace(/\D/g, '');
+            value = value.replace(/^(\d{2})(\d)/g, '($1) $2');
+            value = value.replace(/(\d)(\d{4})$/, '$1-$2');
+            e.target.value = value;
+        });
+        
+        cepField.addEventListener('input', function(e) {
+            let value = e.target.value.replace(/\D/g, '');
+            value = value.replace(/^(\d{5})(\d)/, '$1-$2');
+            e.target.value = value;
+        });
+    }
+    
+    setupInputMasks();
+    
+    // Upload de arquivos
+    function setupFileUpload() {
+        const fileUploadArea = document.getElementById('fileUploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const fileList = document.getElementById('fileList');
+        let uploadedFiles = [];
+        
+        fileUploadArea.addEventListener('click', () => fileInput.click());
+        
+        fileUploadArea.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            this.classList.add('dragover');
+        });
+        
+        fileUploadArea.addEventListener('dragleave', function(e) {
+            e.preventDefault();
+            this.classList.remove('dragover');
+        });
+        
+        fileUploadArea.addEventListener('drop', function(e) {
+            e.preventDefault();
+            this.classList.remove('dragover');
+            handleFiles(e.dataTransfer.files);
+        });
+        
+        fileInput.addEventListener('change', function(e) {
+            handleFiles(e.target.files);
+        });
+        
+        function handleFiles(files) {
+            Array.from(files).forEach(file => {
+                if (validateFile(file)) {
+                    uploadedFiles.push(file);
+                    addFileToList(file);
+                }
+            });
+        }
+        
+        function validateFile(file) {
+            const maxSize = 5 * 1024 * 1024; // 5MB
+            const allowedTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png', 
+                                 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+            
+            if (file.size > maxSize) {
+                SISPROCON.showToast('Arquivo muito grande. Máximo 5MB por arquivo.', 'warning');
+                return false;
+            }
+            
+            if (!allowedTypes.includes(file.type)) {
+                SISPROCON.showToast('Tipo de arquivo não permitido.', 'warning');
+                return false;
+            }
+            
+            return true;
+        }
+        
+        function addFileToList(file) {
+            const fileItem = document.createElement('div');
+            fileItem.className = 'file-item';
+            
+            const iconClass = getFileIcon(file.type);
+            const fileSize = formatFileSize(file.size);
+            
+            fileItem.innerHTML = `
+                <div class="file-info">
+                    <i class="${iconClass} file-icon"></i>
+                    <div class="file-details">
+                        <div class="file-name">${file.name}</div>
+                        <div class="file-size">${fileSize}</div>
+                    </div>
+                </div>
+                <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeFile(this)">
+                    <i class="fas fa-trash"></i>
+                </button>
+            `;
+            
+            fileList.appendChild(fileItem);
+        }
+        
+        function getFileIcon(type) {
+            if (type.includes('pdf')) return 'fas fa-file-pdf';
+            if (type.includes('image')) return 'fas fa-file-image';
+            if (type.includes('word')) return 'fas fa-file-word';
+            return 'fas fa-file';
+        }
+        
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+        
+        window.removeFile = function(button) {
+            const fileItem = button.closest('.file-item');
+            const fileName = fileItem.querySelector('.file-name').textContent;
+            
+            uploadedFiles = uploadedFiles.filter(file => file.name !== fileName);
+            fileItem.remove();
+        };
+    }
+    
+    setupFileUpload();
+    
+    // Atualizar resumo
+    function updateSummary() {
+        const summaryContent = document.getElementById('summaryContent');
+        const formData = new FormData(form);
+        
+        const tipoTexto = {
+            'RECLAMACAO': 'Reclamação',
+            'DENUNCIA': 'Denúncia',
+            'CONSULTA': 'Consulta',
+            'SUGESTAO': 'Sugestão'
+        };
+        
+        summaryContent.innerHTML = `
+            <div class="summary-item">
+                <span class="summary-label">Tipo:</span>
+                <span class="summary-value">${tipoTexto[formData.get('tipo_peticao')] || ''}</span>
+            </div>
+            <div class="summary-item">
+                <span class="summary-label">Nome:</span>
+                <span class="summary-value">${formData.get('nome_completo') || ''}</span>
+            </div>
+            <div class="summary-item">
+                <span class="summary-label">E-mail:</span>
+                <span class="summary-value">${formData.get('email') || ''}</span>
+            </div>
+            <div class="summary-item">
+                <span class="summary-label">Assunto:</span>
+                <span class="summary-value">${formData.get('assunto') || ''}</span>
+            </div>
+            <div class="summary-item">
+                <span class="summary-label">Empresa:</span>
+                <span class="summary-value">${formData.get('empresa_envolvida') || 'Não informado'}</span>
+            </div>
+            <div class="summary-item">
+                <span class="summary-label">Anexos:</span>
+                <span class="summary-value">${document.querySelectorAll('.file-item').length} arquivo(s)</span>
+            </div>
+        `;
+    }
+    
+    // Submissão do formulário
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        if (!validateStep(5)) {
+            return;
+        }
+        
+        // Mostrar progresso
+        document.getElementById('progressContainer').style.display = 'block';
+        submitBtn.style.display = 'none';
+        
+        // Simular upload com progresso
+        let progress = 0;
+        const progressCircle = document.getElementById('progressCircle');
+        
+        const interval = setInterval(() => {
+            progress += Math.random() * 20;
+            if (progress > 100) progress = 100;
+            
+            progressCircle.textContent = Math.round(progress) + '%';
+            progressCircle.style.background = `conic-gradient(var(--primary-color) ${progress * 3.6}deg, #e9ecef 0deg)`;
+            
+            if (progress >= 100) {
+                clearInterval(interval);
+                
+                setTimeout(() => {
+                    // Redirecionar para página de sucesso
+                    window.location.href = '{% url "portal:peticao_sucesso" %}';
+                }, 1000);
+            }
+        }, 200);
+    });
+    
+    // Validação em tempo real
+    form.addEventListener('input', function(e) {
+        if (e.target.hasAttribute('required')) {
+            if (e.target.value.trim()) {
+                e.target.classList.remove('is-invalid');
+                e.target.classList.add('is-valid');
+            } else {
+                e.target.classList.remove('is-valid');
+            }
+        }
+    });
+    
+    // Busca de CEP
+    document.getElementById('cep').addEventListener('blur', function() {
+        const cep = this.value.replace(/\D/g, '');
+        if (cep.length === 8) {
+            fetch(`https://viacep.com.br/ws/${cep}/json/`)
+                .then(response => response.json())
+                .then(data => {
+                    if (!data.erro) {
+                        document.getElementById('endereco').value = 
+                            `${data.logradouro}, ${data.bairro}, ${data.localidade} - ${data.uf}`;
+                    }
+                })
+                .catch(error => console.log('Erro ao buscar CEP:', error));
+        }
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Empresas</h2>
+<a href="{% url 'multas:criar_empresa' %}">Nova Empresa</a>
+<ul>
+  {% for empresa in empresas %}
+    <li>
+      {{ empresa }}
+      <a href="{% url 'multas:editar_empresa' empresa.pk %}">Editar</a>
+      <a href="{% url 'multas:excluir_empresa' empresa.pk %}">Excluir</a>
+    </li>
+  {% empty %}
+    <li>Nenhuma empresa cadastrada.</li>
+  {% endfor %}
+</ul>
+{% endblock %}

@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verificar Autenticação Frontend</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .warning { background-color: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+        .info { background-color: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background-color: #0056b3; }
+        pre {
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Verificar Autenticação Frontend</h1>
+        
+        <div id="status" class="status info">
+            Carregando informações de autenticação...
+        </div>
+        
+        <div>
+            <button onclick="checkAuth()">🔄 Verificar Autenticação</button>
+            <button onclick="testEndpoints()">🧪 Testar Endpoints</button>
+            <button onclick="clearStorage()">🗑️ Limpar Storage</button>
+        </div>
+        
+        <div id="results"></div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:8000/api';
+        
+        function updateStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.className = `status ${type}`;
+            statusDiv.textContent = message;
+        }
+        
+        function addResult(title, content, type = 'info') {
+            const resultsDiv = document.getElementById('results');
+            const resultDiv = document.createElement('div');
+            resultDiv.className = `status ${type}`;
+            resultDiv.innerHTML = `<strong>${title}</strong><br><pre>${JSON.stringify(content, null, 2)}</pre>`;
+            resultsDiv.appendChild(resultDiv);
+        }
+        
+        function checkAuth() {
+            updateStatus('Verificando autenticação...', 'info');
+            
+            // Verificar localStorage
+            const token = localStorage.getItem('procon-auth-token');
+            const refreshToken = localStorage.getItem('procon-refresh-token');
+            const userData = localStorage.getItem('procon-user-data');
+            
+            const authInfo = {
+                hasToken: !!token,
+                hasRefreshToken: !!refreshToken,
+                hasUserData: !!userData,
+                token: token ? `${token.substring(0, 50)}...` : null,
+                refreshToken: refreshToken ? `${refreshToken.substring(0, 50)}...` : null,
+                userData: userData ? JSON.parse(userData) : null
+            };
+            
+            addResult('Informações de Autenticação', authInfo, authInfo.hasToken ? 'success' : 'error');
+            
+            if (authInfo.hasToken) {
+                updateStatus('✅ Usuário autenticado!', 'success');
+            } else {
+                updateStatus('❌ Usuário não autenticado', 'error');
+            }
+        }
+        
+        async function testEndpoints() {
+            updateStatus('Testando endpoints...', 'info');
+            
+            const token = localStorage.getItem('procon-auth-token');
+            if (!token) {
+                updateStatus('❌ Sem token para testar endpoints', 'error');
+                return;
+            }
+            
+            const headers = {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            };
+            
+            const endpoints = [
+                '/apreensao-inutilizacao/autos_supermercado_disponiveis/',
+                '/apreensao-inutilizacao/proximo_numero/',
+                '/apreensao-inutilizacao/estatisticas/',
+                '/supermercados/'
+            ];
+            
+            for (const endpoint of endpoints) {
+                try {
+                    const response = await fetch(`${API_BASE_URL}${endpoint}`, { headers });
+                    const data = await response.json();
+                    
+                    addResult(
+                        `Endpoint: ${endpoint}`,
+                        {
+                            status: response.status,
+                            statusText: response.statusText,
+                            data: data
+                        },
+                        response.ok ? 'success' : 'error'
+                    );
+                } catch (error) {
+                    addResult(
+                        `Endpoint: ${endpoint}`,
+                        { error: error.message },
+                        'error'
+                    );
+                }
+            }
+            
+            updateStatus('✅ Teste de endpoints concluído!', 'success');
+        }
+        
+        function clearStorage() {
+            localStorage.removeItem('procon-auth-token');
+            localStorage.removeItem('procon-refresh-token');
+            localStorage.removeItem('procon-user-data');
+            updateStatus('🗑️ Storage limpo!', 'warning');
+            document.getElementById('results').innerHTML = '';
+        }
+        
+        // Verificar autenticação ao carregar a página
+        window.onload = function() {
+            checkAuth();
+        };
+    </script>
+</body>
+</html>

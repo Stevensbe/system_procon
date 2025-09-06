@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Dashboard – PROCON{% endblock %}
+
+{% block content %}
+  <div class="row mb-4">
+    <div class="col">
+      <h1>Dashboard</h1>
+      <p class="text-muted">Visão geral do sistema</p>
+    </div>
+  </div>
+
+  <div class="row g-4">
+    <!-- Constatações -->
+    <div class="col-md-4">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <h5 class="card-title">Autos de Constatação</h5>
+          <p class="display-6">{{ total_constatacoes }}</p>
+          <a href="{% url 'processos:list_constatacao' %}" class="btn btn-outline-primary btn-sm">
+            Ver Constatações
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Infrações -->
+    <div class="col-md-4">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <h5 class="card-title">Autos de Infração</h5>
+          <p class="display-6">{{ total_infracoes }}</p>
+          <small class="text-muted">
+            {{ percent_convert|floatformat:1 }}% convertidos
+          </small><br/>
+          <a href="{% url 'processos:list_infracao' %}" class="btn btn-outline-primary btn-sm">
+            Ver Infrações
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Multas -->
+    <div class="col-md-4">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <h5 class="card-title">Multas</h5>
+          <p class="display-6">{{ total_multas }}</p>
+          <p>
+            <span class="badge bg-success">Pagas: {{ multas_pagas }}</span>
+            <span class="badge bg-danger">Em débito: {{ multas_debito }}</span>
+          </p>
+          <a href="{% url 'multas:list' %}" class="btn btn-outline-primary btn-sm">
+            Ver Financeiro
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Links rápidos -->
+  <div class="row mt-5">
+    <div class="col">
+      <h4>Atalhos</h4>
+      <div class="list-group">
+        <a href="{% url 'legislacao:list' %}" class="list-group-item list-group-item-action">
+          Legislação
+        </a>
+        <a href="{% url 'processos:create_constatacao' %}" class="list-group-item list-group-item-action">
+          Nova Constatação
+        </a>
+        <a href="{% url 'multas:create' %}" class="list-group-item list-group-item-action">
+          Nova Multa
+        </a>
+        <a href="{% url 'protocolo:home' %}" class="list-group-item list-group-item-action">
+          Protocolo
+        </a>
+      </div>
+    </div>
+  </div>
+{% endblock %}

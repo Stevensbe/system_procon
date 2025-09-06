@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Cobranças</h2>
+<a href="{% url 'multas:criar_cobranca' %}">Nova Cobrança</a>
+<ul>
+  {% for cobranca in cobrancas %}
+    <li>
+      {{ cobranca }}
+      <a href="{% url 'multas:editar_cobranca' cobranca.pk %}">Editar</a>
+      <a href="{% url 'multas:excluir_cobranca' cobranca.pk %}">Excluir</a>
+    </li>
+  {% empty %}
+    <li>Nenhuma cobrança cadastrada.</li>
+  {% endfor %}
+</ul>
+{% endblock %}

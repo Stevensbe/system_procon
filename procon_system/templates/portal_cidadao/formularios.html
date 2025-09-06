@@ -1,0 +1,361 @@
+{% extends "portal_cidadao/base.html" %}
+
+{% block title %}Formulários - Portal do Cidadão{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+<section class="hero-section">
+    <div class="container">
+        <div class="row align-items-center">
+            <div class="col-lg-8">
+                <h1 class="display-4 fw-bold mb-4">
+                    <i class="fas fa-download me-3"></i>
+                    Formulários
+                </h1>
+                <p class="lead mb-4">
+                    Baixe os formulários necessários para suas solicitações, denúncias e reclamações. 
+                    Todos os formulários são gratuitos e podem ser preenchidos digitalmente.
+                </p>
+                <div class="d-flex gap-3">
+                    <a href="{% url 'portal_cidadao:orientacoes' %}" class="btn btn-light btn-lg">
+                        <i class="fas fa-info-circle me-2"></i>Orientações
+                    </a>
+                    <a href="{% url 'portal_cidadao:contato' %}" class="btn btn-outline-light btn-lg">
+                        <i class="fas fa-envelope me-2"></i>Fale Conosco
+                    </a>
+                </div>
+            </div>
+            <div class="col-lg-4 text-center">
+                <i class="fas fa-file-alt" style="font-size: 8rem; opacity: 0.3;"></i>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Busca Formulários -->
+<section class="py-5">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-lg-8">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title text-center mb-4">
+                            <i class="fas fa-search me-2 text-primary"></i>
+                            Buscar Formulários
+                        </h5>
+                        <form method="GET" class="d-flex">
+                            <input type="text" class="form-control form-control-lg me-3" 
+                                   name="q" placeholder="Digite o nome do formulário..." 
+                                   value="{{ request.GET.q }}">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="fas fa-search"></i>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Filtros por Categoria -->
+<section class="py-5 bg-light">
+    <div class="container">
+        <h2 class="text-center mb-5">
+            <i class="fas fa-filter me-2 text-primary"></i>
+            Filtrar por Categoria
+        </h2>
+        
+        <div class="row justify-content-center">
+            <div class="col-lg-8">
+                <div class="d-flex flex-wrap justify-content-center gap-2">
+                    <a href="{% url 'portal_cidadao:lista_formularios' %}" 
+                       class="btn btn-outline-primary {% if not request.GET.categoria %}active{% endif %}">
+                        Todos
+                    </a>
+                    <a href="?categoria=DENUNCIA" 
+                       class="btn btn-outline-primary {% if request.GET.categoria == 'DENUNCIA' %}active{% endif %}">
+                        <i class="fas fa-exclamation-triangle me-1"></i>Denúncia
+                    </a>
+                    <a href="?categoria=RECLAMACAO" 
+                       class="btn btn-outline-primary {% if request.GET.categoria == 'RECLAMACAO' %}active{% endif %}">
+                        <i class="fas fa-comment me-1"></i>Reclamação
+                    </a>
+                    <a href="?categoria=SOLICITACAO" 
+                       class="btn btn-outline-primary {% if request.GET.categoria == 'SOLICITACAO' %}active{% endif %}">
+                        <i class="fas fa-file-alt me-1"></i>Solicitação
+                    </a>
+                    <a href="?categoria=ORIENTACAO" 
+                       class="btn btn-outline-primary {% if request.GET.categoria == 'ORIENTACAO' %}active{% endif %}">
+                        <i class="fas fa-info-circle me-1"></i>Orientação
+                    </a>
+                    <a href="?categoria=CADASTRO" 
+                       class="btn btn-outline-primary {% if request.GET.categoria == 'CADASTRO' %}active{% endif %}">
+                        <i class="fas fa-user-plus me-1"></i>Cadastro
+                    </a>
+                    <a href="?categoria=OUTROS" 
+                       class="btn btn-outline-primary {% if request.GET.categoria == 'OUTROS' %}active{% endif %}">
+                        <i class="fas fa-ellipsis-h me-1"></i>Outros
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Formulários em Destaque -->
+<section class="py-5">
+    <div class="container">
+        <h2 class="text-center mb-5">
+            <i class="fas fa-star me-2 text-primary"></i>
+            Formulários em Destaque
+        </h2>
+        
+        <div class="row g-4">
+            {% for formulario in formularios_destaque %}
+            <div class="col-md-6 col-lg-4">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <div class="service-icon">
+                                <i class="fas fa-file-pdf"></i>
+                            </div>
+                            {% if formulario.destaque %}
+                            <span class="badge bg-warning">
+                                <i class="fas fa-star me-1"></i>Destaque
+                            </span>
+                            {% endif %}
+                        </div>
+                        <h5 class="card-title">{{ formulario.nome }}</h5>
+                        <p class="card-text">{{ formulario.descricao }}</p>
+                        <div class="row text-center mb-3">
+                            <div class="col-6">
+                                <small class="text-muted">
+                                    <i class="fas fa-download me-1"></i>
+                                    {{ formulario.downloads }} downloads
+                                </small>
+                            </div>
+                            <div class="col-6">
+                                <small class="text-muted">
+                                    <i class="fas fa-file me-1"></i>
+                                    {{ formulario.tamanho_formatado }}
+                                </small>
+                            </div>
+                        </div>
+                        <div class="d-grid gap-2">
+                            <a href="{% url 'portal_cidadao:download_formulario' formulario.id %}" 
+                               class="btn btn-primary">
+                                <i class="fas fa-download me-2"></i>Baixar Formulário
+                            </a>
+                        </div>
+                    </div>
+                    <div class="card-footer">
+                        <small class="text-muted">
+                            <i class="fas fa-calendar me-1"></i>
+                            Atualizado em {{ formulario.atualizado_em|date:"d/m/Y" }}
+                        </small>
+                    </div>
+                </div>
+            </div>
+            {% empty %}
+            <div class="col-12 text-center">
+                <p class="text-muted">Nenhum formulário em destaque no momento.</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+
+<!-- Lista de Formulários -->
+<section class="py-5 bg-light">
+    <div class="container">
+        <h2 class="text-center mb-5">
+            <i class="fas fa-list me-2 text-primary"></i>
+            Todos os Formulários
+        </h2>
+        
+        <div class="row g-4">
+            {% for formulario in formularios %}
+            <div class="col-md-6 col-lg-4">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <div class="service-icon">
+                                <i class="fas fa-file-pdf"></i>
+                            </div>
+                            <span class="badge bg-secondary">
+                                {{ formulario.get_categoria_display }}
+                            </span>
+                        </div>
+                        <h5 class="card-title">{{ formulario.nome }}</h5>
+                        <p class="card-text">{{ formulario.descricao }}</p>
+                        <div class="row text-center mb-3">
+                            <div class="col-6">
+                                <small class="text-muted">
+                                    <i class="fas fa-download me-1"></i>
+                                    {{ formulario.downloads }} downloads
+                                </small>
+                            </div>
+                            <div class="col-6">
+                                <small class="text-muted">
+                                    <i class="fas fa-file me-1"></i>
+                                    {{ formulario.tamanho_formatado }}
+                                </small>
+                            </div>
+                        </div>
+                        <div class="d-grid gap-2">
+                            <a href="{% url 'portal_cidadao:download_formulario' formulario.id %}" 
+                               class="btn btn-outline-primary">
+                                <i class="fas fa-download me-2"></i>Baixar Formulário
+                            </a>
+                        </div>
+                    </div>
+                    <div class="card-footer">
+                        <small class="text-muted">
+                            <i class="fas fa-calendar me-1"></i>
+                            Atualizado em {{ formulario.atualizado_em|date:"d/m/Y" }}
+                        </small>
+                    </div>
+                </div>
+            </div>
+            {% empty %}
+            <div class="col-12 text-center">
+                <p class="text-muted">Nenhum formulário disponível no momento.</p>
+            </div>
+            {% endfor %}
+        </div>
+        
+        <!-- Paginação -->
+        {% if is_paginated %}
+        <div class="row mt-5">
+            <div class="col-12">
+                <nav aria-label="Navegação de páginas">
+                    <ul class="pagination justify-content-center">
+                        {% if page_obj.has_previous %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page=1{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.categoria %}&categoria={{ request.GET.categoria }}{% endif %}">
+                                    <i class="fas fa-angle-double-left"></i>
+                                </a>
+                            </li>
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.categoria %}&categoria={{ request.GET.categoria }}{% endif %}">
+                                    <i class="fas fa-angle-left"></i>
+                                </a>
+                            </li>
+                        {% endif %}
+                        
+                        <li class="page-item active">
+                            <span class="page-link">
+                                Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+                            </span>
+                        </li>
+                        
+                        {% if page_obj.has_next %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.categoria %}&categoria={{ request.GET.categoria }}{% endif %}">
+                                    <i class="fas fa-angle-right"></i>
+                                </a>
+                            </li>
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.categoria %}&categoria={{ request.GET.categoria }}{% endif %}">
+                                    <i class="fas fa-angle-double-right"></i>
+                                </a>
+                            </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</section>
+
+<!-- Instruções de Uso -->
+<section class="py-5">
+    <div class="container">
+        <h2 class="text-center mb-5">
+            <i class="fas fa-info-circle me-2 text-primary"></i>
+            Como Usar os Formulários
+        </h2>
+        
+        <div class="row g-4">
+            <div class="col-md-6 col-lg-3">
+                <div class="card text-center h-100">
+                    <div class="card-body">
+                        <div class="service-icon">
+                            <i class="fas fa-download"></i>
+                        </div>
+                        <h5 class="card-title">1. Baixar</h5>
+                        <p class="card-text">
+                            Clique no botão "Baixar Formulário" para fazer o download do arquivo PDF.
+                        </p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6 col-lg-3">
+                <div class="card text-center h-100">
+                    <div class="card-body">
+                        <div class="service-icon">
+                            <i class="fas fa-edit"></i>
+                        </div>
+                        <h5 class="card-title">2. Preencher</h5>
+                        <p class="card-text">
+                            Preencha todos os campos obrigatórios com informações verdadeiras e completas.
+                        </p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6 col-lg-3">
+                <div class="card text-center h-100">
+                    <div class="card-body">
+                        <div class="service-icon">
+                            <i class="fas fa-paperclip"></i>
+                        </div>
+                        <h5 class="card-title">3. Anexar</h5>
+                        <p class="card-text">
+                            Anexe os documentos necessários conforme especificado no formulário.
+                        </p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6 col-lg-3">
+                <div class="card text-center h-100">
+                    <div class="card-body">
+                        <div class="service-icon">
+                            <i class="fas fa-paper-plane"></i>
+                        </div>
+                        <h5 class="card-title">4. Enviar</h5>
+                        <p class="card-text">
+                            Envie o formulário preenchido através do nosso portal ou presencialmente.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- CTA Section -->
+<section class="py-5 bg-primary text-white">
+    <div class="container text-center">
+        <h2 class="mb-4">Precisa de Ajuda?</h2>
+        <p class="lead mb-4">
+            Nossa equipe está pronta para orientá-lo sobre o preenchimento dos formulários.
+        </p>
+        <div class="d-flex justify-content-center gap-3 flex-wrap">
+            <a href="{% url 'portal_cidadao:orientacoes' %}" class="btn btn-light btn-lg">
+                <i class="fas fa-info-circle me-2"></i>Orientações
+            </a>
+            <a href="{% url 'portal_cidadao:faq' %}" class="btn btn-outline-light btn-lg">
+                <i class="fas fa-question-circle me-2"></i>Perguntas Frequentes
+            </a>
+            <a href="{% url 'portal_cidadao:contato' %}" class="btn btn-outline-light btn-lg">
+                <i class="fas fa-envelope me-2"></i>Fale Conosco
+            </a>
+        </div>
+    </div>
+</section>
+{% endblock %}

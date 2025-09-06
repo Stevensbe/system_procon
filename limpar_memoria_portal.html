@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Limpar Memória - Portal Cidadão</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .header h1 {
+            color: #2563eb;
+            margin-bottom: 10px;
+        }
+        .status {
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .success {
+            background-color: #d1fae5;
+            color: #065f46;
+            border: 1px solid #10b981;
+        }
+        .error {
+            background-color: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #ef4444;
+        }
+        .warning {
+            background-color: #fef3c7;
+            color: #92400e;
+            border: 1px solid #f59e0b;
+        }
+        .info {
+            background-color: #dbeafe;
+            color: #1e40af;
+            border: 1px solid #3b82f6;
+        }
+        .button {
+            background-color: #2563eb;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        .button:hover {
+            background-color: #1d4ed8;
+        }
+        .button.danger {
+            background-color: #dc2626;
+        }
+        .button.danger:hover {
+            background-color: #b91c1c;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .stat-card {
+            background: #f8fafc;
+            padding: 15px;
+            border-radius: 5px;
+            border: 1px solid #e2e8f0;
+        }
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #2563eb;
+        }
+        .stat-label {
+            color: #64748b;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🧹 Limpeza de Memória</h1>
+            <p>Portal Cidadão - Sistema PROCON</p>
+        </div>
+
+        <div id="status-container"></div>
+
+        <div class="stats" id="stats-container">
+            <!-- Estatísticas serão inseridas aqui -->
+        </div>
+
+        <div style="text-align: center; margin: 20px 0;">
+            <button class="button" onclick="verificarMemoria()">🔍 Verificar Memória</button>
+            <button class="button" onclick="limparLocalStorage()">🗑️ Limpar LocalStorage</button>
+            <button class="button" onclick="limparSessionStorage()">🗑️ Limpar SessionStorage</button>
+            <button class="button danger" onclick="limparTudo()">💥 Limpar Tudo</button>
+            <button class="button" onclick="voltarPortal()">🏠 Voltar ao Portal</button>
+        </div>
+
+        <div id="logs-container"></div>
+    </div>
+
+    <script>
+        function mostrarStatus(mensagem, tipo = 'info') {
+            const container = document.getElementById('status-container');
+            const div = document.createElement('div');
+            div.className = `status ${tipo}`;
+            div.innerHTML = mensagem;
+            container.appendChild(div);
+            
+            // Remover após 5 segundos
+            setTimeout(() => {
+                div.remove();
+            }, 5000);
+        }
+
+        function verificarMemoria() {
+            const stats = {
+                localStorage: 0,
+                sessionStorage: 0,
+                memory: 0,
+                auditLogs: 0,
+                pwaData: 0
+            };
+
+            // Verificar localStorage
+            try {
+                for (let i = 0; i < localStorage.length; i++) {
+                    const key = localStorage.key(i);
+                    const value = localStorage.getItem(key);
+                    stats.localStorage += (key + value).length;
+                }
+            } catch (error) {
+                console.error('Erro ao verificar localStorage:', error);
+            }
+
+            // Verificar sessionStorage
+            try {
+                for (let i = 0; i < sessionStorage.length; i++) {
+                    const key = sessionStorage.key(i);
+                    const value = sessionStorage.getItem(key);
+                    stats.sessionStorage += (key + value).length;
+                }
+            } catch (error) {
+                console.error('Erro ao verificar sessionStorage:', error);
+            }
+
+            // Verificar memória do navegador
+            if ('memory' in performance) {
+                const memory = performance.memory;
+                stats.memory = Math.round((memory.usedJSHeapSize / memory.totalJSHeapSize) * 100);
+            }
+
+            // Verificar logs de auditoria
+            try {
+                const auditLogs = localStorage.getItem('audit_logs');
+                if (auditLogs) {
+                    stats.auditLogs = JSON.parse(auditLogs).length;
+                }
+            } catch (error) {
+                console.error('Erro ao verificar logs de auditoria:', error);
+            }
+
+            // Verificar dados PWA
+            try {
+                const pwaData = localStorage.getItem('offlineData');
+                if (pwaData) {
+                    stats.pwaData = JSON.parse(pwaData).length;
+                }
+            } catch (error) {
+                console.error('Erro ao verificar dados PWA:', error);
+            }
+
+            // Exibir estatísticas
+            const container = document.getElementById('stats-container');
+            container.innerHTML = `
+                <div class="stat-card">
+                    <div class="stat-value">${(stats.localStorage / 1024).toFixed(2)} KB</div>
+                    <div class="stat-label">LocalStorage</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">${(stats.sessionStorage / 1024).toFixed(2)} KB</div>
+                    <div class="stat-label">SessionStorage</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">${stats.memory}%</div>
+                    <div class="stat-label">Uso de Memória</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">${stats.auditLogs}</div>
+                    <div class="stat-label">Logs de Auditoria</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">${stats.pwaData}</div>
+                    <div class="stat-label">Dados PWA</div>
+                </div>
+            `;
+
+            mostrarStatus('✅ Verificação de memória concluída', 'success');
+        }
+
+        function limparLocalStorage() {
+            try {
+                const keys = Object.keys(localStorage);
+                let removidos = 0;
+                
+                keys.forEach(key => {
+                    if (key.startsWith('audit_') || key.startsWith('pwa_') || key === 'offlineData') {
+                        localStorage.removeItem(key);
+                        removidos++;
+                    }
+                });
+                
+                mostrarStatus(`✅ ${removidos} itens removidos do LocalStorage`, 'success');
+                verificarMemoria();
+            } catch (error) {
+                mostrarStatus(`❌ Erro ao limpar LocalStorage: ${error.message}`, 'error');
+            }
+        }
+
+        function limparSessionStorage() {
+            try {
+                const keys = Object.keys(sessionStorage);
+                let removidos = 0;
+                
+                keys.forEach(key => {
+                    if (key.startsWith('audit_') || key.startsWith('pwa_')) {
+                        sessionStorage.removeItem(key);
+                        removidos++;
+                    }
+                });
+                
+                mostrarStatus(`✅ ${removidos} itens removidos do SessionStorage`, 'success');
+                verificarMemoria();
+            } catch (error) {
+                mostrarStatus(`❌ Erro ao limpar SessionStorage: ${error.message}`, 'error');
+            }
+        }
+
+        function limparTudo() {
+            if (confirm('⚠️ ATENÇÃO: Isso irá limpar TODOS os dados do navegador para este site. Deseja continuar?')) {
+                try {
+                    // Limpar localStorage
+                    localStorage.clear();
+                    
+                    // Limpar sessionStorage
+                    sessionStorage.clear();
+                    
+                    // Limpar cache do navegador
+                    if ('caches' in window) {
+                        caches.keys().then(names => {
+                            names.forEach(name => {
+                                caches.delete(name);
+                            });
+                        });
+                    }
+                    
+                    mostrarStatus('✅ Todos os dados foram limpos com sucesso!', 'success');
+                    verificarMemoria();
+                } catch (error) {
+                    mostrarStatus(`❌ Erro ao limpar dados: ${error.message}`, 'error');
+                }
+            }
+        }
+
+        function voltarPortal() {
+            window.location.href = '/portal-cidadao/';
+        }
+
+        // Verificar memória ao carregar a página
+        window.addEventListener('load', () => {
+            verificarMemoria();
+            mostrarStatus('🔍 Página carregada. Clique em "Verificar Memória" para ver os detalhes.', 'info');
+        });
+    </script>
+</body>
+</html>

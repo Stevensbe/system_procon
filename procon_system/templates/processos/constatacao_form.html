@@ -1,0 +1,18 @@
+{% extends 'processos/base.html' %}
+{% block title %}Novo Auto de Constatação{% endblock %}
+{% block content %}
+  <h2>Auto de Constatação</h2>
+  <form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit">Salvar e Anexar Documentos →</button>
+  </form>
+{% endblock %}
+{% extends 'base.html' %}
+{% block content %}
+<h2>Upload de Documentos para Auto {{ constatacao.numero }}</h2>
+<form method="post" enctype="multipart/form-data">{% csrf_token %}
+  {{ form.as_p }}
+  <button type="submit" class="btn btn-success">Enviar Documento</button>
+</form>
+{% endblock %}

@@ -1,0 +1,754 @@
+{% extends 'admin_layouts/base_admin.html' %}
+{% load static %}
+
+{% block title %}{{ page_title|default:"Lista" }} - SISPROCON{% endblock %}
+
+{% block extra_css %}
+<style>
+    .list-header {
+        background: white;
+        border-radius: var(--border-radius);
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        box-shadow: var(--box-shadow);
+    }
+    
+    .list-title {
+        margin: 0;
+        color: var(--admin-dark);
+        font-weight: 600;
+    }
+    
+    .list-description {
+        color: #6c757d;
+        margin: 0.5rem 0 0 0;
+    }
+    
+    .filters-section {
+        background: white;
+        border-radius: var(--border-radius);
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        box-shadow: var(--box-shadow);
+    }
+    
+    .filters-header {
+        display: flex;
+        justify-content: between;
+        align-items: center;
+        margin-bottom: 1rem;
+        cursor: pointer;
+    }
+    
+    .filters-title {
+        margin: 0;
+        font-weight: 600;
+        color: var(--admin-dark);
+    }
+    
+    .filters-toggle {
+        color: #6c757d;
+        transition: var(--transition);
+    }
+    
+    .filters-content {
+        display: none;
+    }
+    
+    .filters-content.show {
+        display: block;
+        animation: slideDown 0.3s ease;
+    }
+    
+    @keyframes slideDown {
+        from { opacity: 0; transform: translateY(-10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .quick-filters {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+    }
+    
+    .quick-filter {
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+        border: 1px solid #e9ecef;
+        background: white;
+        color: #6c757d;
+        text-decoration: none;
+        font-size: 0.875rem;
+        transition: var(--transition);
+    }
+    
+    .quick-filter:hover, .quick-filter.active {
+        background: var(--admin-accent);
+        color: white;
+        border-color: var(--admin-accent);
+        text-decoration: none;
+    }
+    
+    .bulk-actions {
+        background: #f8f9fa;
+        border-radius: var(--border-radius);
+        padding: 1rem;
+        margin-bottom: 1rem;
+        display: none;
+        align-items: center;
+        gap: 1rem;
+    }
+    
+    .bulk-actions.show {
+        display: flex;
+    }
+    
+    .bulk-actions-text {
+        color: var(--admin-dark);
+        font-weight: 500;
+    }
+    
+    .bulk-actions-buttons {
+        display: flex;
+        gap: 0.5rem;
+    }
+    
+    .table-container {
+        background: white;
+        border-radius: var(--border-radius);
+        overflow: hidden;
+        box-shadow: var(--box-shadow);
+    }
+    
+    .table-header {
+        background: #f8f9fa;
+        padding: 1rem 1.5rem;
+        border-bottom: 1px solid #e9ecef;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .table-title {
+        margin: 0;
+        font-weight: 600;
+        color: var(--admin-dark);
+    }
+    
+    .table-actions {
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+    }
+    
+    .table-responsive {
+        max-height: 70vh;
+        overflow-y: auto;
+    }
+    
+    .table {
+        margin-bottom: 0;
+    }
+    
+    .table th {
+        background: #f8f9fa;
+        border-bottom: 2px solid #dee2e6;
+        font-weight: 600;
+        color: var(--admin-dark);
+        position: sticky;
+        top: 0;
+        z-index: 10;
+    }
+    
+    .table td {
+        vertical-align: middle;
+    }
+    
+    .table tbody tr:hover {
+        background: rgba(52, 152, 219, 0.05);
+    }
+    
+    .status-badge {
+        padding: 0.375rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+    
+    .status-active { background: rgba(39, 174, 96, 0.1); color: #27ae60; }
+    .status-pending { background: rgba(243, 156, 18, 0.1); color: #f39c12; }
+    .status-inactive { background: rgba(149, 165, 166, 0.1); color: #95a5a6; }
+    .status-danger { background: rgba(231, 76, 60, 0.1); color: #e74c3c; }
+    
+    .priority-indicator {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        display: inline-block;
+        margin-right: 0.5rem;
+    }
+    
+    .priority-high { background: var(--admin-danger); }
+    .priority-medium { background: var(--admin-warning); }
+    .priority-low { background: var(--admin-success); }
+    
+    .action-buttons {
+        display: flex;
+        gap: 0.25rem;
+    }
+    
+    .btn-action {
+        padding: 0.375rem;
+        width: 32px;
+        height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: var(--border-radius);
+    }
+    
+    .pagination-container {
+        background: white;
+        border-radius: 0 0 var(--border-radius) var(--border-radius);
+        padding: 1rem 1.5rem;
+        border-top: 1px solid #e9ecef;
+        display: flex;
+        justify-content: between;
+        align-items: center;
+    }
+    
+    .pagination-info {
+        color: #6c757d;
+        font-size: 0.875rem;
+    }
+    
+    .pagination {
+        margin: 0;
+    }
+    
+    .export-dropdown {
+        position: relative;
+    }
+    
+    .export-menu {
+        position: absolute;
+        top: 100%;
+        right: 0;
+        background: white;
+        border: 1px solid #e9ecef;
+        border-radius: var(--border-radius);
+        box-shadow: var(--box-shadow);
+        z-index: 1000;
+        min-width: 150px;
+        display: none;
+    }
+    
+    .export-menu.show {
+        display: block;
+    }
+    
+    .export-item {
+        display: block;
+        padding: 0.75rem 1rem;
+        color: var(--admin-dark);
+        text-decoration: none;
+        border-bottom: 1px solid #f8f9fa;
+        transition: var(--transition);
+    }
+    
+    .export-item:hover {
+        background: #f8f9fa;
+        text-decoration: none;
+    }
+    
+    .export-item:last-child {
+        border-bottom: none;
+    }
+    
+    @media (max-width: 768px) {
+        .list-header,
+        .filters-section,
+        .table-container {
+            margin-left: -1rem;
+            margin-right: -1rem;
+            border-radius: 0;
+        }
+        
+        .table-header {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 1rem;
+        }
+        
+        .table-actions {
+            width: 100%;
+            justify-content: space-between;
+        }
+        
+        .quick-filters {
+            flex-direction: column;
+        }
+        
+        .bulk-actions {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 0.5rem;
+        }
+        
+        .pagination-container {
+            flex-direction: column;
+            gap: 1rem;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div class="list-header">
+    <div class="d-flex justify-content-between align-items-start">
+        <div>
+            <h2 class="list-title">{{ page_title|default:"Lista de Itens" }}</h2>
+            {% if page_description %}
+            <p class="list-description">{{ page_description }}</p>
+            {% endif %}
+        </div>
+        <div class="d-flex gap-2">
+            {% block header_actions %}
+            <a href="{{ create_url|default:'#' }}" class="btn btn-admin-primary">
+                <i class="fas fa-plus me-2"></i>{{ create_text|default:"Adicionar" }}
+            </a>
+            {% endblock %}
+        </div>
+    </div>
+</div>
+
+<!-- Filters Section -->
+{% if show_filters|default:True %}
+<div class="filters-section">
+    <div class="filters-header" onclick="toggleFilters()">
+        <h6 class="filters-title">
+            <i class="fas fa-filter me-2"></i>Filtros
+        </h6>
+        <i class="fas fa-chevron-down filters-toggle" id="filtersToggle"></i>
+    </div>
+    
+    <div class="filters-content" id="filtersContent">
+        <!-- Quick Filters -->
+        <div class="quick-filters">
+            {% block quick_filters %}
+            <a href="?status=all" class="quick-filter {% if not request.GET.status or request.GET.status == 'all' %}active{% endif %}">
+                Todos
+            </a>
+            <a href="?status=active" class="quick-filter {% if request.GET.status == 'active' %}active{% endif %}">
+                Ativos
+            </a>
+            <a href="?status=pending" class="quick-filter {% if request.GET.status == 'pending' %}active{% endif %}">
+                Pendentes
+            </a>
+            <a href="?status=inactive" class="quick-filter {% if request.GET.status == 'inactive' %}active{% endif %}">
+                Inativos
+            </a>
+            {% endblock %}
+        </div>
+        
+        <!-- Advanced Filters -->
+        <form method="get" class="row g-3">
+            {% block advanced_filters %}
+            <div class="col-md-3">
+                <label class="form-label">Status</label>
+                <select name="status" class="form-select">
+                    <option value="">Todos</option>
+                    <option value="active" {% if request.GET.status == 'active' %}selected{% endif %}>Ativo</option>
+                    <option value="pending" {% if request.GET.status == 'pending' %}selected{% endif %}>Pendente</option>
+                    <option value="inactive" {% if request.GET.status == 'inactive' %}selected{% endif %}>Inativo</option>
+                </select>
+            </div>
+            
+            <div class="col-md-3">
+                <label class="form-label">Data Inicial</label>
+                <input type="date" name="date_from" class="form-control" value="{{ request.GET.date_from }}">
+            </div>
+            
+            <div class="col-md-3">
+                <label class="form-label">Data Final</label>
+                <input type="date" name="date_to" class="form-control" value="{{ request.GET.date_to }}">
+            </div>
+            
+            <div class="col-md-3">
+                <label class="form-label">Buscar</label>
+                <input type="text" name="search" class="form-control" placeholder="Buscar..." value="{{ request.GET.search }}">
+            </div>
+            {% endblock %}
+            
+            <div class="col-12">
+                <button type="submit" class="btn btn-admin-primary">
+                    <i class="fas fa-search me-2"></i>Filtrar
+                </button>
+                <a href="{{ request.path }}" class="btn btn-outline-secondary">
+                    <i class="fas fa-times me-2"></i>Limpar
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+
+<!-- Bulk Actions -->
+<div class="bulk-actions" id="bulkActions">
+    <div class="bulk-actions-text">
+        <span id="selectedCount">0</span> item(s) selecionado(s)
+    </div>
+    <div class="bulk-actions-buttons">
+        {% block bulk_actions %}
+        <button class="btn btn-sm btn-outline-danger" onclick="bulkDelete()">
+            <i class="fas fa-trash me-2"></i>Excluir
+        </button>
+        <button class="btn btn-sm btn-outline-secondary" onclick="bulkExport()">
+            <i class="fas fa-download me-2"></i>Exportar
+        </button>
+        {% endblock %}
+    </div>
+</div>
+
+<!-- Table Container -->
+<div class="table-container">
+    <div class="table-header">
+        <h6 class="table-title">
+            {% block table_title %}
+            {{ table_title|default:"Itens" }}
+            {% if object_list %}
+                ({{ object_list|length }} de {{ paginator.count|default:object_list|length }})
+            {% endif %}
+            {% endblock %}
+        </h6>
+        
+        <div class="table-actions">
+            <div class="input-group input-group-sm" style="width: 200px;">
+                <input type="text" class="form-control" placeholder="Busca rápida..." id="quickSearch">
+                <button class="btn btn-outline-secondary" type="button">
+                    <i class="fas fa-search"></i>
+                </button>
+            </div>
+            
+            <div class="export-dropdown">
+                <button class="btn btn-sm btn-outline-secondary" onclick="toggleExportMenu()">
+                    <i class="fas fa-download me-2"></i>Exportar
+                </button>
+                <div class="export-menu" id="exportMenu">
+                    <a href="?format=pdf" class="export-item">
+                        <i class="fas fa-file-pdf me-2"></i>PDF
+                    </a>
+                    <a href="?format=excel" class="export-item">
+                        <i class="fas fa-file-excel me-2"></i>Excel
+                    </a>
+                    <a href="?format=csv" class="export-item">
+                        <i class="fas fa-file-csv me-2"></i>CSV
+                    </a>
+                </div>
+            </div>
+            
+            <button class="btn btn-sm btn-outline-secondary" onclick="refreshTable()">
+                <i class="fas fa-sync-alt"></i>
+            </button>
+        </div>
+    </div>
+    
+    <div class="table-responsive">
+        <table class="table table-hover" id="mainTable">
+            <thead>
+                <tr>
+                    <th width="40">
+                        <input type="checkbox" class="form-check-input" id="selectAll">
+                    </th>
+                    {% block table_headers %}
+                    <th>ID</th>
+                    <th>Nome</th>
+                    <th>Status</th>
+                    <th>Data</th>
+                    <th width="120">Ações</th>
+                    {% endblock %}
+                </tr>
+            </thead>
+            <tbody>
+                {% block table_body %}
+                {% if object_list %}
+                    {% for object in object_list %}
+                    <tr>
+                        <td>
+                            <input type="checkbox" class="form-check-input row-checkbox" value="{{ object.id }}">
+                        </td>
+                        <td>{{ object.id|default:"-" }}</td>
+                        <td>{{ object.name|default:object.titulo|default:"-" }}</td>
+                        <td>
+                            <span class="status-badge status-active">Ativo</span>
+                        </td>
+                        <td>{{ object.created_at|default:object.data_criacao|date:"d/m/Y"|default:"-" }}</td>
+                        <td>
+                            <div class="action-buttons">
+                                <a href="{{ object.get_absolute_url|default:'#' }}" class="btn btn-sm btn-outline-primary btn-action" title="Visualizar">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                                <a href="{% url request.resolver_match.namespace|add:':update' object.id %}" class="btn btn-sm btn-outline-secondary btn-action" title="Editar">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                                <button onclick="deleteItem('{{ object.id }}', '{{ object.name|default:object.titulo }}')" class="btn btn-sm btn-outline-danger btn-action" title="Excluir">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                <tr>
+                    <td colspan="6" class="text-center py-4">
+                        <div class="text-muted">
+                            <i class="fas fa-inbox fa-3x mb-3"></i>
+                            <h5>Nenhum item encontrado</h5>
+                            <p>{% block empty_message %}Não há itens para exibir no momento.{% endblock %}</p>
+                            {% if create_url %}
+                            <a href="{{ create_url }}" class="btn btn-admin-primary">
+                                <i class="fas fa-plus me-2"></i>{{ create_text|default:"Adicionar Primeiro Item" }}
+                            </a>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% endif %}
+                {% endblock %}
+            </tbody>
+        </table>
+    </div>
+    
+    <!-- Pagination -->
+    {% if is_paginated %}
+    <div class="pagination-container">
+        <div class="pagination-info">
+            Mostrando {{ page_obj.start_index }} a {{ page_obj.end_index }} de {{ paginator.count }} resultados
+        </div>
+        
+        <nav aria-label="Paginação">
+            <ul class="pagination">
+                {% if page_obj.has_previous %}
+                <li class="page-item">
+                    <a class="page-link" href="?page=1">Primeira</a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}">Anterior</a>
+                </li>
+                {% endif %}
+                
+                {% for num in page_obj.paginator.page_range %}
+                    {% if page_obj.number == num %}
+                    <li class="page-item active">
+                        <span class="page-link">{{ num }}</span>
+                    </li>
+                    {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+                    </li>
+                    {% endif %}
+                {% endfor %}
+                
+                {% if page_obj.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.next_page_number }}">Próxima</a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ paginator.num_pages }}">Última</a>
+                </li>
+                {% endif %}
+            </ul>
+        </nav>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Toggle filters
+    window.toggleFilters = function() {
+        const content = document.getElementById('filtersContent');
+        const toggle = document.getElementById('filtersToggle');
+        
+        content.classList.toggle('show');
+        toggle.classList.toggle('fa-chevron-down');
+        toggle.classList.toggle('fa-chevron-up');
+    };
+    
+    // Select all functionality
+    const selectAll = document.getElementById('selectAll');
+    const rowCheckboxes = document.querySelectorAll('.row-checkbox');
+    const bulkActions = document.getElementById('bulkActions');
+    const selectedCount = document.getElementById('selectedCount');
+    
+    selectAll.addEventListener('change', function() {
+        rowCheckboxes.forEach(checkbox => {
+            checkbox.checked = this.checked;
+        });
+        updateBulkActions();
+    });
+    
+    rowCheckboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', updateBulkActions);
+    });
+    
+    function updateBulkActions() {
+        const selected = document.querySelectorAll('.row-checkbox:checked');
+        const count = selected.length;
+        
+        selectedCount.textContent = count;
+        
+        if (count > 0) {
+            bulkActions.classList.add('show');
+        } else {
+            bulkActions.classList.remove('show');
+        }
+        
+        // Update select all state
+        if (count === 0) {
+            selectAll.indeterminate = false;
+            selectAll.checked = false;
+        } else if (count === rowCheckboxes.length) {
+            selectAll.indeterminate = false;
+            selectAll.checked = true;
+        } else {
+            selectAll.indeterminate = true;
+        }
+    }
+    
+    // Quick search
+    const quickSearch = document.getElementById('quickSearch');
+    let searchTimeout;
+    
+    quickSearch.addEventListener('input', function() {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => {
+            const query = this.value.toLowerCase();
+            const rows = document.querySelectorAll('#mainTable tbody tr');
+            
+            rows.forEach(row => {
+                const text = row.textContent.toLowerCase();
+                if (text.includes(query)) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        }, 300);
+    });
+    
+    // Export menu toggle
+    window.toggleExportMenu = function() {
+        const menu = document.getElementById('exportMenu');
+        menu.classList.toggle('show');
+    };
+    
+    // Close export menu when clicking outside
+    document.addEventListener('click', function(e) {
+        const exportDropdown = document.querySelector('.export-dropdown');
+        if (!exportDropdown.contains(e.target)) {
+            document.getElementById('exportMenu').classList.remove('show');
+        }
+    });
+    
+    // Refresh table
+    window.refreshTable = function() {
+        const button = event.target.closest('button');
+        const originalContent = button.innerHTML;
+        
+        button.innerHTML = '<div class="spinner"></div>';
+        button.disabled = true;
+        
+        setTimeout(() => {
+            button.innerHTML = originalContent;
+            button.disabled = false;
+            ADMIN.showToast('Tabela atualizada!', 'success');
+            location.reload();
+        }, 1000);
+    };
+});
+
+// Delete item function
+function deleteItem(id, name) {
+    ADMIN.confirm(
+        `Tem certeza que deseja excluir "${name}"?`,
+        function() {
+            // Simular exclusão
+            ADMIN.showToast('Item excluído com sucesso!', 'success');
+            
+            // Remove row from table
+            const checkbox = document.querySelector(`input[value="${id}"]`);
+            if (checkbox) {
+                const row = checkbox.closest('tr');
+                row.style.animation = 'fadeOut 0.3s ease';
+                setTimeout(() => {
+                    row.remove();
+                }, 300);
+            }
+        }
+    );
+}
+
+// Bulk delete
+function bulkDelete() {
+    const selected = document.querySelectorAll('.row-checkbox:checked');
+    const count = selected.length;
+    
+    if (count === 0) {
+        ADMIN.showToast('Selecione pelo menos um item', 'warning');
+        return;
+    }
+    
+    ADMIN.confirm(
+        `Tem certeza que deseja excluir ${count} item(s) selecionado(s)?`,
+        function() {
+            selected.forEach(checkbox => {
+                const row = checkbox.closest('tr');
+                row.style.animation = 'fadeOut 0.3s ease';
+                setTimeout(() => {
+                    row.remove();
+                }, 300);
+            });
+            
+            document.getElementById('bulkActions').classList.remove('show');
+            document.getElementById('selectAll').checked = false;
+            
+            ADMIN.showToast(`${count} item(s) excluído(s) com sucesso!`, 'success');
+        }
+    );
+}
+
+// Bulk export
+function bulkExport() {
+    const selected = document.querySelectorAll('.row-checkbox:checked');
+    const count = selected.length;
+    
+    if (count === 0) {
+        ADMIN.showToast('Selecione pelo menos um item', 'warning');
+        return;
+    }
+    
+    ADMIN.showToast(`Exportando ${count} item(s)...`, 'info');
+    
+    // Simular export
+    setTimeout(() => {
+        ADMIN.showToast('Exportação concluída!', 'success');
+    }, 2000);
+}
+
+// Add fade out animation
+const style = document.createElement('style');
+style.textContent = `
+    @keyframes fadeOut {
+        from { opacity: 1; transform: scale(1); }
+        to { opacity: 0; transform: scale(0.95); }
+    }
+`;
+document.head.appendChild(style);
+</script>
+{% endblock %}

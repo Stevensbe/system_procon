@@ -1,0 +1,1 @@
+const e=t=>!t&&t!==0?"R$ 0,00":new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL"}).format(t),n=t=>{if(!t)return"-";const r=new Date(t);return isNaN(r.getTime())?"-":new Intl.DateTimeFormat("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric"}).format(r)};export{n as a,e as f};

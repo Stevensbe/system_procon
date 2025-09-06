@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Lista de Processos Jurídicos{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3 mb-0 text-gray-800">Processos Jurídicos</h1>
+        <a href="{% url 'juridico:criar_processo' %}" class="btn btn-primary">
+            <i class="fas fa-plus"></i> Novo Processo
+        </a>
+    </div>
+
+    <!-- Filtros -->
+    <div class="card shadow mb-4">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">Filtros</h6>
+        </div>
+        <div class="card-body">
+            <form method="GET" class="row">
+                <div class="col-md-3">
+                    <label for="numero">Número do Processo:</label>
+                    <input type="text" class="form-control" name="numero" value="{{ request.GET.numero }}">
+                </div>
+                <div class="col-md-3">
+                    <label for="status">Status:</label>
+                    <select class="form-control" name="status">
+                        <option value="">Todos</option>
+                        <option value="EM_ANDAMENTO" {% if request.GET.status == 'EM_ANDAMENTO' %}selected{% endif %}>Em Andamento</option>
+                        <option value="CONCLUIDO" {% if request.GET.status == 'CONCLUIDO' %}selected{% endif %}>Concluído</option>
+                        <option value="SUSPENSO" {% if request.GET.status == 'SUSPENSO' %}selected{% endif %}>Suspenso</option>
+                        <option value="ARQUIVADO" {% if request.GET.status == 'ARQUIVADO' %}selected{% endif %}>Arquivado</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="parte">Parte Interessada:</label>
+                    <input type="text" class="form-control" name="parte" value="{{ request.GET.parte }}">
+                </div>
+                <div class="col-md-3 d-flex align-items-end">
+                    <button type="submit" class="btn btn-info mr-2">
+                        <i class="fas fa-search"></i> Filtrar
+                    </button>
+                    <a href="{% url 'juridico:listar_processo' %}" class="btn btn-secondary">
+                        <i class="fas fa-eraser"></i> Limpar
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Lista de Processos -->
+    <div class="card shadow mb-4">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">Processos</h6>
+        </div>
+        <div class="card-body">
+            {% if object_list %}
+                <div class="table-responsive">
+                    <table class="table table-bordered" width="100%" cellspacing="0">
+                        <thead>
+                            <tr>
+                                <th>Número</th>
+                                <th>Parte</th>
+                                <th>Assunto</th>
+                                <th>Status</th>
+                                <th>Prioridade</th>
+                                <th>Criado em</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for processo in object_list %}
+                            <tr>
+                                <td>{{ processo.numero }}</td>
+                                <td>{{ processo.parte }}</td>
+                                <td>{{ processo.assunto|truncatechars:50 }}</td>
+                                <td>
+                                    <span class="badge badge-{% if processo.status == 'EM_ANDAMENTO' %}warning{% elif processo.status == 'CONCLUIDO' %}success{% elif processo.status == 'SUSPENSO' %}secondary{% else %}info{% endif %}">
+                                        {{ processo.get_status_display }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="badge badge-{% if processo.prioridade == 'ALTA' %}danger{% elif processo.prioridade == 'MEDIA' %}warning{% else %}info{% endif %}">
+                                        {{ processo.get_prioridade_display }}
+                                    </span>
+                                </td>
+                                <td>{{ processo.data_abertura|date:"d/m/Y H:i" }}</td>
+                                <td>
+                                    <a href="#" class="btn btn-sm btn-info" title="Ver Detalhes">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    <a href="{% url 'juridico:editar_processo' processo.pk %}" class="btn btn-sm btn-warning" title="Editar">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    <a href="{% url 'juridico:excluir_processo' processo.pk %}" class="btn btn-sm btn-danger" title="Excluir" onclick="return confirm('Tem certeza que deseja excluir este processo?')">
+                                        <i class="fas fa-trash"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Paginação -->
+                {% if is_paginated %}
+                <nav aria-label="Page navigation">
+                    <ul class="pagination justify-content-center">
+                        {% if page_obj.has_previous %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page=1">Primeira</a>
+                            </li>
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page_obj.previous_page_number }}">Anterior</a>
+                            </li>
+                        {% endif %}
+
+                        <li class="page-item active">
+                            <span class="page-link">
+                                Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+                            </span>
+                        </li>
+
+                        {% if page_obj.has_next %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page_obj.next_page_number }}">Próxima</a>
+                            </li>
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}">Última</a>
+                            </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+                {% endif %}
+
+            {% else %}
+                <div class="text-center py-4">
+                    <p class="text-muted">Nenhum processo encontrado.</p>
+                    <a href="{% url 'juridico:criar_processo' %}" class="btn btn-primary">
+                        <i class="fas fa-plus"></i> Criar Primeiro Processo
+                    </a>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

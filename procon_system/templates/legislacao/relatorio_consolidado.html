@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Relatório Consolidado – PROCON{% endblock %}
+{% block content %}
+  <h1>Relatório Consolidado de Legislação</h1>
+  {% for lei in leis %}
+    <div class="mb-4">
+      <h3>{{ lei.numero }} — {{ lei.titulo }}</h3>
+      <ul>
+        {% for art in lei.artigos.all %}
+          <li><strong>Art. {{ art.numero_artigo }}:</strong> {{ art.texto }}</li>
+        {% empty %}
+          <li><em>Sem artigos.</em></li>
+        {% endfor %}
+      </ul>
+    </div>
+  {% endfor %}
+{% endblock %}

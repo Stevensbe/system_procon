@@ -1,0 +1,25 @@
+{
+  "titulo": "Teste JSON",
+  "data_geracao": "2025-08-26T20:27:13.136692+00:00",
+  "total_registros": 3,
+  "dados": [
+    {
+      "id": 1,
+      "valor": 100,
+      "categoria": "A",
+      "data": "2024-01-01"
+    },
+    {
+      "id": 2,
+      "valor": 200,
+      "categoria": "B",
+      "data": "2024-01-02"
+    },
+    {
+      "id": 3,
+      "valor": 150,
+      "categoria": "A",
+      "data": "2024-01-03"
+    }
+  ]
+}

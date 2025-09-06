@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Configurações Bancárias</h2>
+<a href="{% url 'multas:criar_configuracao' %}">Nova Configuração</a>
+<ul>
+  {% for configuracao in configuracoes %}
+    <li>
+      {{ configuracao }}
+      <a href="{% url 'multas:editar_configuracao' configuracao.pk %}">Editar</a>
+      <a href="{% url 'multas:excluir_configuracao' configuracao.pk %}">Excluir</a>
+    </li>
+  {% empty %}
+    <li>Nenhuma configuração cadastrada.</li>
+  {% endfor %}
+</ul>
+{% endblock %}

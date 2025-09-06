@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Departamentos</h2>
+<a href="{% url 'multas:criar_departamento' %}">Novo Departamento</a>
+<ul>
+  {% for departamento in departamentos %}
+    <li>
+      {{ departamento }}
+      <a href="{% url 'multas:editar_departamento' departamento.pk %}">Editar</a>
+      <a href="{% url 'multas:excluir_departamento' departamento.pk %}">Excluir</a>
+    </li>
+  {% empty %}
+    <li>Nenhum departamento cadastrado.</li>
+  {% endfor %}
+</ul>
+{% endblock %}

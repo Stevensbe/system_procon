@@ -1,0 +1,247 @@
+version: '3.8'
+
+services:
+  # === BANCO DE DADOS ===
+  db:
+    image: postgres:15-alpine
+    container_name: procon_db
+    environment:
+      POSTGRES_DB: ${DB_NAME:-procon_system}
+      POSTGRES_USER: ${DB_USER:-procon_admin}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-admin123}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - procon_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U procon_admin -d procon_system"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # === CACHE E FILAS ===
+  redis:
+    image: redis:7-alpine
+    container_name: procon_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - procon_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # === BACKEND DJANGO ===
+  backend:
+    build:
+      context: ./procon_system
+      dockerfile: Dockerfile
+    container_name: procon_backend
+    environment:
+      - DEBUG=${DEBUG:-False}
+      - DB_ENGINE=postgresql
+      - DB_NAME=${DB_NAME:-procon_system}
+      - DB_USER=${DB_USER:-procon_admin}
+      - DB_PASSWORD=${DB_PASSWORD:-admin123}
+      - DB_HOST=db
+      - DB_PORT=5432
+      - REDIS_URL=redis://redis:6379/0
+    volumes:
+      - ./procon_system:/app
+      - media_files:/app/media
+      - static_files:/app/staticfiles
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - procon_network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/health/')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # === CELERY WORKER ===
+  celery_worker:
+    build:
+      context: ./procon_system
+      dockerfile: Dockerfile
+    container_name: procon_celery_worker
+    command: celery -A procon_system worker -l info
+    environment:
+      - DEBUG=False
+      - DB_ENGINE=postgresql
+      - DB_NAME=procon_system
+      - DB_USER=procon_admin
+      - DB_PASSWORD=admin123
+      - DB_HOST=db
+      - DB_PORT=5432
+      - REDIS_URL=redis://redis:6379/0
+    volumes:
+      - ./procon_system:/app
+      - media_files:/app/media
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - procon_network
+
+  # === CELERY BEAT ===
+  celery_beat:
+    build:
+      context: ./procon_system
+      dockerfile: Dockerfile
+    container_name: procon_celery_beat
+    command: celery -A procon_system beat -l info
+    environment:
+      - DEBUG=False
+      - DB_ENGINE=postgresql
+      - DB_NAME=procon_system
+      - DB_USER=procon_admin
+      - DB_PASSWORD=admin123
+      - DB_HOST=db
+      - DB_PORT=5432
+      - REDIS_URL=redis://redis:6379/0
+    volumes:
+      - ./procon_system:/app
+      - media_files:/app/media
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - procon_network
+
+  # === FRONTEND REACT ===
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: procon_frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    networks:
+      - procon_network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # === NGINX ===
+  nginx:
+    image: nginx:alpine
+    container_name: procon_nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - static_files:/var/www/static
+      - media_files:/var/www/media
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - procon_network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # === PROMETHEUS ===
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: procon_prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    networks:
+      - procon_network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # === GRAFANA ===
+  grafana:
+    image: grafana/grafana:latest
+    container_name: procon_grafana
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin123}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    depends_on:
+      - prometheus
+    networks:
+      - procon_network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # === ALERTMANAGER ===
+  alertmanager:
+    image: prom/alertmanager:latest
+    container_name: procon_alertmanager
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager_data:/alertmanager
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+    networks:
+      - procon_network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9093/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  postgres_data:
+  redis_data:
+  media_files:
+  static_files:
+  prometheus_data:
+  grafana_data:
+  alertmanager_data:
+
+networks:
+  procon_network:
+    driver: bridge

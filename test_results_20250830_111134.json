@@ -1,0 +1,119 @@
+{
+  "passed": 1,
+  "failed": 15,
+  "skipped": 0,
+  "tests": [
+    {
+      "name": "Backend Health Check",
+      "success": false,
+      "message": "Backend não está respondendo",
+      "details": "HTTPConnectionPool(host='localhost', port=8000): Max retries exceeded with url: /health/ (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000025099DC58E0>: Failed to establish a new connection: [WinError 10061] Nenhuma conexão pôde ser feita porque a máquina de destino as recusou ativamente'))",
+      "timestamp": "2025-08-30T11:10:32.309367"
+    },
+    {
+      "name": "Database Connection",
+      "success": true,
+      "message": "Conexão com banco de dados OK",
+      "details": null,
+      "timestamp": "2025-08-30T11:10:37.307017"
+    },
+    {
+      "name": "API Endpoint: /api/protocolo/",
+      "success": false,
+      "message": "Endpoint não está respondendo",
+      "details": "HTTPConnectionPool(host='localhost', port=8000): Max retries exceeded with url: /api/protocolo/ (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x000002509DA33950>: Failed to establish a new connection: [WinError 10061] Nenhuma conexão pôde ser feita porque a máquina de destino as recusou ativamente'))",
+      "timestamp": "2025-08-30T11:10:41.417940"
+    },
+    {
+      "name": "API Endpoint: /api/fiscalizacao/",
+      "success": false,
+      "message": "Endpoint não está respondendo",
+      "details": "HTTPConnectionPool(host='localhost', port=8000): Max retries exceeded with url: /api/fiscalizacao/ (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x000002509DA4C080>: Failed to establish a new connection: [WinError 10061] Nenhuma conexão pôde ser feita porque a máquina de destino as recusou ativamente'))",
+      "timestamp": "2025-08-30T11:10:45.512277"
+    },
+    {
+      "name": "API Endpoint: /api/cobranca/",
+      "success": false,
+      "message": "Endpoint não está respondendo",
+      "details": "HTTPConnectionPool(host='localhost', port=8000): Max retries exceeded with url: /api/cobranca/ (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x000002509DA4C560>: Failed to establish a new connection: [WinError 10061] Nenhuma conexão pôde ser feita porque a máquina de destino as recusou ativamente'))",
+      "timestamp": "2025-08-30T11:10:49.604853"
+    },
+    {
+      "name": "API Endpoint: /api/usuarios/",
+      "success": false,
+      "message": "Endpoint não está respondendo",
+      "details": "HTTPConnectionPool(host='localhost', port=8000): Max retries exceeded with url: /api/usuarios/ (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x000002509DA33D40>: Failed to establish a new connection: [WinError 10061] Nenhuma conexão pôde ser feita porque a máquina de destino as recusou ativamente'))",
+      "timestamp": "2025-08-30T11:10:53.702140"
+    },
+    {
+      "name": "API Endpoint: /api/dashboard/",
+      "success": false,
+      "message": "Endpoint não está respondendo",
+      "details": "HTTPConnectionPool(host='localhost', port=8000): Max retries exceeded with url: /api/dashboard/ (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x000002509DA33620>: Failed to establish a new connection: [WinError 10061] Nenhuma conexão pôde ser feita porque a máquina de destino as recusou ativamente'))",
+      "timestamp": "2025-08-30T11:10:57.786354"
+    },
+    {
+      "name": "Auth Endpoint: /api/auth/login/",
+      "success": false,
+      "message": "Endpoint de autenticação não está respondendo",
+      "details": "HTTPConnectionPool(host='localhost', port=8000): Max retries exceeded with url: /api/auth/login/ (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x000002509DA4C3E0>: Failed to establish a new connection: [WinError 10061] Nenhuma conexão pôde ser feita porque a máquina de destino as recusou ativamente'))",
+      "timestamp": "2025-08-30T11:11:01.904954"
+    },
+    {
+      "name": "Auth Endpoint: /api/auth/refresh/",
+      "success": false,
+      "message": "Endpoint de autenticação não está respondendo",
+      "details": "HTTPConnectionPool(host='localhost', port=8000): Max retries exceeded with url: /api/auth/refresh/ (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x000002509DA4D3A0>: Failed to establish a new connection: [WinError 10061] Nenhuma conexão pôde ser feita porque a máquina de destino as recusou ativamente'))",
+      "timestamp": "2025-08-30T11:11:05.990956"
+    },
+    {
+      "name": "Auth Endpoint: /api/auth/verify/",
+      "success": false,
+      "message": "Endpoint de autenticação não está respondendo",
+      "details": "HTTPConnectionPool(host='localhost', port=8000): Max retries exceeded with url: /api/auth/verify/ (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x000002509DA4E150>: Failed to establish a new connection: [WinError 10061] Nenhuma conexão pôde ser feita porque a máquina de destino as recusou ativamente'))",
+      "timestamp": "2025-08-30T11:11:10.081296"
+    },
+    {
+      "name": "Static Files: /static/admin/css/base.css",
+      "success": false,
+      "message": "Arquivo estático não acessível",
+      "details": "HTTPConnectionPool(host='localhost', port=8000): Max retries exceeded with url: /static/admin/css/base.css (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x000002509DA4EAB0>: Failed to establish a new connection: [WinError 10061] Nenhuma conexão pôde ser feita porque a máquina de destino as recusou ativamente'))",
+      "timestamp": "2025-08-30T11:11:14.199126"
+    },
+    {
+      "name": "Static Files: /static/react/",
+      "success": false,
+      "message": "Arquivo estático não acessível",
+      "details": "HTTPConnectionPool(host='localhost', port=8000): Max retries exceeded with url: /static/react/ (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x000002509DA33B30>: Failed to establish a new connection: [WinError 10061] Nenhuma conexão pôde ser feita porque a máquina de destino as recusou ativamente'))",
+      "timestamp": "2025-08-30T11:11:18.309068"
+    },
+    {
+      "name": "Frontend Availability",
+      "success": false,
+      "message": "Frontend não está respondendo",
+      "details": "HTTPConnectionPool(host='localhost', port=3000): Max retries exceeded with url: / (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x000002509DA4DFA0>: Failed to establish a new connection: [WinError 10061] Nenhuma conexão pôde ser feita porque a máquina de destino as recusou ativamente'))",
+      "timestamp": "2025-08-30T11:11:22.400232"
+    },
+    {
+      "name": "CORS Configuration",
+      "success": false,
+      "message": "Erro ao testar CORS",
+      "details": "HTTPConnectionPool(host='localhost', port=8000): Max retries exceeded with url: /api/protocolo/ (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x000002509DA4D160>: Failed to establish a new connection: [WinError 10061] Nenhuma conexão pôde ser feita porque a máquina de destino as recusou ativamente'))",
+      "timestamp": "2025-08-30T11:11:26.488319"
+    },
+    {
+      "name": "File Upload",
+      "success": false,
+      "message": "Erro ao testar upload de arquivo",
+      "details": "HTTPConnectionPool(host='localhost', port=8000): Max retries exceeded with url: /api/upload/ (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x000002509DA4CA10>: Failed to establish a new connection: [WinError 10061] Nenhuma conexão pôde ser feita porque a máquina de destino as recusou ativamente'))",
+      "timestamp": "2025-08-30T11:11:30.591063"
+    },
+    {
+      "name": "Performance Test",
+      "success": false,
+      "message": "Erro ao testar performance",
+      "details": "HTTPConnectionPool(host='localhost', port=8000): Max retries exceeded with url: /health/ (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x000002509DA4F0E0>: Failed to establish a new connection: [WinError 10061] Nenhuma conexão pôde ser feita porque a máquina de destino as recusou ativamente'))",
+      "timestamp": "2025-08-30T11:11:34.687842"
+    }
+  ]
+}

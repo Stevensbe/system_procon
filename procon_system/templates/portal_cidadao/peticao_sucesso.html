@@ -1,0 +1,662 @@
+{% extends 'base/base.html' %}
+{% load static %}
+
+{% block title %}Petição Enviada com Sucesso - SISPROCON{% endblock %}
+
+{% block meta_description %}Sua petição foi protocolada com sucesso no PROCON. Acompanhe o andamento usando seu número de protocolo{% endblock %}
+
+{% block extra_css %}
+<style>
+    .success-container {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        overflow: hidden;
+        margin-bottom: 2rem;
+    }
+    
+    .success-header {
+        background: linear-gradient(135deg, #28a745, #20c997);
+        color: white;
+        padding: 3rem 2rem;
+        text-align: center;
+    }
+    
+    .success-icon {
+        font-size: 5rem;
+        margin-bottom: 1.5rem;
+        display: block;
+        animation: bounceIn 0.8s ease;
+    }
+    
+    @keyframes bounceIn {
+        0% { transform: scale(0.3); opacity: 0; }
+        50% { transform: scale(1.05); }
+        70% { transform: scale(0.9); }
+        100% { transform: scale(1); opacity: 1; }
+    }
+    
+    .success-content {
+        padding: 2rem;
+    }
+    
+    .protocol-card {
+        background: linear-gradient(135deg, #e3f2fd, #f8f9fa);
+        border: 2px solid #2196f3;
+        border-radius: 12px;
+        padding: 2rem;
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+    
+    .protocol-number {
+        font-size: 2rem;
+        font-weight: bold;
+        color: #1976d2;
+        margin: 1rem 0;
+        font-family: 'Courier New', monospace;
+        letter-spacing: 2px;
+    }
+    
+    .protocol-label {
+        font-weight: 600;
+        color: #0d47a1;
+        margin-bottom: 0.5rem;
+    }
+    
+    .protocol-description {
+        color: #1565c0;
+        font-size: 0.875rem;
+        line-height: 1.5;
+    }
+    
+    .info-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+    }
+    
+    .info-card {
+        background: #f8f9fa;
+        border-radius: 8px;
+        padding: 1.5rem;
+        text-align: center;
+    }
+    
+    .info-icon {
+        font-size: 2.5rem;
+        color: var(--primary-color);
+        margin-bottom: 1rem;
+        display: block;
+    }
+    
+    .info-title {
+        font-weight: 600;
+        color: #212529;
+        margin-bottom: 0.5rem;
+    }
+    
+    .info-description {
+        color: #6c757d;
+        font-size: 0.875rem;
+        line-height: 1.4;
+    }
+    
+    .timeline-section {
+        background: #f8f9fa;
+        border-radius: 12px;
+        padding: 2rem;
+        margin-bottom: 2rem;
+    }
+    
+    .timeline {
+        position: relative;
+        padding-left: 2rem;
+    }
+    
+    .timeline::before {
+        content: '';
+        position: absolute;
+        left: 1rem;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background: linear-gradient(180deg, var(--primary-color), #e9ecef);
+    }
+    
+    .timeline-item {
+        position: relative;
+        margin-bottom: 2rem;
+        background: white;
+        border-radius: 8px;
+        padding: 1.5rem;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        margin-left: 1rem;
+    }
+    
+    .timeline-item::before {
+        content: '';
+        position: absolute;
+        left: -1.5rem;
+        top: 1.5rem;
+        width: 12px;
+        height: 12px;
+        background: var(--primary-color);
+        border-radius: 50%;
+        border: 3px solid white;
+    }
+    
+    .timeline-item.completed::before {
+        background: #28a745;
+    }
+    
+    .timeline-item.pending::before {
+        background: #ffc107;
+    }
+    
+    .timeline-date {
+        font-size: 0.875rem;
+        color: #6c757d;
+        margin-bottom: 0.5rem;
+    }
+    
+    .timeline-title {
+        font-weight: 600;
+        color: #212529;
+        margin-bottom: 0.5rem;
+    }
+    
+    .timeline-description {
+        color: #495057;
+        line-height: 1.5;
+    }
+    
+    .status-current {
+        background: rgba(40, 167, 69, 0.1);
+        border-left: 4px solid #28a745;
+    }
+    
+    .action-buttons {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+        justify-content: center;
+        margin-top: 2rem;
+    }
+    
+    .contact-info {
+        background: #e3f2fd;
+        border: 1px solid #2196f3;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin-top: 2rem;
+    }
+    
+    .contact-title {
+        font-weight: 600;
+        color: #1976d2;
+        margin-bottom: 1rem;
+    }
+    
+    .contact-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+    }
+    
+    .contact-item {
+        display: flex;
+        align-items: center;
+        color: #0d47a1;
+    }
+    
+    .contact-item i {
+        margin-right: 0.5rem;
+        width: 20px;
+    }
+    
+    .share-buttons {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        justify-content: center;
+        margin-top: 1rem;
+    }
+    
+    .share-btn {
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+        font-size: 0.875rem;
+        text-decoration: none;
+        transition: all 0.3s ease;
+    }
+    
+    .share-btn:hover {
+        transform: translateY(-2px);
+        text-decoration: none;
+    }
+    
+    .share-whatsapp {
+        background: #25d366;
+        color: white;
+    }
+    
+    .share-email {
+        background: #007bff;
+        color: white;
+    }
+    
+    .share-copy {
+        background: #6c757d;
+        color: white;
+    }
+    
+    @media (max-width: 768px) {
+        .success-header {
+            padding: 2rem 1.5rem;
+        }
+        
+        .success-content {
+            padding: 1.5rem;
+        }
+        
+        .protocol-card {
+            padding: 1.5rem;
+        }
+        
+        .protocol-number {
+            font-size: 1.5rem;
+        }
+        
+        .info-grid {
+            grid-template-columns: 1fr;
+        }
+        
+        .timeline {
+            padding-left: 1rem;
+        }
+        
+        .timeline::before {
+            left: 0.5rem;
+        }
+        
+        .timeline-item {
+            margin-left: 0.5rem;
+        }
+        
+        .timeline-item::before {
+            left: -1rem;
+        }
+        
+        .action-buttons {
+            flex-direction: column;
+        }
+        
+        .contact-grid {
+            grid-template-columns: 1fr;
+        }
+        
+        .share-buttons {
+            flex-direction: column;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row">
+        <div class="col-lg-10 mx-auto">
+            <div class="success-container">
+                <div class="success-header">
+                    <i class="fas fa-check-circle success-icon"></i>
+                    <h1 class="mb-3">Petição Enviada com Sucesso!</h1>
+                    <p class="lead mb-0">
+                        Sua petição foi protocolada e será analisada pela nossa equipe
+                    </p>
+                </div>
+                
+                <div class="success-content">
+                    <!-- Número do Protocolo -->
+                    <div class="protocol-card">
+                        <div class="protocol-label">Número do seu protocolo:</div>
+                        <div class="protocol-number" id="protocolNumber">PROC-2025-000{{ "123"|add:"0" }}</div>
+                        <div class="protocol-description">
+                            Guarde este número! Você precisará dele para consultar o andamento da sua petição.
+                        </div>
+                        <button onclick="copyProtocol()" class="btn btn-outline-primary btn-sm mt-3">
+                            <i class="fas fa-copy me-2"></i>Copiar Protocolo
+                        </button>
+                    </div>
+                    
+                    <!-- Informações Importantes -->
+                    <div class="info-grid">
+                        <div class="info-card">
+                            <i class="fas fa-clock info-icon"></i>
+                            <h6 class="info-title">Prazo de Análise</h6>
+                            <p class="info-description">
+                                Sua petição será analisada em até 30 dias úteis. 
+                                Casos urgentes têm prioridade.
+                            </p>
+                        </div>
+                        
+                        <div class="info-card">
+                            <i class="fas fa-envelope info-icon"></i>
+                            <h6 class="info-title">Acompanhamento</h6>
+                            <p class="info-description">
+                                Você receberá atualizações por e-mail e pode 
+                                consultar o status a qualquer momento.
+                            </p>
+                        </div>
+                        
+                        <div class="info-card">
+                            <i class="fas fa-shield-alt info-icon"></i>
+                            <h6 class="info-title">Seus Direitos</h6>
+                            <p class="info-description">
+                                Você tem direito a resposta e pode recorrer 
+                                da decisão se não concordar.
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <!-- Próximos Passos -->
+                    <div class="timeline-section">
+                        <h5 class="mb-4">
+                            <i class="fas fa-route me-2"></i>
+                            Próximos Passos
+                        </h5>
+                        
+                        <div class="timeline">
+                            <div class="timeline-item completed status-current">
+                                <div class="timeline-date">Hoje - {{ "now"|date:"d/m/Y H:i" }}</div>
+                                <div class="timeline-title">Petição Protocolada</div>
+                                <div class="timeline-description">
+                                    Sua petição foi recebida e registrada em nosso sistema com o número 
+                                    <strong>PROC-2025-000123</strong>.
+                                </div>
+                            </div>
+                            
+                            <div class="timeline-item pending">
+                                <div class="timeline-date">Em até 3 dias úteis</div>
+                                <div class="timeline-title">Análise Inicial</div>
+                                <div class="timeline-description">
+                                    Nossa equipe fará uma análise inicial para verificar a documentação 
+                                    e encaminhar para o setor competente.
+                                </div>
+                            </div>
+                            
+                            <div class="timeline-item pending">
+                                <div class="timeline-date">Em até 7 dias úteis</div>
+                                <div class="timeline-title">Análise Técnica</div>
+                                <div class="timeline-description">
+                                    Especialistas analisarão sua petição e, se necessário, entrarão 
+                                    em contato para esclarecimentos adicionais.
+                                </div>
+                            </div>
+                            
+                            <div class="timeline-item pending">
+                                <div class="timeline-date">Em até 15 dias úteis</div>
+                                <div class="timeline-title">Notificação da Empresa</div>
+                                <div class="timeline-description">
+                                    Se aplicável, a empresa será notificada e terá prazo para resposta 
+                                    ou correção das irregularidades.
+                                </div>
+                            </div>
+                            
+                            <div class="timeline-item pending">
+                                <div class="timeline-date">Em até 30 dias úteis</div>
+                                <div class="timeline-title">Decisão Final</div>
+                                <div class="timeline-description">
+                                    Você receberá a decisão final sobre sua petição, incluindo 
+                                    as medidas adotadas pelo PROCON.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Ações -->
+                    <div class="action-buttons">
+                        <a href="{% url 'portal:consulta_publica' %}" class="btn btn-primary btn-lg">
+                            <i class="fas fa-search me-2"></i>
+                            Consultar Andamento
+                        </a>
+                        
+                        <a href="{% url 'portal:nova_peticao_cidadao' %}" class="btn btn-outline-primary btn-lg">
+                            <i class="fas fa-plus-circle me-2"></i>
+                            Nova Petição
+                        </a>
+                        
+                        <a href="{% url 'portal:orientacoes' %}" class="btn btn-outline-secondary btn-lg">
+                            <i class="fas fa-info-circle me-2"></i>
+                            Orientações
+                        </a>
+                        
+                        <button onclick="window.print()" class="btn btn-outline-info btn-lg">
+                            <i class="fas fa-print me-2"></i>
+                            Imprimir Comprovante
+                        </button>
+                    </div>
+                    
+                    <!-- Compartilhar -->
+                    <div class="text-center mt-4">
+                        <h6 class="mb-3">Compartilhe seu protocolo:</h6>
+                        <div class="share-buttons">
+                            <a href="#" onclick="shareWhatsApp()" class="share-btn share-whatsapp">
+                                <i class="fab fa-whatsapp me-2"></i>WhatsApp
+                            </a>
+                            <a href="#" onclick="shareEmail()" class="share-btn share-email">
+                                <i class="fas fa-envelope me-2"></i>E-mail
+                            </a>
+                            <a href="#" onclick="copyProtocol()" class="share-btn share-copy">
+                                <i class="fas fa-copy me-2"></i>Copiar
+                            </a>
+                        </div>
+                    </div>
+                    
+                    <!-- Informações de Contato -->
+                    <div class="contact-info">
+                        <h6 class="contact-title">
+                            <i class="fas fa-headset me-2"></i>
+                            Precisa de Ajuda?
+                        </h6>
+                        <div class="contact-grid">
+                            <div class="contact-item">
+                                <i class="fas fa-phone"></i>
+                                <span>(11) 1234-5678</span>
+                            </div>
+                            <div class="contact-item">
+                                <i class="fas fa-envelope"></i>
+                                <span>contato@procon.gov.br</span>
+                            </div>
+                            <div class="contact-item">
+                                <i class="fas fa-clock"></i>
+                                <span>Seg-Sex: 8h às 17h</span>
+                            </div>
+                            <div class="contact-item">
+                                <i class="fas fa-map-marker-alt"></i>
+                                <span>Atendimento presencial</span>
+                            </div>
+                        </div>
+                        <div class="mt-3">
+                            <small class="text-muted">
+                                Em caso de dúvidas sobre sua petição, sempre informe o número do protocolo: 
+                                <strong>PROC-2025-000123</strong>
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Animar entrada dos elementos
+    const timelineItems = document.querySelectorAll('.timeline-item');
+    
+    const observerCallback = (entries, observer) => {
+        entries.forEach((entry, index) => {
+            if (entry.isIntersecting) {
+                setTimeout(() => {
+                    entry.target.style.animation = 'slideInLeft 0.6s ease forwards';
+                }, index * 200);
+                observer.unobserve(entry.target);
+            }
+        });
+    };
+    
+    const observer = new IntersectionObserver(observerCallback, {
+        threshold: 0.1
+    });
+    
+    timelineItems.forEach(item => {
+        item.style.opacity = '0';
+        item.style.transform = 'translateX(-20px)';
+        observer.observe(item);
+    });
+    
+    // Adicionar animações CSS
+    const style = document.createElement('style');
+    style.textContent = `
+        @keyframes slideInLeft {
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+    `;
+    document.head.appendChild(style);
+});
+
+// Função para copiar protocolo
+function copyProtocol() {
+    const protocolNumber = document.getElementById('protocolNumber').textContent;
+    
+    if (navigator.clipboard) {
+        navigator.clipboard.writeText(protocolNumber).then(() => {
+            SISPROCON.showToast('Número do protocolo copiado!', 'success');
+        });
+    } else {
+        // Fallback para navegadores antigos
+        const tempInput = document.createElement('input');
+        tempInput.value = protocolNumber;
+        document.body.appendChild(tempInput);
+        tempInput.select();
+        document.execCommand('copy');
+        document.body.removeChild(tempInput);
+        SISPROCON.showToast('Número do protocolo copiado!', 'success');
+    }
+}
+
+// Função para compartilhar no WhatsApp
+function shareWhatsApp() {
+    const protocolNumber = document.getElementById('protocolNumber').textContent;
+    const message = `Acabei de protocolar uma petição no PROCON! 
+Número do protocolo: ${protocolNumber}
+Posso acompanhar o andamento em: ${window.location.origin}`;
+    
+    const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
+    window.open(whatsappUrl, '_blank');
+}
+
+// Função para compartilhar por e-mail
+function shareEmail() {
+    const protocolNumber = document.getElementById('protocolNumber').textContent;
+    const subject = 'Protocolo PROCON - ' + protocolNumber;
+    const body = `Olá,
+
+Acabei de protocolar uma petição no PROCON.
+
+Número do protocolo: ${protocolNumber}
+
+Posso acompanhar o andamento no site: ${window.location.origin}
+
+Atenciosamente.`;
+    
+    const emailUrl = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    window.location.href = emailUrl;
+}
+
+// Auto-atualização de status (simulado)
+setTimeout(() => {
+    const currentItem = document.querySelector('.timeline-item.status-current');
+    if (currentItem) {
+        const statusText = document.createElement('div');
+        statusText.className = 'alert alert-success alert-sm mt-2';
+        statusText.innerHTML = '<i class="fas fa-check-circle me-2"></i>Status atualizado automaticamente';
+        currentItem.appendChild(statusText);
+        
+        setTimeout(() => {
+            statusText.remove();
+        }, 5000);
+    }
+}, 3000);
+
+// Salvar protocolo no localStorage para consulta futura
+const protocolNumber = document.getElementById('protocolNumber').textContent;
+const savedProtocols = JSON.parse(localStorage.getItem('procon_protocols') || '[]');
+
+// Evitar duplicatas
+if (!savedProtocols.includes(protocolNumber)) {
+    savedProtocols.push(protocolNumber);
+    if (savedProtocols.length > 10) {
+        savedProtocols.shift(); // Manter apenas os 10 mais recentes
+    }
+    localStorage.setItem('procon_protocols', JSON.stringify(savedProtocols));
+}
+
+// Melhorar a função de impressão
+function melhorarImpressao() {
+    window.addEventListener('beforeprint', function() {
+        document.body.classList.add('printing');
+    });
+    
+    window.addEventListener('afterprint', function() {
+        document.body.classList.remove('printing');
+    });
+    
+    // Adicionar estilos específicos para impressão
+    const printStyle = document.createElement('style');
+    printStyle.textContent = `
+        @media print {
+            .action-buttons,
+            .share-buttons,
+            nav,
+            footer,
+            .contact-info {
+                display: none !important;
+            }
+            
+            .success-container {
+                box-shadow: none !important;
+                border: 1px solid #000 !important;
+            }
+            
+            .protocol-card {
+                border: 2px solid #000 !important;
+                background: white !important;
+            }
+            
+            .timeline-item {
+                break-inside: avoid;
+                box-shadow: none !important;
+                border: 1px solid #ccc !important;
+            }
+            
+            .success-header {
+                background: #f8f9fa !important;
+                color: #000 !important;
+                border-bottom: 2px solid #000 !important;
+            }
+        }
+    `;
+    document.head.appendChild(printStyle);
+}
+
+melhorarImpressao();
+</script>
+{% endblock %}

@@ -1,0 +1,300 @@
+{% extends "portal_cidadao/base.html" %}
+
+{% block title %}Orientações - Portal do Cidadão{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+<section class="hero-section">
+    <div class="container">
+        <div class="row align-items-center">
+            <div class="col-lg-8">
+                <h1 class="display-4 fw-bold mb-4">
+                    <i class="fas fa-info-circle me-3"></i>
+                    Orientações
+                </h1>
+                <p class="lead mb-4">
+                    Encontre orientações e informações sobre seus direitos como consumidor e como proceder 
+                    em diferentes situações.
+                </p>
+                <div class="d-flex gap-3">
+                    <a href="{% url 'portal_cidadao:faq' %}" class="btn btn-light btn-lg">
+                        <i class="fas fa-question-circle me-2"></i>Perguntas Frequentes
+                    </a>
+                    <a href="{% url 'portal_cidadao:contato' %}" class="btn btn-outline-light btn-lg">
+                        <i class="fas fa-envelope me-2"></i>Fale Conosco
+                    </a>
+                </div>
+            </div>
+            <div class="col-lg-4 text-center">
+                <i class="fas fa-lightbulb" style="font-size: 8rem; opacity: 0.3;"></i>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Busca Orientações -->
+<section class="py-5">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-lg-8">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title text-center mb-4">
+                            <i class="fas fa-search me-2 text-primary"></i>
+                            Buscar Orientações
+                        </h5>
+                        <form method="GET" class="d-flex">
+                            <input type="text" class="form-control form-control-lg me-3" 
+                                   name="q" placeholder="Digite o que você procura..." 
+                                   value="{{ request.GET.q }}">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="fas fa-search"></i>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Categorias de Orientações -->
+<section class="py-5 bg-light">
+    <div class="container">
+        <h2 class="text-center mb-5">
+            <i class="fas fa-tags me-2 text-primary"></i>
+            Categorias de Orientações
+        </h2>
+        
+        <div class="row g-4">
+            {% for categoria in categorias %}
+            <div class="col-md-6 col-lg-4">
+                <div class="card text-center h-100">
+                    <div class="card-body">
+                        <div class="service-icon">
+                            <i class="{{ categoria.icone|default:'fas fa-folder' }}"></i>
+                        </div>
+                        <h5 class="card-title">{{ categoria.nome }}</h5>
+                        <p class="card-text">{{ categoria.descricao }}</p>
+                        <a href="{% url 'portal_cidadao:conteudo_por_categoria' categoria.id %}" class="btn btn-primary">
+                            Ver Orientações
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% empty %}
+            <div class="col-12 text-center">
+                <p class="text-muted">Nenhuma categoria disponível no momento.</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+
+<!-- Orientações em Destaque -->
+<section class="py-5">
+    <div class="container">
+        <h2 class="text-center mb-5">
+            <i class="fas fa-star me-2 text-primary"></i>
+            Orientações em Destaque
+        </h2>
+        
+        <div class="row g-4">
+            {% for orientacao in orientacoes_destaque %}
+            <div class="col-md-6 col-lg-4">
+                <div class="card h-100">
+                    {% if orientacao.imagem_destaque %}
+                    <img src="{{ orientacao.imagem_destaque.url }}" class="card-img-top" alt="{{ orientacao.titulo }}">
+                    {% endif %}
+                    <div class="card-body">
+                        <h5 class="card-title">{{ orientacao.titulo }}</h5>
+                        <p class="card-text">{{ orientacao.resumo }}</p>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <small class="text-muted">
+                                <i class="fas fa-calendar me-1"></i>
+                                {{ orientacao.data_publicacao|date:"d/m/Y" }}
+                            </small>
+                            <a href="{% url 'portal_cidadao:detalhe_conteudo' orientacao.slug %}" class="btn btn-primary btn-sm">
+                                Ler Mais
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% empty %}
+            <div class="col-12 text-center">
+                <p class="text-muted">Nenhuma orientação em destaque no momento.</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+
+<!-- Lista de Orientações -->
+<section class="py-5 bg-light">
+    <div class="container">
+        <h2 class="text-center mb-5">
+            <i class="fas fa-list me-2 text-primary"></i>
+            Todas as Orientações
+        </h2>
+        
+        <div class="row g-4">
+            {% for orientacao in orientacoes %}
+            <div class="col-md-6 col-lg-4">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">{{ orientacao.titulo }}</h5>
+                        <p class="card-text">{{ orientacao.resumo }}</p>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <small class="text-muted">
+                                <i class="fas fa-calendar me-1"></i>
+                                {{ orientacao.data_publicacao|date:"d/m/Y" }}
+                            </small>
+                            <a href="{% url 'portal_cidadao:detalhe_conteudo' orientacao.slug %}" class="btn btn-outline-primary btn-sm">
+                                Ler Mais
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% empty %}
+            <div class="col-12 text-center">
+                <p class="text-muted">Nenhuma orientação disponível no momento.</p>
+            </div>
+            {% endfor %}
+        </div>
+        
+        <!-- Paginação -->
+        {% if is_paginated %}
+        <div class="row mt-5">
+            <div class="col-12">
+                <nav aria-label="Navegação de páginas">
+                    <ul class="pagination justify-content-center">
+                        {% if page_obj.has_previous %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page=1{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}">
+                                    <i class="fas fa-angle-double-left"></i>
+                                </a>
+                            </li>
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}">
+                                    <i class="fas fa-angle-left"></i>
+                                </a>
+                            </li>
+                        {% endif %}
+                        
+                        <li class="page-item active">
+                            <span class="page-link">
+                                Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+                            </span>
+                        </li>
+                        
+                        {% if page_obj.has_next %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}">
+                                    <i class="fas fa-angle-right"></i>
+                                </a>
+                            </li>
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}">
+                                    <i class="fas fa-angle-double-right"></i>
+                                </a>
+                            </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</section>
+
+<!-- Direitos do Consumidor -->
+<section class="py-5">
+    <div class="container">
+        <h2 class="text-center mb-5">
+            <i class="fas fa-shield-alt me-2 text-primary"></i>
+            Seus Direitos como Consumidor
+        </h2>
+        
+        <div class="row g-4">
+            <div class="col-md-6 col-lg-3">
+                <div class="card text-center h-100">
+                    <div class="card-body">
+                        <div class="service-icon">
+                            <i class="fas fa-info"></i>
+                        </div>
+                        <h5 class="card-title">Informação</h5>
+                        <p class="card-text">
+                            Direito a informações claras e precisas sobre produtos e serviços.
+                        </p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6 col-lg-3">
+                <div class="card text-center h-100">
+                    <div class="card-body">
+                        <div class="service-icon">
+                            <i class="fas fa-undo"></i>
+                        </div>
+                        <h5 class="card-title">Arrependimento</h5>
+                        <p class="card-text">
+                            Direito de desistir de compras feitas pela internet ou telefone.
+                        </p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6 col-lg-3">
+                <div class="card text-center h-100">
+                    <div class="card-body">
+                        <div class="service-icon">
+                            <i class="fas fa-tools"></i>
+                        </div>
+                        <h5 class="card-title">Garantia</h5>
+                        <p class="card-text">
+                            Direito a garantia de qualidade e durabilidade dos produtos.
+                        </p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6 col-lg-3">
+                <div class="card text-center h-100">
+                    <div class="card-body">
+                        <div class="service-icon">
+                            <i class="fas fa-balance-scale"></i>
+                        </div>
+                        <h5 class="card-title">Proteção</h5>
+                        <p class="card-text">
+                            Direito à proteção contra práticas abusivas e enganosas.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- CTA Section -->
+<section class="py-5 bg-primary text-white">
+    <div class="container text-center">
+        <h2 class="mb-4">Precisa de Ajuda?</h2>
+        <p class="lead mb-4">
+            Nossa equipe está pronta para orientá-lo sobre seus direitos como consumidor.
+        </p>
+        <div class="d-flex justify-content-center gap-3 flex-wrap">
+            <a href="{% url 'portal_cidadao:consulta_publica' %}" class="btn btn-light btn-lg">
+                <i class="fas fa-search me-2"></i>Consultar Processo
+            </a>
+            <a href="{% url 'portal_cidadao:nova_peticao_cidadao' %}" class="btn btn-outline-light btn-lg">
+                <i class="fas fa-file-alt me-2"></i>Nova Petição
+            </a>
+            <a href="{% url 'portal_cidadao:contato' %}" class="btn btn-outline-light btn-lg">
+                <i class="fas fa-envelope me-2"></i>Fale Conosco
+            </a>
+        </div>
+    </div>
+</section>
+{% endblock %}

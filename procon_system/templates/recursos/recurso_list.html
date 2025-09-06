@@ -1,0 +1,275 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Recursos Administrativos{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3 mb-0 text-gray-800">
+            <i class="fas fa-gavel mr-2"></i>Recursos Administrativos
+        </h1>
+        <a href="{% url 'recursos:protocolar' %}" class="btn btn-primary">
+            <i class="fas fa-plus mr-1"></i>Novo Recurso
+        </a>
+    </div>
+
+    <!-- Estatísticas -->
+    <div class="row mb-4">
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-primary shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                                Total de Recursos</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ stats.total_recursos }}</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-gavel fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-warning shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                                Em Análise</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ stats.em_analise }}</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-clock fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-danger shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">
+                                Prazos Vencidos</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ stats.vencidos }}</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-exclamation-triangle fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-success shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                                Este Mês</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ stats.mes_atual }}</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-calendar fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filtros -->
+    <div class="card shadow mb-4">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">Filtros</h6>
+        </div>
+        <div class="card-body">
+            <form method="get" class="row">
+                <div class="col-md-3">
+                    <label for="search" class="form-label">Buscar</label>
+                    <input type="text" class="form-control" id="search" name="search" 
+                           value="{{ search }}" placeholder="Protocolo, requerente...">
+                </div>
+                <div class="col-md-2">
+                    <label for="status" class="form-label">Status</label>
+                    <select class="form-control" id="status" name="status">
+                        <option value="">Todos</option>
+                        {% for value, label in status_choices %}
+                        <option value="{{ value }}" {% if status == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label for="tipo_recurso" class="form-label">Tipo</label>
+                    <select class="form-control" id="tipo_recurso" name="tipo_recurso">
+                        <option value="">Todos</option>
+                        {% for tipo in tipos_recurso %}
+                        <option value="{{ tipo.id }}" {% if tipo_recurso == tipo.id|stringformat:"s" %}selected{% endif %}>{{ tipo.nome }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label for="instancia" class="form-label">Instância</label>
+                    <select class="form-control" id="instancia" name="instancia">
+                        <option value="">Todas</option>
+                        {% for value, label in instancia_choices %}
+                        <option value="{{ value }}" {% if instancia == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label for="prazo_vencido" class="form-label">Prazo</label>
+                    <select class="form-control" id="prazo_vencido" name="prazo_vencido">
+                        <option value="">Todos</option>
+                        <option value="sim" {% if prazo_vencido == 'sim' %}selected{% endif %}>Vencidos</option>
+                    </select>
+                </div>
+                <div class="col-md-1">
+                    <label class="form-label">&nbsp;</label>
+                    <button type="submit" class="btn btn-primary btn-block">
+                        <i class="fas fa-search"></i>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Lista de Recursos -->
+    <div class="card shadow mb-4">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">Lista de Recursos</h6>
+        </div>
+        <div class="card-body">
+            {% if recursos %}
+            <div class="table-responsive">
+                <table class="table table-bordered" id="dataTable" width="100%" cellspacing="0">
+                    <thead>
+                        <tr>
+                            <th>Protocolo</th>
+                            <th>Requerente</th>
+                            <th>Tipo</th>
+                            <th>Status</th>
+                            <th>Data Protocolo</th>
+                            <th>Prazo</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for recurso in recursos %}
+                        <tr>
+                            <td>
+                                <strong>{{ recurso.numero_protocolo }}</strong>
+                                <br><small class="text-muted">{{ recurso.numero_processo }}</small>
+                            </td>
+                            <td>
+                                {{ recurso.requerente_nome }}
+                                <br><small class="text-muted">{{ recurso.requerente_documento }}</small>
+                            </td>
+                            <td>
+                                <span class="badge badge-info">{{ recurso.tipo_recurso.nome }}</span>
+                                <br><small class="text-muted">{{ recurso.get_instancia_display }}</small>
+                            </td>
+                            <td>
+                                {% if recurso.status == 'protocolado' %}
+                                    <span class="badge badge-secondary">{{ recurso.get_status_display }}</span>
+                                {% elif recurso.status == 'em_analise' %}
+                                    <span class="badge badge-warning">{{ recurso.get_status_display }}</span>
+                                {% elif recurso.status == 'deferido' %}
+                                    <span class="badge badge-success">{{ recurso.get_status_display }}</span>
+                                {% elif recurso.status == 'indeferido' %}
+                                    <span class="badge badge-danger">{{ recurso.get_status_display }}</span>
+                                {% else %}
+                                    <span class="badge badge-info">{{ recurso.get_status_display }}</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ recurso.data_protocolo|date:"d/m/Y" }}</td>
+                            <td>
+                                {% if recurso.data_limite_analise %}
+                                    {% if recurso.data_limite_analise < today %}
+                                        <span class="text-danger">{{ recurso.data_limite_analise|date:"d/m/Y" }}</span>
+                                        <br><small class="text-danger">Vencido</small>
+                                    {% else %}
+                                        {{ recurso.data_limite_analise|date:"d/m/Y" }}
+                                        <br><small class="text-muted">{{ recurso.data_limite_analise|timeuntil }}</small>
+                                    {% endif %}
+                                {% else %}
+                                    <span class="text-muted">Não definido</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <a href="{% url 'recursos:detail' recurso.pk %}" class="btn btn-sm btn-info">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                                <a href="#" class="btn btn-sm btn-warning">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Paginação -->
+            {% if recursos.has_other_pages %}
+            <nav aria-label="Paginação">
+                <ul class="pagination justify-content-center">
+                    {% if recursos.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ recursos.previous_page_number }}&search={{ search }}&status={{ status }}&tipo_recurso={{ tipo_recurso }}&instancia={{ instancia }}&prazo_vencido={{ prazo_vencido }}">Anterior</a>
+                    </li>
+                    {% endif %}
+
+                    {% for num in recursos.paginator.page_range %}
+                    {% if recursos.number == num %}
+                    <li class="page-item active">
+                        <span class="page-link">{{ num }}</span>
+                    </li>
+                    {% elif num > recursos.number|add:'-3' and num < recursos.number|add:'3' %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ num }}&search={{ search }}&status={{ status }}&tipo_recurso={{ tipo_recurso }}&instancia={{ instancia }}&prazo_vencido={{ prazo_vencido }}">{{ num }}</a>
+                    </li>
+                    {% endif %}
+                    {% endfor %}
+
+                    {% if recursos.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ recursos.next_page_number }}&search={{ search }}&status={{ status }}&tipo_recurso={{ tipo_recurso }}&instancia={{ instancia }}&prazo_vencido={{ prazo_vencido }}">Próximo</a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            {% endif %}
+
+            {% else %}
+            <div class="text-center py-4">
+                <i class="fas fa-inbox fa-3x text-gray-300 mb-3"></i>
+                <h5 class="text-gray-500">Nenhum recurso encontrado</h5>
+                <p class="text-gray-400">Não há recursos que correspondam aos filtros aplicados.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // DataTable
+    $('#dataTable').DataTable({
+        "language": {
+            "url": "//cdn.datatables.net/plug-ins/1.10.24/i18n/Portuguese-Brasil.json"
+        }
+    });
+});
+</script>
+{% endblock %}

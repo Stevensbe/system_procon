@@ -1,0 +1,291 @@
+{% extends "portal_cidadao/base.html" %}
+
+{% block title %}Conteúdo - Portal do Cidadão{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+<section class="hero-section">
+    <div class="container">
+        <div class="row align-items-center">
+            <div class="col-lg-8">
+                <h1 class="display-4 fw-bold mb-4">
+                    <i class="fas fa-newspaper me-3"></i>
+                    Conteúdo Informativo
+                </h1>
+                <p class="lead mb-4">
+                    Encontre informações, orientações e notícias sobre seus direitos como consumidor.
+                </p>
+            </div>
+            <div class="col-lg-4 text-center">
+                <i class="fas fa-book-open" style="font-size: 8rem; opacity: 0.3;"></i>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Busca -->
+<section class="py-5">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-lg-8">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title text-center mb-4">
+                            <i class="fas fa-search me-2 text-primary"></i>
+                            Buscar Conteúdo
+                        </h5>
+                        <form method="GET" class="d-flex">
+                            <input type="text" class="form-control form-control-lg me-3" 
+                                   name="q" placeholder="Digite o que você procura..." 
+                                   value="{{ request.GET.q }}">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="fas fa-search"></i>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Filtros -->
+<section class="py-5 bg-light">
+    <div class="container">
+        <h2 class="text-center mb-5">
+            <i class="fas fa-filter me-2 text-primary"></i>
+            Filtrar por Categoria
+        </h2>
+        
+        <div class="row justify-content-center">
+            <div class="col-lg-10">
+                <div class="d-flex flex-wrap justify-content-center gap-2">
+                    <a href="{% url 'portal_cidadao:lista_conteudo' %}" 
+                       class="btn btn-outline-primary {% if not request.GET.categoria %}active{% endif %}">
+                        Todos
+                    </a>
+                    {% for categoria in categorias %}
+                    <a href="?categoria={{ categoria.id }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}" 
+                       class="btn btn-outline-primary {% if request.GET.categoria == categoria.id|stringformat:'s' %}active{% endif %}">
+                        <i class="{{ categoria.icone|default:'fas fa-folder' }} me-1"></i>
+                        {{ categoria.nome }}
+                    </a>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Lista de Conteúdo -->
+<section class="py-5">
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-8">
+                {% if conteudos %}
+                <div class="row g-4">
+                    {% for conteudo in conteudos %}
+                    <div class="col-md-6">
+                        <div class="card h-100">
+                            {% if conteudo.imagem_destaque %}
+                            <img src="{{ conteudo.imagem_destaque.url }}" class="card-img-top" alt="{{ conteudo.titulo }}">
+                            {% endif %}
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    {% if conteudo.categoria %}
+                                    <span class="badge bg-primary">
+                                        <i class="{{ conteudo.categoria.icone|default:'fas fa-folder' }} me-1"></i>
+                                        {{ conteudo.categoria.nome }}
+                                    </span>
+                                    {% endif %}
+                                    {% if conteudo.destaque %}
+                                    <span class="badge bg-warning">
+                                        <i class="fas fa-star me-1"></i>Destaque
+                                    </span>
+                                    {% endif %}
+                                </div>
+                                <h5 class="card-title">{{ conteudo.titulo }}</h5>
+                                {% if conteudo.subtitulo %}
+                                <h6 class="card-subtitle mb-2 text-muted">{{ conteudo.subtitulo }}</h6>
+                                {% endif %}
+                                <p class="card-text">{{ conteudo.resumo }}</p>
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <small class="text-muted">
+                                        <i class="fas fa-calendar me-1"></i>
+                                        {{ conteudo.data_publicacao|date:"d/m/Y" }}
+                                    </small>
+                                    <a href="{% url 'portal_cidadao:detalhe_conteudo' conteudo.slug %}" class="btn btn-primary btn-sm">
+                                        Ler Mais
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                
+                <!-- Paginação -->
+                {% if is_paginated %}
+                <div class="row mt-5">
+                    <div class="col-12">
+                        <nav aria-label="Navegação de páginas">
+                            <ul class="pagination justify-content-center">
+                                {% if page_obj.has_previous %}
+                                    <li class="page-item">
+                                        <a class="page-link" href="?page=1{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.categoria %}&categoria={{ request.GET.categoria }}{% endif %}">
+                                            <i class="fas fa-angle-double-left"></i>
+                                        </a>
+                                    </li>
+                                    <li class="page-item">
+                                        <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.categoria %}&categoria={{ request.GET.categoria }}{% endif %}">
+                                            <i class="fas fa-angle-left"></i>
+                                        </a>
+                                    </li>
+                                {% endif %}
+                                
+                                <li class="page-item active">
+                                    <span class="page-link">
+                                        Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+                                    </span>
+                                </li>
+                                
+                                {% if page_obj.has_next %}
+                                    <li class="page-item">
+                                        <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.categoria %}&categoria={{ request.GET.categoria }}{% endif %}">
+                                            <i class="fas fa-angle-right"></i>
+                                        </a>
+                                    </li>
+                                    <li class="page-item">
+                                        <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.categoria %}&categoria={{ request.GET.categoria }}{% endif %}">
+                                            <i class="fas fa-angle-double-right"></i>
+                                        </a>
+                                    </li>
+                                {% endif %}
+                            </ul>
+                        </nav>
+                    </div>
+                </div>
+                {% endif %}
+                
+                {% else %}
+                <div class="text-center py-5">
+                    <i class="fas fa-search" style="font-size: 4rem; color: #ccc;"></i>
+                    <h3 class="mt-3">Nenhum conteúdo encontrado</h3>
+                    <p class="text-muted">
+                        {% if request.GET.q %}
+                            Não encontramos conteúdo para "{{ request.GET.q }}".
+                        {% else %}
+                            Não há conteúdo disponível no momento.
+                        {% endif %}
+                    </p>
+                    <a href="{% url 'portal_cidadao:lista_conteudo' %}" class="btn btn-primary">
+                        <i class="fas fa-home me-2"></i>Ver Todos os Conteúdos
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+            
+            <!-- Sidebar -->
+            <div class="col-lg-4">
+                <!-- Categorias -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-folder me-2"></i>
+                            Categorias
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-grid gap-2">
+                            <a href="{% url 'portal_cidadao:lista_conteudo' %}" 
+                               class="btn btn-outline-secondary btn-sm {% if not request.GET.categoria %}active{% endif %}">
+                                Todos os Conteúdos
+                            </a>
+                            {% for categoria in categorias %}
+                            <a href="?categoria={{ categoria.id }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}" 
+                               class="btn btn-outline-secondary btn-sm {% if request.GET.categoria == categoria.id|stringformat:'s' %}active{% endif %}">
+                                <i class="{{ categoria.icone|default:'fas fa-folder' }} me-1"></i>
+                                {{ categoria.nome }}
+                            </a>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Conteúdo em Destaque -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-star me-2"></i>
+                            Em Destaque
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        {% for destaque in conteudos_destaque %}
+                        <div class="mb-3">
+                            <h6>
+                                <a href="{% url 'portal_cidadao:detalhe_conteudo' destaque.slug %}" class="text-decoration-none">
+                                    {{ destaque.titulo }}
+                                </a>
+                            </h6>
+                            <small class="text-muted">
+                                {{ destaque.data_publicacao|date:"d/m/Y" }}
+                            </small>
+                        </div>
+                        {% empty %}
+                        <p class="text-muted">Nenhum conteúdo em destaque.</p>
+                        {% endfor %}
+                    </div>
+                </div>
+                
+                <!-- Links Úteis -->
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-external-link-alt me-2"></i>
+                            Links Úteis
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-grid gap-2">
+                            <a href="{% url 'portal_cidadao:orientacoes' %}" class="btn btn-outline-primary btn-sm">
+                                <i class="fas fa-info-circle me-1"></i>Orientações
+                            </a>
+                            <a href="{% url 'portal_cidadao:faq' %}" class="btn btn-outline-primary btn-sm">
+                                <i class="fas fa-question-circle me-1"></i>Perguntas Frequentes
+                            </a>
+                            <a href="{% url 'portal_cidadao:formularios' %}" class="btn btn-outline-primary btn-sm">
+                                <i class="fas fa-download me-1"></i>Formulários
+                            </a>
+                            <a href="{% url 'portal_cidadao:consulta_publica' %}" class="btn btn-outline-primary btn-sm">
+                                <i class="fas fa-search me-1"></i>Consultar Processo
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- CTA Section -->
+<section class="py-5 bg-primary text-white">
+    <div class="container text-center">
+        <h2 class="mb-4">Precisa de Mais Informações?</h2>
+        <p class="lead mb-4">
+            Nossa equipe está pronta para orientá-lo sobre seus direitos como consumidor.
+        </p>
+        <div class="d-flex justify-content-center gap-3 flex-wrap">
+            <a href="{% url 'portal_cidadao:orientacoes' %}" class="btn btn-light btn-lg">
+                <i class="fas fa-info-circle me-2"></i>Orientações
+            </a>
+            <a href="{% url 'portal_cidadao:faq' %}" class="btn btn-outline-light btn-lg">
+                <i class="fas fa-question-circle me-2"></i>Perguntas Frequentes
+            </a>
+            <a href="{% url 'portal_cidadao:contato' %}" class="btn btn-outline-light btn-lg">
+                <i class="fas fa-envelope me-2"></i>Fale Conosco
+            </a>
+        </div>
+    </div>
+</section>
+{% endblock %}

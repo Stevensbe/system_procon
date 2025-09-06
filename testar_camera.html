@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste de Câmera - Sistema PROCON</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .camera-container {
+            width: 100%;
+            max-width: 640px;
+            margin: 20px auto;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        #video {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .success { background-color: #d4edda; color: #155724; }
+        .error { background-color: #f8d7da; color: #721c24; }
+        .info { background-color: #d1ecf1; color: #0c5460; }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        .log {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 10px;
+            margin: 10px 0;
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📷 Teste de Câmera - Sistema PROCON</h1>
+        
+        <div id="status" class="status info">
+            Clique em "Iniciar Câmera" para testar
+        </div>
+        
+        <div class="camera-container">
+            <video id="video" autoplay playsinline></video>
+        </div>
+        
+        <div>
+            <button id="startBtn" onclick="startCamera()">🎥 Iniciar Câmera</button>
+            <button id="stopBtn" onclick="stopCamera()" disabled>⏹️ Parar Câmera</button>
+            <button onclick="testQuagga()">📱 Testar Quagga</button>
+        </div>
+        
+        <div class="log" id="log">
+            <strong>Log de eventos:</strong><br>
+            <span id="logContent"></span>
+        </div>
+        
+        <div>
+            <h3>🔧 Informações do Sistema:</h3>
+            <ul>
+                <li><strong>Navegador:</strong> <span id="browserInfo"></span></li>
+                <li><strong>HTTPS:</strong> <span id="httpsInfo"></span></li>
+                <li><strong>getUserMedia:</strong> <span id="getUserMediaInfo"></span></li>
+                <li><strong>Quagga:</strong> <span id="quaggaInfo"></span></li>
+            </ul>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/quagga@0.12.1/dist/quagga.min.js"></script>
+    <script>
+        let stream = null;
+        const video = document.getElementById('video');
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const status = document.getElementById('status');
+        const logContent = document.getElementById('logContent');
+
+        function log(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            logContent.innerHTML += `[${timestamp}] ${message}<br>`;
+            logContent.scrollTop = logContent.scrollHeight;
+            console.log(message);
+        }
+
+        function updateStatus(message, type = 'info') {
+            status.textContent = message;
+            status.className = `status ${type}`;
+        }
+
+        // Verificar informações do sistema
+        function checkSystemInfo() {
+            document.getElementById('browserInfo').textContent = navigator.userAgent;
+            document.getElementById('httpsInfo').textContent = location.protocol === 'https:' ? 'Sim' : 'Não';
+            document.getElementById('getUserMediaInfo').textContent = 
+                navigator.mediaDevices && navigator.mediaDevices.getUserMedia ? 'Suportado' : 'Não suportado';
+            document.getElementById('quaggaInfo').textContent = typeof Quagga !== 'undefined' ? 'Carregado' : 'Não carregado';
+        }
+
+        async function startCamera() {
+            try {
+                log('Iniciando teste de câmera...');
+                updateStatus('Solicitando permissão de câmera...', 'info');
+                
+                // Verificar se getUserMedia está disponível
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    throw new Error('getUserMedia não é suportado neste navegador');
+                }
+
+                // Tentar acessar a câmera
+                stream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        width: { ideal: 640 },
+                        height: { ideal: 480 },
+                        facingMode: 'environment'
+                    }
+                });
+
+                // Conectar stream ao vídeo
+                video.srcObject = stream;
+                await video.play();
+
+                log('✅ Câmera iniciada com sucesso!');
+                updateStatus('Câmera funcionando!', 'success');
+                
+                startBtn.disabled = true;
+                stopBtn.disabled = false;
+
+            } catch (error) {
+                log(`❌ Erro ao iniciar câmera: ${error.message}`);
+                updateStatus(`Erro: ${error.message}`, 'error');
+                
+                // Tentar com configuração mais simples
+                try {
+                    log('Tentando configuração alternativa...');
+                    stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                    video.srcObject = stream;
+                    await video.play();
+                    
+                    log('✅ Câmera iniciada com configuração alternativa!');
+                    updateStatus('Câmera funcionando (configuração alternativa)!', 'success');
+                    
+                    startBtn.disabled = true;
+                    stopBtn.disabled = false;
+                } catch (error2) {
+                    log(`❌ Erro na configuração alternativa: ${error2.message}`);
+                    updateStatus(`Erro: ${error2.message}`, 'error');
+                }
+            }
+        }
+
+        function stopCamera() {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                stream = null;
+                video.srcObject = null;
+                
+                log('🛑 Câmera parada');
+                updateStatus('Câmera parada', 'info');
+                
+                startBtn.disabled = false;
+                stopBtn.disabled = true;
+            }
+        }
+
+        function testQuagga() {
+            if (typeof Quagga === 'undefined') {
+                log('❌ Quagga não está carregado');
+                updateStatus('Quagga não está disponível', 'error');
+                return;
+            }
+
+            log('🧪 Testando Quagga...');
+            updateStatus('Testando Quagga...', 'info');
+
+            try {
+                Quagga.init({
+                    inputStream: {
+                        name: "Live",
+                        type: "LiveStream",
+                        target: video,
+                        constraints: {
+                            width: { min: 640, ideal: 1280, max: 1920 },
+                            height: { min: 480, ideal: 720, max: 1080 },
+                            facingMode: "environment"
+                        },
+                    },
+                    locator: {
+                        patchSize: "medium",
+                        halfSample: true
+                    },
+                    numOfWorkers: 2,
+                    frequency: 10,
+                    decoder: {
+                        readers: [
+                            "ean_reader",
+                            "ean_8_reader",
+                            "code_128_reader",
+                            "code_39_reader",
+                            "upc_reader",
+                            "upc_e_reader"
+                        ]
+                    },
+                    locate: true
+                }, (err) => {
+                    if (err) {
+                        log(`❌ Erro ao inicializar Quagga: ${err.message}`);
+                        updateStatus(`Erro Quagga: ${err.message}`, 'error');
+                    } else {
+                        log('✅ Quagga inicializado com sucesso!');
+                        updateStatus('Quagga funcionando!', 'success');
+                        
+                        Quagga.start();
+                        log('🔄 Quagga iniciado - escaneando...');
+                        
+                        // Parar após 5 segundos
+                        setTimeout(() => {
+                            Quagga.stop();
+                            log('🛑 Quagga parado');
+                        }, 5000);
+                    }
+                });
+
+                Quagga.onDetected((result) => {
+                    const code = result.codeResult.code;
+                    log(`🎯 Código detectado: ${code}`);
+                });
+
+            } catch (error) {
+                log(`❌ Erro no teste do Quagga: ${error.message}`);
+                updateStatus(`Erro: ${error.message}`, 'error');
+            }
+        }
+
+        // Inicializar
+        checkSystemInfo();
+        log('Página carregada - pronto para testes');
+    </script>
+</body>
+</html>

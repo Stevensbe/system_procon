@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ notificacao.titulo }}</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        .container {
+            background-color: #ffffff;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+        .logo {
+            font-size: 24px;
+            font-weight: bold;
+            color: #007bff;
+            margin-bottom: 10px;
+        }
+        .priority-urgente {
+            background-color: #dc3545;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .priority-alta {
+            background-color: #fd7e14;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .priority-normal {
+            background-color: #28a745;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .priority-baixa {
+            background-color: #6c757d;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .content {
+            margin-bottom: 30px;
+        }
+        .title {
+            font-size: 20px;
+            font-weight: bold;
+            color: #007bff;
+            margin-bottom: 15px;
+        }
+        .message {
+            font-size: 16px;
+            line-height: 1.8;
+            margin-bottom: 20px;
+        }
+        .footer {
+            text-align: center;
+            border-top: 1px solid #ddd;
+            padding-top: 20px;
+            font-size: 12px;
+            color: #666;
+        }
+        .button {
+            display: inline-block;
+            background-color: #007bff;
+            color: white;
+            padding: 12px 24px;
+            text-decoration: none;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .button:hover {
+            background-color: #0056b3;
+        }
+        .metadata {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+            font-size: 14px;
+        }
+        .metadata strong {
+            color: #007bff;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">PROCON - Sistema de Notificações</div>
+            <div class="priority-{{ notificacao.prioridade }}">
+                Prioridade: {{ notificacao.get_prioridade_display }}
+            </div>
+        </div>
+        
+        <div class="content">
+            <div class="title">{{ notificacao.titulo }}</div>
+            <div class="message">{{ notificacao.mensagem|linebreaks }}</div>
+            
+            {% if dados_extras %}
+            <div class="metadata">
+                <strong>Informações Adicionais:</strong><br>
+                {% for key, value in dados_extras.items %}
+                    <strong>{{ key|title }}:</strong> {{ value }}<br>
+                {% endfor %}
+            </div>
+            {% endif %}
+            
+            {% if notificacao.objeto_relacionado %}
+            <div class="metadata">
+                <strong>Objeto Relacionado:</strong> {{ notificacao.objeto_relacionado }}<br>
+                <strong>Tipo:</strong> {{ notificacao.content_type.model|title }}
+            </div>
+            {% endif %}
+        </div>
+        
+        <div class="footer">
+            <p>Esta notificação foi enviada automaticamente pelo sistema PROCON.</p>
+            <p>Data: {{ notificacao.criado_em|date:"d/m/Y H:i" }}</p>
+            <p>Para mais informações, acesse o sistema ou entre em contato conosco.</p>
+            <br>
+            <p><strong>PROCON - Sistema de Proteção ao Consumidor</strong></p>
+            <p>Este é um email automático, não responda a esta mensagem.</p>
+        </div>
+    </div>
+</body>
+</html>

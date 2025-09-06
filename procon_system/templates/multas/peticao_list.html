@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Petições</h2>
+<a href="{% url 'multas:criar_peticao' %}">Nova Petição</a>
+<ul>
+  {% for peticao in peticoes %}
+    <li>
+      {{ peticao }}
+      <a href="{% url 'multas:editar_peticao' peticao.pk %}">Editar</a>
+      <a href="{% url 'multas:excluir_peticao' peticao.pk %}">Excluir</a>
+    </li>
+  {% empty %}
+    <li>Nenhuma petição cadastrada.</li>
+  {% endfor %}
+</ul>
+{% endblock %}

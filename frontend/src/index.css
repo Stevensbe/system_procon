@@ -1,0 +1,234 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* =========================================================================
+   === TEMA PERSONALIZADO DO PROCON ===
+   ========================================================================= */
+
+:root {
+  /* Cores principais do PROCON */
+  --procon-primary: #1e40af;
+  --procon-primary-dark: #1e3a8a;
+  --procon-primary-light: #3b82f6;
+  
+  --procon-secondary: #059669;
+  --procon-secondary-dark: #047857;
+  --procon-secondary-light: #10b981;
+  
+  --procon-warning: #d97706;
+  --procon-warning-dark: #b45309;
+  --procon-warning-light: #f59e0b;
+  
+  --procon-danger: #dc2626;
+  --procon-danger-dark: #b91c1c;
+  --procon-danger-light: #ef4444;
+  
+  --procon-success: #059669;
+  --procon-success-dark: #047857;
+  --procon-success-light: #10b981;
+  
+  --procon-info: #0891b2;
+  --procon-info-dark: #0e7490;
+  --procon-info-light: #06b6d4;
+  
+  /* Cores neutras */
+  --procon-gray-50: #f9fafb;
+  --procon-gray-100: #f3f4f6;
+  --procon-gray-200: #e5e7eb;
+  --procon-gray-300: #d1d5db;
+  --procon-gray-400: #9ca3af;
+  --procon-gray-500: #6b7280;
+  --procon-gray-600: #4b5563;
+  --procon-gray-700: #374151;
+  --procon-gray-800: #1f2937;
+  --procon-gray-900: #111827;
+  
+  /* Sombras */
+  --procon-shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --procon-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+  --procon-shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --procon-shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --procon-shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+  
+  /* Bordas */
+  --procon-border-radius: 0.5rem;
+  --procon-border-radius-sm: 0.25rem;
+  --procon-border-radius-lg: 0.75rem;
+  --procon-border-radius-xl: 1rem;
+  
+  /* Transições */
+  --procon-transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  --procon-transition-fast: all 0.1s cubic-bezier(0.4, 0, 0.2, 1);
+  --procon-transition-slow: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* =========================================================================
+   === MODO ESCURO ===
+   ========================================================================= */
+
+[data-theme="dark"] {
+  /* Cores principais do PROCON - Modo Escuro */
+  --procon-primary: #60a5fa;
+  --procon-primary-dark: #3b82f6;
+  --procon-primary-light: #93c5fd;
+  
+  --procon-secondary: #34d399;
+  --procon-secondary-dark: #10b981;
+  --procon-secondary-light: #6ee7b7;
+  
+  --procon-warning: #fbbf24;
+  --procon-warning-dark: #f59e0b;
+  --procon-warning-light: #fcd34d;
+  
+  --procon-danger: #f87171;
+  --procon-danger-dark: #ef4444;
+  --procon-danger-light: #fca5a5;
+  
+  --procon-success: #34d399;
+  --procon-success-dark: #10b981;
+  --procon-success-light: #6ee7b7;
+  
+  --procon-info: #22d3ee;
+  --procon-info-dark: #06b6d4;
+  --procon-info-light: #67e8f9;
+  
+  /* Cores neutras - Modo Escuro com tom azul #0c0f12 */
+  --procon-gray-50: #0c0f12;
+  --procon-gray-100: #1a1d21;
+  --procon-gray-200: #374151;
+  --procon-gray-300: #4b5563;
+  --procon-gray-400: #6b7280;
+  --procon-gray-500: #9ca3af;
+  --procon-gray-600: #d1d5db;
+  --procon-gray-700: #e5e7eb;
+  --procon-gray-800: #f3f4f6;
+  --procon-gray-900: #f9fafb;
+  
+  /* Sombras - Modo Escuro */
+  --procon-shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+  --procon-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.4), 0 1px 2px -1px rgb(0 0 0 / 0.4);
+  --procon-shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.4), 0 2px 4px -2px rgb(0 0 0 / 0.4);
+  --procon-shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.4), 0 4px 6px -4px rgb(0 0 0 / 0.4);
+  --procon-shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.4), 0 8px 10px -6px rgb(0 0 0 / 0.4);
+}
+
+/* =========================================================================
+   === ESTILOS BASE ===
+   ========================================================================= */
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  transition: background-color 0.3s ease;
+}
+
+/* Garantir que o HTML tenha fundo azul escuro no modo escuro */
+[data-theme="dark"] html {
+  background-color: #0c0f12 !important;
+}
+
+/* Garantir que o elemento root tenha fundo azul escuro no modo escuro */
+[data-theme="dark"] #root {
+  background-color: #0c0f12 !important;
+  min-height: 100vh;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: var(--procon-gray-50);
+  color: var(--procon-gray-900);
+  line-height: 1.6;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Modo escuro para o body */
+[data-theme="dark"] body {
+  background-color: #0c0f12 !important; /* tom azul escuro */
+  color: #f9fafb !important; /* gray-50 */
+}
+
+/* =========================================================================
+   === UTILITÁRIOS ===
+   ========================================================================= */
+
+/* Scrollbar personalizada */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--procon-gray-100);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--procon-gray-300);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--procon-gray-400);
+}
+
+/* Scrollbar para modo escuro */
+[data-theme="dark"] ::-webkit-scrollbar-track {
+  background: var(--procon-gray-100);
+}
+
+[data-theme="dark"] ::-webkit-scrollbar-thumb {
+  background: var(--procon-gray-300);
+}
+
+[data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
+  background: var(--procon-gray-400);
+}
+
+/* =========================================================================
+   === RESPONSIVIDADE ===
+   ========================================================================= */
+
+@media (max-width: 768px) {
+  .container {
+    padding: 1rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .container {
+    padding: 0.75rem;
+  }
+}
+
+/* =========================================================================
+   === ACESSIBILIDADE ===
+   ========================================================================= */
+
+/* Foco visível para navegação por teclado */
+*:focus-visible {
+  outline: 2px solid var(--procon-primary);
+  outline-offset: 2px;
+}
+
+/* Redução de movimento */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Alto contraste */
+@media (prefers-contrast: high) {
+  .bg-white {
+    border: 2px solid #000;
+  }
+}

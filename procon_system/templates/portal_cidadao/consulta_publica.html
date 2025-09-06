@@ -1,0 +1,436 @@
+{% extends 'base/base.html' %}
+{% load static %}
+
+{% block title %}Consulta Pública - SISPROCON{% endblock %}
+
+{% block meta_description %}Consulte o andamento de seus processos no PROCON usando CPF/CNPJ e número do protocolo{% endblock %}
+
+{% block breadcrumb %}
+<div class="bg-light py-2">
+    <div class="container">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item"><a href="{% url 'portal:home' %}">Início</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Consulta Pública</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .consultation-card {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        border: none;
+        overflow: hidden;
+    }
+    
+    .consultation-header {
+        background: linear-gradient(135deg, var(--primary-color), #0056b3);
+        color: white;
+        padding: 2rem;
+        text-align: center;
+    }
+    
+    .consultation-form {
+        padding: 2rem;
+    }
+    
+    .form-floating label {
+        color: #6c757d;
+    }
+    
+    .help-card {
+        background: #f8f9fa;
+        border-left: 4px solid var(--primary-color);
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+    }
+    
+    .instruction-step {
+        display: flex;
+        align-items: flex-start;
+        margin-bottom: 1.5rem;
+    }
+    
+    .step-number {
+        background: var(--primary-color);
+        color: white;
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        margin-right: 1rem;
+        flex-shrink: 0;
+    }
+    
+    .privacy-notice {
+        background: #e3f2fd;
+        border: 1px solid #2196f3;
+        border-radius: 8px;
+        padding: 1rem;
+        margin-top: 1.5rem;
+    }
+    
+    .consultation-types {
+        margin-bottom: 2rem;
+    }
+    
+    .type-card {
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
+        padding: 1rem;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        margin-bottom: 1rem;
+    }
+    
+    .type-card:hover {
+        border-color: var(--primary-color);
+        background: #f8f9fa;
+    }
+    
+    .type-card.selected {
+        border-color: var(--primary-color);
+        background: rgba(0, 102, 204, 0.1);
+    }
+    
+    .type-card .icon {
+        font-size: 2rem;
+        color: var(--primary-color);
+        margin-bottom: 0.5rem;
+    }
+    
+    @media (max-width: 768px) {
+        .consultation-header {
+            padding: 1.5rem;
+        }
+        
+        .consultation-form {
+            padding: 1.5rem;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <!-- Page Header -->
+    <div class="row mb-5">
+        <div class="col-lg-8 mx-auto text-center">
+            <h1 class="display-5 fw-bold mb-3">
+                <i class="fas fa-search me-3"></i>Consulta Pública
+            </h1>
+            <p class="lead text-muted">
+                Consulte o andamento de seus processos, petições e solicitações 
+                protocoladas no PROCON
+            </p>
+        </div>
+    </div>
+    
+    <div class="row">
+        <!-- Consultation Form -->
+        <div class="col-lg-8">
+            <div class="consultation-card">
+                <div class="consultation-header">
+                    <h3 class="mb-3">
+                        <i class="fas fa-file-search me-2"></i>
+                        Consultar Processo
+                    </h3>
+                    <p class="mb-0">
+                        Informe seus dados para consultar o andamento
+                    </p>
+                </div>
+                
+                <div class="consultation-form">
+                    <form method="post" action="{% url 'portal:resultado_consulta' %}" id="consultaForm">
+                        {% csrf_token %}
+                        
+                        <!-- Tipo de Consulta -->
+                        <div class="consultation-types">
+                            <label class="form-label fw-bold">Tipo de Consulta:</label>
+                            <div class="row">
+                                {% for value, label in tipos_consulta %}
+                                <div class="col-md-6 col-lg-4">
+                                    <div class="type-card" data-type="{{ value }}">
+                                        <div class="text-center">
+                                            <div class="icon">
+                                                {% if value == 'PROTOCOLO' %}
+                                                    <i class="fas fa-clipboard-list"></i>
+                                                {% elif value == 'PETICAO' %}
+                                                    <i class="fas fa-file-alt"></i>
+                                                {% elif value == 'PROCESSO' %}
+                                                    <i class="fas fa-folder-open"></i>
+                                                {% elif value == 'MULTA' %}
+                                                    <i class="fas fa-exclamation-triangle"></i>
+                                                {% elif value == 'RECURSO' %}
+                                                    <i class="fas fa-gavel"></i>
+                                                {% endif %}
+                                            </div>
+                                            <h6 class="mb-0">{{ label }}</h6>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            <input type="hidden" name="tipo_consulta" id="tipoConsulta" required>
+                        </div>
+                        
+                        <!-- Form Fields -->
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <div class="form-floating">
+                                    <input type="text" class="form-control" id="numeroProtocolo" 
+                                           name="numero_protocolo" placeholder="Número do Protocolo" 
+                                           required maxlength="50">
+                                    <label for="numeroProtocolo">
+                                        <i class="fas fa-hashtag me-2"></i>Número do Protocolo *
+                                    </label>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <div class="form-floating">
+                                    <input type="text" class="form-control" id="documento" 
+                                           name="documento" placeholder="CPF ou CNPJ" 
+                                           required maxlength="20">
+                                    <label for="documento">
+                                        <i class="fas fa-id-card me-2"></i>CPF ou CNPJ *
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Submit Button -->
+                        <div class="text-center mt-4">
+                            <button type="submit" class="btn btn-primary btn-lg px-5" id="btnConsultar">
+                                <i class="fas fa-search me-2"></i>
+                                <span class="btn-text">Consultar</span>
+                                <span class="spinner-border spinner-border-sm d-none" role="status"></span>
+                            </button>
+                        </div>
+                        
+                        <!-- Privacy Notice -->
+                        <div class="privacy-notice">
+                            <div class="d-flex align-items-start">
+                                <i class="fas fa-shield-alt text-primary me-2 mt-1"></i>
+                                <div>
+                                    <small>
+                                        <strong>Privacidade:</strong> Seus dados são protegidos e utilizados 
+                                        apenas para consulta. Esta consulta será registrada em nossos logs 
+                                        para fins de auditoria e segurança.
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Help Section -->
+        <div class="col-lg-4">
+            <!-- How to Use -->
+            <div class="help-card">
+                <h5 class="mb-3">
+                    <i class="fas fa-question-circle me-2"></i>
+                    Como usar?
+                </h5>
+                
+                <div class="instruction-step">
+                    <div class="step-number">1</div>
+                    <div>
+                        <strong>Selecione o tipo</strong><br>
+                        <small class="text-muted">Escolha o tipo de consulta que deseja realizar</small>
+                    </div>
+                </div>
+                
+                <div class="instruction-step">
+                    <div class="step-number">2</div>
+                    <div>
+                        <strong>Informe o protocolo</strong><br>
+                        <small class="text-muted">Digite o número do protocolo que recebeu</small>
+                    </div>
+                </div>
+                
+                <div class="instruction-step">
+                    <div class="step-number">3</div>
+                    <div>
+                        <strong>Digite seu documento</strong><br>
+                        <small class="text-muted">Informe seu CPF ou CNPJ (sem pontos e traços)</small>
+                    </div>
+                </div>
+                
+                <div class="instruction-step">
+                    <div class="step-number">4</div>
+                    <div>
+                        <strong>Consulte</strong><br>
+                        <small class="text-muted">Clique em "Consultar" para ver o resultado</small>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Important Information -->
+            <div class="card border-warning">
+                <div class="card-header bg-warning text-dark">
+                    <h6 class="mb-0">
+                        <i class="fas fa-info-circle me-2"></i>
+                        Informações Importantes
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <ul class="list-unstyled mb-0">
+                        <li class="mb-2">
+                            <i class="fas fa-check text-success me-2"></i>
+                            <small>O protocolo é fornecido no momento do atendimento</small>
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-check text-success me-2"></i>
+                            <small>Digite apenas números no CPF/CNPJ</small>
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-check text-success me-2"></i>
+                            <small>Consultas são registradas para segurança</small>
+                        </li>
+                        <li>
+                            <i class="fas fa-check text-success me-2"></i>
+                            <small>Dados são protegidos pela LGPD</small>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+            
+            <!-- Contact Support -->
+            <div class="card mt-3 border-info">
+                <div class="card-header bg-info text-white">
+                    <h6 class="mb-0">
+                        <i class="fas fa-headset me-2"></i>
+                        Precisa de Ajuda?
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <p class="card-text">
+                        <small>
+                            Se você não consegue encontrar seu protocolo ou tem dúvidas, 
+                            entre em contato conosco.
+                        </small>
+                    </p>
+                    <div class="d-grid gap-2">
+                        <a href="{% url 'portal:contato' %}" class="btn btn-outline-info btn-sm">
+                            <i class="fas fa-envelope me-2"></i>
+                            Entrar em Contato
+                        </a>
+                        <a href="{% url 'portal:faq' %}" class="btn btn-outline-info btn-sm">
+                            <i class="fas fa-question-circle me-2"></i>
+                            Ver FAQ
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const typeCards = document.querySelectorAll('.type-card');
+    const tipoConsultaInput = document.getElementById('tipoConsulta');
+    const consultaForm = document.getElementById('consultaForm');
+    const btnConsultar = document.getElementById('btnConsultar');
+    const documentoInput = document.getElementById('documento');
+    
+    // Type selection
+    typeCards.forEach(card => {
+        card.addEventListener('click', function() {
+            // Remove selected class from all cards
+            typeCards.forEach(c => c.classList.remove('selected'));
+            
+            // Add selected class to clicked card
+            this.classList.add('selected');
+            
+            // Set hidden input value
+            tipoConsultaInput.value = this.dataset.type;
+        });
+    });
+    
+    // Document mask
+    documentoInput.addEventListener('input', function(e) {
+        let value = e.target.value.replace(/\D/g, '');
+        
+        if (value.length <= 11) {
+            // CPF format
+            value = value.replace(/(\d{3})(\d)/, '$1.$2');
+            value = value.replace(/(\d{3})(\d)/, '$1.$2');
+            value = value.replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+        } else {
+            // CNPJ format
+            value = value.replace(/^(\d{2})(\d)/, '$1.$2');
+            value = value.replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3');
+            value = value.replace(/\.(\d{3})(\d)/, '.$1/$2');
+            value = value.replace(/(\d{4})(\d)/, '$1-$2');
+        }
+        
+        e.target.value = value;
+    });
+    
+    // Form submission
+    consultaForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        // Validation
+        if (!tipoConsultaInput.value) {
+            SISPROCON.showToast('Por favor, selecione o tipo de consulta', 'warning');
+            return;
+        }
+        
+        if (!documentoInput.value || !document.getElementById('numeroProtocolo').value) {
+            SISPROCON.showToast('Por favor, preencha todos os campos obrigatórios', 'warning');
+            return;
+        }
+        
+        // Show loading state
+        const btnText = btnConsultar.querySelector('.btn-text');
+        const spinner = btnConsultar.querySelector('.spinner-border');
+        
+        btnText.textContent = 'Consultando...';
+        spinner.classList.remove('d-none');
+        btnConsultar.disabled = true;
+        
+        // Submit form
+        setTimeout(() => {
+            this.submit();
+        }, 500);
+    });
+    
+    // Real-time validation
+    const requiredFields = consultaForm.querySelectorAll('[required]');
+    requiredFields.forEach(field => {
+        field.addEventListener('blur', function() {
+            if (this.value.trim()) {
+                this.classList.remove('is-invalid');
+                this.classList.add('is-valid');
+            } else {
+                this.classList.remove('is-valid');
+                this.classList.add('is-invalid');
+            }
+        });
+    });
+});
+
+// Protocol number formatting
+document.getElementById('numeroProtocolo').addEventListener('input', function(e) {
+    // Convert to uppercase and remove invalid characters
+    let value = e.target.value.toUpperCase().replace(/[^A-Z0-9\-\/]/g, '');
+    e.target.value = value;
+});
+</script>
+{% endblock %}

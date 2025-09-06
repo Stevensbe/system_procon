@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Detalhe da Lei {{ object.numero }}{% endblock %}
+
+{% block content %}
+  <div class="card shadow-sm">
+    <div class="card-header">
+      <h2>{{ object.numero }} – {{ object.titulo }}</h2>
+    </div>
+    <div class="card-body">
+      <dl class="row">
+        <dt class="col-sm-3">Número</dt>
+        <dd class="col-sm-9">{{ object.numero }}</dd>
+
+        <dt class="col-sm-3">Título</dt>
+        <dd class="col-sm-9">{{ object.titulo }}</dd>
+
+        <dt class="col-sm-3">Descrição</dt>
+        <dd class="col-sm-9">{{ object.descricao|linebreaks }}</dd>
+
+        <dt class="col-sm-3">Publicada em</dt>
+        <dd class="col-sm-9">{{ object.data_pub|date:"d/m/Y" }}</dd>
+      </dl>
+      <a href="{% url 'legislacao:update' object.pk %}" class="btn btn-primary">Editar</a>
+      <a href="{% url 'legislacao:list' %}" class="btn btn-outline-secondary">Voltar</a>
+    </div>
+  </div>
+{% endblock %}

@@ -1,0 +1,22 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <title>{% block title %}PROCON | Fiscalização{% endblock %}</title>
+  <link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+<body>
+  <header>
+    <h1>PROCON – Fiscalização</h1>
+    <nav>
+      <a href="{% url 'processos:fiscalizacao_start' %}">Início</a> |
+      <a href="{% url 'processos:constatacao_add' %}">Nova Constatação</a>
+    </nav>
+    <hr/>
+  </header>
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

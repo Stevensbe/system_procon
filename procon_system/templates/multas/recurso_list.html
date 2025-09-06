@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Recursos</h2>
+<a href="{% url 'multas:criar_recurso' %}">Novo Recurso</a>
+<ul>
+  {% for recurso in recursos %}
+    <li>
+      {{ recurso }}
+      <a href="{% url 'multas:editar_recurso' recurso.pk %}">Editar</a>
+      <a href="{% url 'multas:excluir_recurso' recurso.pk %}">Excluir</a>
+    </li>
+  {% empty %}
+    <li>Nenhum recurso cadastrado.</li>
+  {% endfor %}
+</ul>
+{% endblock %}

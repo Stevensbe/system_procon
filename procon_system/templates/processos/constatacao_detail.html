@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% block title %}Detalhes da Constatação #{{ object.numero }}{% endblock %}
+{% block content %}
+<h1>Auto de Constatação #{{ object.numero }}</h1>
+<ul class="list-group mb-3">
+  <li class="list-group-item"><strong>Data:</strong> {{ object.data }}</li>
+  <li class="list-group-item"><strong>Razão Social:</strong> {{ object.razao_social }}</li>
+  <li class="list-group-item"><strong>Atividade:</strong> {{ object.atividade }}</li>
+  <li class="list-group-item"><strong>Observações:</strong> {{ object.observacoes }}</li>
+</ul>
+<h2>Documentos</h2>
+<a href="{% url 'processos:documento_constatacao_add' object.pk %}" class="btn btn-sm btn-primary mb-2">Adicionar</a>
+<ul>
+  {% for doc in object.documentos_constatacao.all %}
+    <li><a href="{{ doc.arquivo.url }}">{{ doc.descricao|default:doc.arquivo.name }}</a></li>
+  {% empty %}
+    <li>Sem documentos.</li>
+  {% endfor %}
+</ul>
+{% endblock %}

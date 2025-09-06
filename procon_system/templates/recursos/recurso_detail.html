@@ -1,0 +1,352 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Detalhes do Recurso - {{ recurso.numero_protocolo }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0 text-gray-800">
+                <i class="fas fa-gavel mr-2"></i>Recurso {{ recurso.numero_protocolo }}
+            </h1>
+            <p class="text-muted">{{ recurso.assunto }}</p>
+        </div>
+        <div>
+            <a href="{% url 'recursos:list' %}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left mr-1"></i>Voltar
+            </a>
+            <a href="#" class="btn btn-warning">
+                <i class="fas fa-edit mr-1"></i>Editar
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Informações Principais -->
+        <div class="col-lg-8">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Informações do Recurso</h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6 class="font-weight-bold">Dados do Protocolo</h6>
+                            <table class="table table-sm">
+                                <tr>
+                                    <td><strong>Número:</strong></td>
+                                    <td>{{ recurso.numero_protocolo }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Processo:</strong></td>
+                                    <td>{{ recurso.numero_processo }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Auto:</strong></td>
+                                    <td>{{ recurso.numero_auto|default:"Não informado" }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Tipo:</strong></td>
+                                    <td><span class="badge badge-info">{{ recurso.tipo_recurso.nome }}</span></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Instância:</strong></td>
+                                    <td>{{ recurso.get_instancia_display }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Status:</strong></td>
+                                    <td>
+                                        {% if recurso.status == 'protocolado' %}
+                                            <span class="badge badge-secondary">{{ recurso.get_status_display }}</span>
+                                        {% elif recurso.status == 'em_analise' %}
+                                            <span class="badge badge-warning">{{ recurso.get_status_display }}</span>
+                                        {% elif recurso.status == 'deferido' %}
+                                            <span class="badge badge-success">{{ recurso.get_status_display }}</span>
+                                        {% elif recurso.status == 'indeferido' %}
+                                            <span class="badge badge-danger">{{ recurso.get_status_display }}</span>
+                                        {% else %}
+                                            <span class="badge badge-info">{{ recurso.get_status_display }}</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <h6 class="font-weight-bold">Datas e Prazos</h6>
+                            <table class="table table-sm">
+                                <tr>
+                                    <td><strong>Protocolo:</strong></td>
+                                    <td>{{ recurso.data_protocolo|date:"d/m/Y H:i" }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Limite Análise:</strong></td>
+                                    <td>
+                                        {% if recurso.data_limite_analise %}
+                                            {% if recurso.data_limite_analise < today %}
+                                                <span class="text-danger">{{ recurso.data_limite_analise|date:"d/m/Y" }}</span>
+                                                <br><small class="text-danger">Vencido</small>
+                                            {% else %}
+                                                {{ recurso.data_limite_analise|date:"d/m/Y" }}
+                                                <br><small class="text-muted">{{ recurso.data_limite_analise|timeuntil }}</small>
+                                            {% endif %}
+                                        {% else %}
+                                            <span class="text-muted">Não definido</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Julgamento:</strong></td>
+                                    <td>{{ recurso.data_julgamento|date:"d/m/Y"|default:"Não definido" }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Decisão:</strong></td>
+                                    <td>{{ recurso.data_decisao|date:"d/m/Y"|default:"Não definido" }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Parecer:</strong></td>
+                                    <td>{{ recurso.data_parecer|date:"d/m/Y"|default:"Não definido" }}</td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Requerente -->
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Dados do Requerente</h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <table class="table table-sm">
+                                <tr>
+                                    <td><strong>Nome:</strong></td>
+                                    <td>{{ recurso.requerente_nome }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Tipo:</strong></td>
+                                    <td>{{ recurso.get_requerente_tipo_display }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Documento:</strong></td>
+                                    <td>{{ recurso.requerente_documento }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Telefone:</strong></td>
+                                    <td>{{ recurso.requerente_telefone|default:"Não informado" }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Email:</strong></td>
+                                    <td>{{ recurso.requerente_email|default:"Não informado" }}</td>
+                                </tr>
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <h6 class="font-weight-bold">Endereço</h6>
+                            <p>{{ recurso.requerente_endereco }}</p>
+                            
+                            {% if recurso.tem_advogado %}
+                            <h6 class="font-weight-bold mt-3">Advogado</h6>
+                            <table class="table table-sm">
+                                <tr>
+                                    <td><strong>Nome:</strong></td>
+                                    <td>{{ recurso.advogado_nome }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>OAB:</strong></td>
+                                    <td>{{ recurso.advogado_oab }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Procuração:</strong></td>
+                                    <td>
+                                        {% if recurso.procuracao_anexada %}
+                                            <span class="badge badge-success">Anexada</span>
+                                        {% else %}
+                                            <span class="badge badge-warning">Pendente</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            </table>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Petição -->
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Petição</h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-12">
+                            <h6 class="font-weight-bold">Assunto</h6>
+                            <p>{{ recurso.assunto }}</p>
+                            
+                            <h6 class="font-weight-bold">Fundamentação</h6>
+                            <p>{{ recurso.fundamentacao|linebreaks }}</p>
+                            
+                            <h6 class="font-weight-bold">Pedido</h6>
+                            <p>{{ recurso.pedido|linebreaks }}</p>
+                            
+                            {% if recurso.valor_causa %}
+                            <h6 class="font-weight-bold">Valor da Causa</h6>
+                            <p>R$ {{ recurso.valor_causa|floatformat:2 }}</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Decisão -->
+            {% if recurso.decisao %}
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Decisão</h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-12">
+                            <h6 class="font-weight-bold">Decisão</h6>
+                            <p>{{ recurso.decisao|linebreaks }}</p>
+                            
+                            {% if recurso.fundamentacao_decisao %}
+                            <h6 class="font-weight-bold">Fundamentação da Decisão</h6>
+                            <p>{{ recurso.fundamentacao_decisao|linebreaks }}</p>
+                            {% endif %}
+                            
+                            {% if recurso.relator %}
+                            <h6 class="font-weight-bold">Relator</h6>
+                            <p>{{ recurso.relator }}</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Parecer Técnico -->
+            {% if recurso.parecer_tecnico %}
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Parecer Técnico</h6>
+                </div>
+                <div class="card-body">
+                    <p>{{ recurso.parecer_tecnico|linebreaks }}</p>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Sidebar -->
+        <div class="col-lg-4">
+            <!-- Documentos -->
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Documentos</h6>
+                </div>
+                <div class="card-body">
+                    {% if recurso.peticao_inicial %}
+                    <div class="mb-3">
+                        <h6 class="font-weight-bold">Petição Inicial</h6>
+                        <a href="{{ recurso.peticao_inicial.url }}" class="btn btn-sm btn-outline-primary" target="_blank">
+                            <i class="fas fa-download mr-1"></i>Download
+                        </a>
+                    </div>
+                    {% endif %}
+                    
+                    {% if recurso.documentos_complementares %}
+                    <div class="mb-3">
+                        <h6 class="font-weight-bold">Documentos Complementares</h6>
+                        <p class="text-muted">{{ recurso.documentos_complementares }}</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Movimentações -->
+            {% if movimentacoes %}
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Movimentações</h6>
+                </div>
+                <div class="card-body">
+                    <div class="timeline">
+                        {% for movimentacao in movimentacoes %}
+                        <div class="timeline-item">
+                            <div class="timeline-marker"></div>
+                            <div class="timeline-content">
+                                <h6 class="font-weight-bold">{{ movimentacao.tipo_movimentacao }}</h6>
+                                <p class="text-muted">{{ movimentacao.descricao }}</p>
+                                <small class="text-muted">{{ movimentacao.data_movimentacao|date:"d/m/Y H:i" }}</small>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Recursos Hierárquicos -->
+            {% if recursos_hierarquicos %}
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Recursos Hierárquicos</h6>
+                </div>
+                <div class="card-body">
+                    {% for recurso_hier in recursos_hierarquicos %}
+                    <div class="mb-2">
+                        <a href="{% url 'recursos:detail' recurso_hier.pk %}" class="text-decoration-none">
+                            {{ recurso_hier.numero_protocolo }}
+                        </a>
+                        <br><small class="text-muted">{{ recurso_hier.get_status_display }}</small>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.timeline {
+    position: relative;
+    padding-left: 30px;
+}
+
+.timeline-item {
+    position: relative;
+    margin-bottom: 20px;
+}
+
+.timeline-marker {
+    position: absolute;
+    left: -35px;
+    top: 5px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background-color: #007bff;
+    border: 2px solid #fff;
+    box-shadow: 0 0 0 2px #007bff;
+}
+
+.timeline-item:not(:last-child)::before {
+    content: '';
+    position: absolute;
+    left: -30px;
+    top: 15px;
+    width: 2px;
+    height: calc(100% + 5px);
+    background-color: #e3e6f0;
+}
+</style>
+{% endblock %}

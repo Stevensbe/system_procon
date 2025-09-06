@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Registros Financeiros - PROCON{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Cabeçalho -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <h1 class="h2 mb-3">
+                <i class="fas fa-money-bill-wave text-primary me-2"></i>
+                Registros Financeiros
+            </h1>
+            <p class="text-muted">Gestão de entradas e saídas financeiras</p>
+        </div>
+    </div>
+
+    <!-- Botões de Ação -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <a href="{% url 'financeiro:dashboard' %}" class="btn btn-outline-primary me-2">
+                        <i class="fas fa-chart-line me-1"></i>Dashboard
+                    </a>
+                    <a href="{% url 'financeiro:criar_financeiro' %}" class="btn btn-success">
+                        <i class="fas fa-plus me-1"></i>Novo Registro
+                    </a>
+                </div>
+                <div>
+                    <span class="badge bg-primary fs-6">
+                        Total: {{ financeiros|length }} registros
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabela de Registros -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-list me-2"></i>Lista de Registros Financeiros
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if financeiros %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Data</th>
+                                    <th>Descrição</th>
+                                    <th>Valor</th>
+                                    <th>Tipo</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for registro in financeiros %}
+                                <tr>
+                                    <td>{{ registro.data|date:"d/m/Y" }}</td>
+                                    <td>{{ registro.descricao }}</td>
+                                    <td>
+                                        <span class="fw-bold {% if registro.tipo == 'entrada' %}text-success{% else %}text-danger{% endif %}">
+                                            R$ {{ registro.valor|floatformat:2 }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        {% if registro.tipo == 'entrada' %}
+                                            <span class="badge bg-success">Entrada</span>
+                                        {% else %}
+                                            <span class="badge bg-danger">Saída</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm">
+                                            <a href="{% url 'financeiro:editar_financeiro' registro.pk %}" 
+                                               class="btn btn-outline-primary" title="Editar">
+                                                <i class="fas fa-edit"></i>
+                                            </a>
+                                            <a href="{% url 'financeiro:excluir_financeiro' registro.pk %}" 
+                                               class="btn btn-outline-danger" title="Excluir">
+                                                <i class="fas fa-trash"></i>
+                                            </a>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                        <h5 class="text-muted">Nenhum registro financeiro encontrado</h5>
+                        <p class="text-muted">Clique em "Novo Registro" para adicionar o primeiro registro.</p>
+                        <a href="{% url 'financeiro:criar_financeiro' %}" class="btn btn-primary">
+                            <i class="fas fa-plus me-1"></i>Criar Primeiro Registro
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Resumo Financeiro -->
+    {% if financeiros %}
+    <div class="row mt-4">
+        <div class="col-md-6">
+            <div class="card border-success">
+                <div class="card-body text-center">
+                    <h6 class="card-title text-success">
+                        <i class="fas fa-arrow-up me-1"></i>Total de Entradas
+                    </h6>
+                    <h4 class="text-success fw-bold">
+                        R$ {{ total_entradas|floatformat:2 }}
+                    </h4>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card border-danger">
+                <div class="card-body text-center">
+                    <h6 class="card-title text-danger">
+                        <i class="fas fa-arrow-down me-1"></i>Total de Saídas
+                    </h6>
+                    <h4 class="text-danger fw-bold">
+                        R$ {{ total_saidas|floatformat:2 }}
+                    </h4>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Font Awesome para ícones -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+{% endblock %}

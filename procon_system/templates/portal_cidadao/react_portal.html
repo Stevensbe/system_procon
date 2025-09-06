@@ -1,0 +1,96 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portal do Cidadão - PROCON</title>
+    <meta name="description" content="Portal do Cidadão do PROCON - Faça denúncias, consulte processos, baixe formulários e acesse informações sobre defesa do consumidor">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="{% static 'images/favicon.ico' %}">
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --primary-color: #0056b3;
+            --secondary-color: #6c757d;
+            --success-color: #28a745;
+            --danger-color: #dc3545;
+            --warning-color: #ffc107;
+            --info-color: #17a2b8;
+            --light-color: #f8f9fa;
+            --dark-color: #343a40;
+        }
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8f9fa;
+        }
+        
+        .loading-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background: linear-gradient(135deg, var(--primary-color) 0%, #004499 100%);
+            color: white;
+        }
+        
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid rgba(255, 255, 255, 0.3);
+            border-top: 5px solid white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <!-- Loading Screen -->
+    <div id="loading" class="loading-container">
+        <div class="text-center">
+            <div class="spinner mb-3"></div>
+            <h4>Carregando Portal do Cidadão...</h4>
+            <p class="mb-0">PROCON - Amazonas</p>
+        </div>
+    </div>
+
+    <!-- React App Container -->
+    <div id="root"></div>
+
+    <!-- React Build Files -->
+    <script type="module" src="{% static 'react/assets/index.js' %}"></script>
+    
+    <!-- Fallback if React fails to load -->
+    <script>
+        setTimeout(function() {
+            const loading = document.getElementById('loading');
+            const root = document.getElementById('root');
+            
+            if (root.children.length === 0) {
+                // React failed to load, show fallback
+                loading.innerHTML = `
+                    <div class="text-center">
+                        <h4>Portal Temporariamente Indisponível</h4>
+                        <p>Estamos trabalhando para resolver o problema.</p>
+                        <a href="/" class="btn btn-light">Voltar ao Portal Django</a>
+                    </div>
+                `;
+            }
+        }, 10000); // 10 seconds timeout
+    </script>
+</body>
+</html>

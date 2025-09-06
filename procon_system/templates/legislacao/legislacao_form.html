@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% load crispy_forms_tags %}
+{% block title %}{% if form.instance.pk %}Editar Lei{% else %}Nova Lei{% endif %}{% endblock %}
+
+{% block content %}
+  <div class="card shadow-sm">
+    <div class="card-header">
+      <h2>{% if form.instance.pk %}Editar Lei{% else %}Cadastrar Nova Lei{% endif %}</h2>
+    </div>
+    <div class="card-body">
+      <form method="post" novalidate>
+        {% csrf_token %}
+        {{ form|crispy }}
+        <div class="mt-4">
+          <button type="submit" class="btn btn-primary">Salvar</button>
+          <a href="{% url 'legislacao:list' %}" class="btn btn-outline-secondary">Cancelar</a>
+        </div>
+      </form>
+    </div>
+  </div>
+{% endblock %}

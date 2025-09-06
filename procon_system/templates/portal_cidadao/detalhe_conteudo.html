@@ -1,0 +1,317 @@
+{% extends "portal_cidadao/base.html" %}
+
+{% block title %}{{ conteudo.titulo }} - Portal do Cidadão{% endblock %}
+
+{% block content %}
+<!-- Breadcrumb -->
+<nav aria-label="breadcrumb" class="bg-light py-3">
+    <div class="container">
+        <ol class="breadcrumb mb-0">
+            <li class="breadcrumb-item">
+                <a href="{% url 'portal_cidadao:home' %}">
+                    <i class="fas fa-home"></i> Início
+                </a>
+            </li>
+            <li class="breadcrumb-item">
+                <a href="{% url 'portal_cidadao:lista_conteudo' %}">Conteúdo</a>
+            </li>
+            {% if conteudo.categoria %}
+            <li class="breadcrumb-item">
+                <a href="{% url 'portal_cidadao:conteudo_por_categoria' conteudo.categoria.id %}">
+                    {{ conteudo.categoria.nome }}
+                </a>
+            </li>
+            {% endif %}
+            <li class="breadcrumb-item active" aria-current="page">{{ conteudo.titulo }}</li>
+        </ol>
+    </div>
+</nav>
+
+<!-- Conteúdo Principal -->
+<section class="py-5">
+    <div class="container">
+        <div class="row">
+            <!-- Conteúdo -->
+            <div class="col-lg-8">
+                <article class="card">
+                    {% if conteudo.imagem_destaque %}
+                    <img src="{{ conteudo.imagem_destaque.url }}" class="card-img-top" alt="{{ conteudo.titulo }}">
+                    {% endif %}
+                    
+                    <div class="card-body">
+                        <!-- Cabeçalho -->
+                        <header class="mb-4">
+                            <div class="d-flex justify-content-between align-items-start mb-3">
+                                <div>
+                                    {% if conteudo.categoria %}
+                                    <span class="badge bg-primary mb-2">
+                                        <i class="{{ conteudo.categoria.icone|default:'fas fa-folder' }} me-1"></i>
+                                        {{ conteudo.categoria.nome }}
+                                    </span>
+                                    {% endif %}
+                                    <h1 class="h2 mb-2">{{ conteudo.titulo }}</h1>
+                                    {% if conteudo.subtitulo %}
+                                    <p class="lead text-muted">{{ conteudo.subtitulo }}</p>
+                                    {% endif %}
+                                </div>
+                                {% if conteudo.destaque %}
+                                <span class="badge bg-warning">
+                                    <i class="fas fa-star me-1"></i>Destaque
+                                </span>
+                                {% endif %}
+                            </div>
+                            
+                            <!-- Metadados -->
+                            <div class="row text-muted small">
+                                <div class="col-md-6">
+                                    <i class="fas fa-calendar me-1"></i>
+                                    Publicado em {{ conteudo.data_publicacao|date:"d/m/Y H:i" }}
+                                </div>
+                                <div class="col-md-6 text-md-end">
+                                    <i class="fas fa-eye me-1"></i>
+                                    {{ conteudo.visualizacoes }} visualizações
+                                </div>
+                            </div>
+                            
+                            {% if conteudo.autor_nome or conteudo.autor %}
+                            <div class="mt-2">
+                                <small class="text-muted">
+                                    <i class="fas fa-user me-1"></i>
+                                    Por: {{ conteudo.autor_nome|default:conteudo.autor.get_full_name|default:conteudo.autor.username }}
+                                </small>
+                            </div>
+                            {% endif %}
+                        </header>
+                        
+                        <!-- Resumo -->
+                        {% if conteudo.resumo %}
+                        <div class="alert alert-info">
+                            <h5><i class="fas fa-info-circle me-2"></i>Resumo</h5>
+                            <p class="mb-0">{{ conteudo.resumo }}</p>
+                        </div>
+                        {% endif %}
+                        
+                        <!-- Conteúdo -->
+                        <div class="content-body">
+                            {{ conteudo.conteudo|safe }}
+                        </div>
+                        
+                        <!-- Anexo -->
+                        {% if conteudo.arquivo_anexo %}
+                        <div class="mt-4">
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <h6><i class="fas fa-paperclip me-2"></i>Anexo</h6>
+                                    <a href="{{ conteudo.arquivo_anexo.url }}" class="btn btn-outline-primary btn-sm" target="_blank">
+                                        <i class="fas fa-download me-1"></i>
+                                        Baixar Anexo
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+                        
+                        <!-- Palavras-chave -->
+                        {% if conteudo.palavras_chave %}
+                        <div class="mt-4">
+                            <h6><i class="fas fa-tags me-2"></i>Palavras-chave</h6>
+                            <div class="d-flex flex-wrap gap-1">
+                                {% for palavra in conteudo.palavras_chave.split|slice:":5" %}
+                                <span class="badge bg-secondary">{{ palavra }}</span>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </article>
+                
+                <!-- Navegação -->
+                <div class="row mt-4">
+                    <div class="col-6">
+                        {% if anterior %}
+                        <a href="{% url 'portal_cidadao:detalhe_conteudo' anterior.slug %}" class="btn btn-outline-primary">
+                            <i class="fas fa-chevron-left me-1"></i>
+                            {{ anterior.titulo|truncatechars:30 }}
+                        </a>
+                        {% endif %}
+                    </div>
+                    <div class="col-6 text-end">
+                        {% if proximo %}
+                        <a href="{% url 'portal_cidadao:detalhe_conteudo' proximo.slug %}" class="btn btn-outline-primary">
+                            {{ proximo.titulo|truncatechars:30 }}
+                            <i class="fas fa-chevron-right ms-1"></i>
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Sidebar -->
+            <div class="col-lg-4">
+                <!-- Conteúdo Relacionado -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-link me-2"></i>
+                            Conteúdo Relacionado
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        {% for relacionado in conteudos_relacionados %}
+                        <div class="mb-3">
+                            <h6>
+                                <a href="{% url 'portal_cidadao:detalhe_conteudo' relacionado.slug %}" class="text-decoration-none">
+                                    {{ relacionado.titulo }}
+                                </a>
+                            </h6>
+                            <small class="text-muted">
+                                {{ relacionado.data_publicacao|date:"d/m/Y" }}
+                            </small>
+                        </div>
+                        {% empty %}
+                        <p class="text-muted">Nenhum conteúdo relacionado encontrado.</p>
+                        {% endfor %}
+                    </div>
+                </div>
+                
+                <!-- Categorias -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-folder me-2"></i>
+                            Categorias
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        {% for categoria in categorias %}
+                        <a href="{% url 'portal_cidadao:conteudo_por_categoria' categoria.id %}" 
+                           class="btn btn-outline-secondary btn-sm mb-2">
+                            <i class="{{ categoria.icone|default:'fas fa-folder' }} me-1"></i>
+                            {{ categoria.nome }}
+                        </a>
+                        {% empty %}
+                        <p class="text-muted">Nenhuma categoria disponível.</p>
+                        {% endfor %}
+                    </div>
+                </div>
+                
+                <!-- Links Úteis -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-external-link-alt me-2"></i>
+                            Links Úteis
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-grid gap-2">
+                            <a href="{% url 'portal_cidadao:consulta_publica' %}" class="btn btn-outline-primary btn-sm">
+                                <i class="fas fa-search me-1"></i>Consultar Processo
+                            </a>
+                            <a href="{% url 'portal_cidadao:nova_peticao_cidadao' %}" class="btn btn-outline-primary btn-sm">
+                                <i class="fas fa-file-alt me-1"></i>Nova Petição
+                            </a>
+                            <a href="{% url 'portal_cidadao:nova_denuncia' %}" class="btn btn-outline-primary btn-sm">
+                                <i class="fas fa-exclamation-triangle me-1"></i>Fazer Denúncia
+                            </a>
+                            <a href="{% url 'portal_cidadao:orientacoes' %}" class="btn btn-outline-primary btn-sm">
+                                <i class="fas fa-info-circle me-1"></i>Orientações
+                            </a>
+                            <a href="{% url 'portal_cidadao:faq' %}" class="btn btn-outline-primary btn-sm">
+                                <i class="fas fa-question-circle me-1"></i>Perguntas Frequentes
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Compartilhar -->
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-share-alt me-2"></i>
+                            Compartilhar
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-flex gap-2">
+                            <a href="https://www.facebook.com/sharer/sharer.php?u={{ request.build_absolute_uri }}" 
+                               class="btn btn-primary btn-sm" target="_blank">
+                                <i class="fab fa-facebook-f"></i>
+                            </a>
+                            <a href="https://twitter.com/intent/tweet?url={{ request.build_absolute_uri }}&text={{ conteudo.titulo }}" 
+                               class="btn btn-info btn-sm" target="_blank">
+                                <i class="fab fa-twitter"></i>
+                            </a>
+                            <a href="https://wa.me/?text={{ conteudo.titulo }}%20{{ request.build_absolute_uri }}" 
+                               class="btn btn-success btn-sm" target="_blank">
+                                <i class="fab fa-whatsapp"></i>
+                            </a>
+                            <a href="mailto:?subject={{ conteudo.titulo }}&body={{ request.build_absolute_uri }}" 
+                               class="btn btn-secondary btn-sm">
+                                <i class="fas fa-envelope"></i>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Conteúdo Similar -->
+{% if conteudos_similares %}
+<section class="py-5 bg-light">
+    <div class="container">
+        <h2 class="text-center mb-5">
+            <i class="fas fa-thumbs-up me-2 text-primary"></i>
+            Você Também Pode Gostar
+        </h2>
+        
+        <div class="row g-4">
+            {% for similar in conteudos_similares %}
+            <div class="col-md-6 col-lg-4">
+                <div class="card h-100">
+                    {% if similar.imagem_destaque %}
+                    <img src="{{ similar.imagem_destaque.url }}" class="card-img-top" alt="{{ similar.titulo }}">
+                    {% endif %}
+                    <div class="card-body">
+                        <h5 class="card-title">{{ similar.titulo }}</h5>
+                        <p class="card-text">{{ similar.resumo }}</p>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <small class="text-muted">
+                                {{ similar.data_publicacao|date:"d/m/Y" }}
+                            </small>
+                            <a href="{% url 'portal_cidadao:detalhe_conteudo' similar.slug %}" class="btn btn-primary btn-sm">
+                                Ler Mais
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+{% endif %}
+
+<!-- CTA Section -->
+<section class="py-5 bg-primary text-white">
+    <div class="container text-center">
+        <h2 class="mb-4">Precisa de Mais Ajuda?</h2>
+        <p class="lead mb-4">
+            Nossa equipe está pronta para orientá-lo sobre seus direitos como consumidor.
+        </p>
+        <div class="d-flex justify-content-center gap-3 flex-wrap">
+            <a href="{% url 'portal_cidadao:consulta_publica' %}" class="btn btn-light btn-lg">
+                <i class="fas fa-search me-2"></i>Consultar Processo
+            </a>
+            <a href="{% url 'portal_cidadao:nova_peticao_cidadao' %}" class="btn btn-outline-light btn-lg">
+                <i class="fas fa-file-alt me-2"></i>Nova Petição
+            </a>
+            <a href="{% url 'portal_cidadao:contato' %}" class="btn btn-outline-light btn-lg">
+                <i class="fas fa-envelope me-2"></i>Fale Conosco
+            </a>
+        </div>
+    </div>
+</section>
+{% endblock %}

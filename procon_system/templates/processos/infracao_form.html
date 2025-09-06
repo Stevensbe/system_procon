@@ -1,0 +1,23 @@
+{% extends 'processos/base.html' %}
+{% block title %}Auto de Infração{% endblock %}
+{% block content %}
+  <h2>Gerar Auto de Infração</h2>
+  <form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit">Salvar Infração</button>
+  </form>
+  <p>
+    <a href="{% url 'processos:constatacao_export' form.initial.constatacao %}">
+      Exportar DOCX da Constatação
+    </a>
+  </p>
+{% endblock %}
+{% extends 'base.html' %}
+{% block content %}
+<h2>Gerar Auto de Infração (Constatação {{ constatacao.numero }})</h2>
+<form method="post">{% csrf_token %}
+  {{ form.as_p }}
+  <button type="submit" class="btn btn-danger">Gerar Infração</button>
+</form>
+{% endblock %}

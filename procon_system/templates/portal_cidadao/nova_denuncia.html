@@ -1,0 +1,1053 @@
+{% extends 'base/base.html' %}
+{% load static %}
+
+{% block title %}Nova Denúncia - SISPROCON{% endblock %}
+
+{% block meta_description %}Formulário para fazer denúncia de práticas abusivas no PROCON - proteja seus direitos como consumidor{% endblock %}
+
+{% block breadcrumb %}
+<div class="bg-light py-2">
+    <div class="container">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item"><a href="{% url 'portal:home' %}">Início</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Nova Denúncia</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .complaint-container {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        overflow: hidden;
+        margin-bottom: 2rem;
+    }
+    
+    .complaint-header {
+        background: linear-gradient(135deg, #dc3545, #c82333);
+        color: white;
+        padding: 2rem;
+        text-align: center;
+    }
+    
+    .complaint-form {
+        padding: 2rem;
+    }
+    
+    .severity-selector {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin-bottom: 2rem;
+    }
+    
+    .severity-option {
+        border: 2px solid #e9ecef;
+        border-radius: 12px;
+        padding: 1.5rem;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        background: white;
+        position: relative;
+    }
+    
+    .severity-option:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    
+    .severity-option.selected {
+        border-color: #dc3545;
+        background: rgba(220,53,69,0.05);
+    }
+    
+    .severity-low {
+        border-color: #ffc107;
+    }
+    
+    .severity-low.selected {
+        border-color: #ffc107;
+        background: rgba(255,193,7,0.1);
+    }
+    
+    .severity-medium {
+        border-color: #fd7e14;
+    }
+    
+    .severity-medium.selected {
+        border-color: #fd7e14;
+        background: rgba(253,126,20,0.1);
+    }
+    
+    .severity-high {
+        border-color: #dc3545;
+    }
+    
+    .severity-high.selected {
+        border-color: #dc3545;
+        background: rgba(220,53,69,0.1);
+    }
+    
+    .severity-icon {
+        font-size: 2.5rem;
+        margin-bottom: 1rem;
+        display: block;
+    }
+    
+    .severity-low .severity-icon {
+        color: #ffc107;
+    }
+    
+    .severity-medium .severity-icon {
+        color: #fd7e14;
+    }
+    
+    .severity-high .severity-icon {
+        color: #dc3545;
+    }
+    
+    .severity-title {
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+        color: #212529;
+    }
+    
+    .severity-description {
+        color: #6c757d;
+        font-size: 0.875rem;
+        line-height: 1.4;
+    }
+    
+    .violation-types {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 1rem;
+        margin-bottom: 2rem;
+    }
+    
+    .violation-type {
+        border: 1px solid #e9ecef;
+        border-radius: 8px;
+        padding: 1rem;
+        transition: all 0.3s ease;
+        cursor: pointer;
+    }
+    
+    .violation-type:hover {
+        border-color: #dc3545;
+        background: rgba(220,53,69,0.05);
+    }
+    
+    .violation-type.selected {
+        border-color: #dc3545;
+        background: rgba(220,53,69,0.1);
+    }
+    
+    .violation-checkbox {
+        margin-right: 0.75rem;
+    }
+    
+    .violation-label {
+        font-weight: 500;
+        color: #212529;
+        cursor: pointer;
+    }
+    
+    .violation-examples {
+        font-size: 0.75rem;
+        color: #6c757d;
+        margin-top: 0.5rem;
+        line-height: 1.3;
+    }
+    
+    .urgency-indicator {
+        background: #fff3cd;
+        border: 1px solid #ffeaa7;
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 2rem;
+        display: none;
+    }
+    
+    .urgency-indicator.high {
+        background: #f8d7da;
+        border-color: #f5c6cb;
+    }
+    
+    .urgency-text {
+        margin: 0;
+        font-weight: 500;
+    }
+    
+    .evidence-section {
+        background: #f8f9fa;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+    }
+    
+    .evidence-type {
+        border: 1px solid #e9ecef;
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        background: white;
+    }
+    
+    .evidence-checkbox {
+        margin-right: 0.75rem;
+    }
+    
+    .evidence-label {
+        font-weight: 500;
+        color: #212529;
+        margin-bottom: 0.5rem;
+        cursor: pointer;
+    }
+    
+    .evidence-description {
+        font-size: 0.875rem;
+        color: #6c757d;
+        margin-bottom: 0.5rem;
+    }
+    
+    .evidence-upload {
+        margin-top: 0.5rem;
+        display: none;
+    }
+    
+    .evidence-upload.active {
+        display: block;
+    }
+    
+    .company-search {
+        position: relative;
+    }
+    
+    .search-results {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background: white;
+        border: 1px solid #e9ecef;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        z-index: 1000;
+        max-height: 200px;
+        overflow-y: auto;
+        display: none;
+    }
+    
+    .search-result {
+        padding: 0.75rem 1rem;
+        border-bottom: 1px solid #f8f9fa;
+        cursor: pointer;
+        transition: background 0.2s ease;
+    }
+    
+    .search-result:hover {
+        background: #f8f9fa;
+    }
+    
+    .search-result:last-child {
+        border-bottom: none;
+    }
+    
+    .company-name {
+        font-weight: 500;
+        color: #212529;
+    }
+    
+    .company-cnpj {
+        font-size: 0.875rem;
+        color: #6c757d;
+    }
+    
+    .anonymous-option {
+        background: #e3f2fd;
+        border: 1px solid #2196f3;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+    }
+    
+    .anonymous-checkbox {
+        margin-right: 0.75rem;
+        transform: scale(1.2);
+    }
+    
+    .anonymous-label {
+        font-weight: 500;
+        color: #1976d2;
+        margin-bottom: 0.5rem;
+        cursor: pointer;
+    }
+    
+    .anonymous-description {
+        font-size: 0.875rem;
+        color: #0d47a1;
+        margin: 0;
+        line-height: 1.4;
+    }
+    
+    .character-counter {
+        font-size: 0.75rem;
+        color: #6c757d;
+        text-align: right;
+        margin-top: 0.25rem;
+    }
+    
+    .character-counter.warning {
+        color: #fd7e14;
+    }
+    
+    .character-counter.danger {
+        color: #dc3545;
+    }
+    
+    .submit-section {
+        background: #f8f9fa;
+        border-radius: 12px;
+        padding: 2rem;
+        text-align: center;
+        margin-top: 2rem;
+    }
+    
+    .submit-warning {
+        background: #fff3cd;
+        border: 1px solid #ffeaa7;
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 1.5rem;
+        text-align: left;
+    }
+    
+    .warning-title {
+        font-weight: 600;
+        color: #856404;
+        margin-bottom: 0.5rem;
+    }
+    
+    .warning-text {
+        font-size: 0.875rem;
+        color: #856404;
+        margin: 0;
+        line-height: 1.4;
+    }
+    
+    @media (max-width: 768px) {
+        .complaint-header {
+            padding: 1.5rem;
+        }
+        
+        .complaint-form {
+            padding: 1.5rem;
+        }
+        
+        .severity-selector,
+        .violation-types {
+            grid-template-columns: 1fr;
+        }
+        
+        .evidence-section {
+            padding: 1rem;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-lg-8 mx-auto text-center">
+            <h1 class="display-6 fw-bold mb-3">
+                <i class="fas fa-flag me-3"></i>Nova Denúncia
+            </h1>
+            <p class="lead text-muted">
+                Denuncie práticas abusivas e proteja outros consumidores
+            </p>
+        </div>
+    </div>
+    
+    <div class="row">
+        <div class="col-lg-10 mx-auto">
+            <div class="complaint-container">
+                <div class="complaint-header">
+                    <h3 class="mb-3">Formulário de Denúncia</h3>
+                    <p class="mb-0">
+                        Sua denúncia é importante para combater práticas abusivas no mercado
+                    </p>
+                </div>
+                
+                <div class="complaint-form">
+                    <form id="complaintForm" method="post" enctype="multipart/form-data">
+                        {% csrf_token %}
+                        
+                        <!-- Gravidade da Denúncia -->
+                        <h5 class="mb-4">Qual a gravidade da situação?</h5>
+                        
+                        <div class="severity-selector">
+                            <div class="severity-option severity-low" data-severity="BAIXA">
+                                <i class="fas fa-exclamation-circle severity-icon"></i>
+                                <h6 class="severity-title">Baixa</h6>
+                                <p class="severity-description">
+                                    Problemas menores, informações enganosas simples
+                                </p>
+                            </div>
+                            
+                            <div class="severity-option severity-medium" data-severity="MEDIA">
+                                <i class="fas fa-exclamation-triangle severity-icon"></i>
+                                <h6 class="severity-title">Média</h6>
+                                <p class="severity-description">
+                                    Práticas questionáveis que afetam vários consumidores
+                                </p>
+                            </div>
+                            
+                            <div class="severity-option severity-high" data-severity="ALTA">
+                                <i class="fas fa-ban severity-icon"></i>
+                                <h6 class="severity-title">Alta</h6>
+                                <p class="severity-description">
+                                    Práticas claramente abusivas, fraudes, riscos à saúde
+                                </p>
+                            </div>
+                        </div>
+                        
+                        <input type="hidden" name="gravidade" id="gravidadeInput" required>
+                        
+                        <!-- Indicador de Urgência -->
+                        <div class="urgency-indicator" id="urgencyIndicator">
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-clock me-2 text-warning"></i>
+                                <p class="urgency-text" id="urgencyText"></p>
+                            </div>
+                        </div>
+                        
+                        <!-- Tipo de Violação -->
+                        <h5 class="mb-4">Que tipo de prática abusiva foi identificada?</h5>
+                        
+                        <div class="violation-types">
+                            <div class="violation-type">
+                                <label class="violation-label">
+                                    <input type="checkbox" class="violation-checkbox" name="tipos_violacao" value="PROPAGANDA_ENGANOSA">
+                                    Propaganda Enganosa
+                                </label>
+                                <div class="violation-examples">
+                                    Ex: Informações falsas sobre produtos, promoções que não existem
+                                </div>
+                            </div>
+                            
+                            <div class="violation-type">
+                                <label class="violation-label">
+                                    <input type="checkbox" class="violation-checkbox" name="tipos_violacao" value="PRECO_ABUSIVO">
+                                    Preço Abusivo
+                                </label>
+                                <div class="violation-examples">
+                                    Ex: Aumentos excessivos, preços diferentes do anunciado
+                                </div>
+                            </div>
+                            
+                            <div class="violation-type">
+                                <label class="violation-label">
+                                    <input type="checkbox" class="violation-checkbox" name="tipos_violacao" value="PRODUTO_DEFEITUOSO">
+                                    Produto Defeituoso
+                                </label>
+                                <div class="violation-examples">
+                                    Ex: Produtos com defeitos sistemáticos, não conformes
+                                </div>
+                            </div>
+                            
+                            <div class="violation-type">
+                                <label class="violation-label">
+                                    <input type="checkbox" class="violation-checkbox" name="tipos_violacao" value="SERVICO_INADEQUADO">
+                                    Serviço Inadequado
+                                </label>
+                                <div class="violation-examples">
+                                    Ex: Serviços mal executados, não entregues conforme contratado
+                                </div>
+                            </div>
+                            
+                            <div class="violation-type">
+                                <label class="violation-label">
+                                    <input type="checkbox" class="violation-checkbox" name="tipos_violacao" value="COBRANCA_INDEVIDA">
+                                    Cobrança Indevida
+                                </label>
+                                <div class="violation-examples">
+                                    Ex: Taxas não informadas, valores diferentes do acordado
+                                </div>
+                            </div>
+                            
+                            <div class="violation-type">
+                                <label class="violation-label">
+                                    <input type="checkbox" class="violation-checkbox" name="tipos_violacao" value="VENDA_CASADA">
+                                    Venda Casada
+                                </label>
+                                <div class="violation-examples">
+                                    Ex: Obrigar compra de produtos adicionais, pacotes forçados
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Dados da Empresa -->
+                        <h5 class="mb-4">Dados da empresa denunciada:</h5>
+                        
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-8">
+                                <div class="form-floating company-search">
+                                    <input type="text" class="form-control" id="empresaNome" 
+                                           name="empresa_nome" placeholder="Nome da empresa" 
+                                           required maxlength="100">
+                                    <label for="empresaNome">
+                                        Nome da Empresa <span class="text-danger">*</span>
+                                    </label>
+                                    <div class="search-results" id="searchResults"></div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-4">
+                                <div class="form-floating">
+                                    <input type="text" class="form-control" id="empresaCnpj" 
+                                           name="empresa_cnpj" placeholder="CNPJ" maxlength="20">
+                                    <label for="empresaCnpj">CNPJ</label>
+                                </div>
+                            </div>
+                            
+                            <div class="col-12">
+                                <div class="form-floating">
+                                    <input type="text" class="form-control" id="empresaEndereco" 
+                                           name="empresa_endereco" placeholder="Endereço da empresa" maxlength="200">
+                                    <label for="empresaEndereco">Endereço da Empresa</label>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Descrição da Denúncia -->
+                        <h5 class="mb-4">Descrição detalhada:</h5>
+                        
+                        <div class="row g-3 mb-4">
+                            <div class="col-12">
+                                <div class="form-floating">
+                                    <input type="text" class="form-control" id="assunto" 
+                                           name="assunto" placeholder="Assunto da denúncia" 
+                                           required maxlength="150">
+                                    <label for="assunto">
+                                        Assunto <span class="text-danger">*</span>
+                                    </label>
+                                </div>
+                                <div class="character-counter" data-target="assunto" data-max="150">0/150</div>
+                            </div>
+                            
+                            <div class="col-12">
+                                <div class="form-floating">
+                                    <textarea class="form-control" id="descricao" name="descricao" 
+                                              placeholder="Descreva detalhadamente a situação" required 
+                                              style="height: 150px" maxlength="2000"></textarea>
+                                    <label for="descricao">
+                                        Descrição Detalhada <span class="text-danger">*</span>
+                                    </label>
+                                </div>
+                                <div class="character-counter" data-target="descricao" data-max="2000">0/2000</div>
+                                <div class="help-text mt-2">
+                                    <small class="text-muted">
+                                        Inclua: quando aconteceu, como foi a abordagem da empresa, 
+                                        valores envolvidos, consequências para você ou outros consumidores.
+                                    </small>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <div class="form-floating">
+                                    <input type="date" class="form-control" id="dataOcorrencia" 
+                                           name="data_ocorrencia">
+                                    <label for="dataOcorrencia">Data da Ocorrência</label>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <div class="form-floating">
+                                    <input type="number" class="form-control" id="valorPrejuizo" 
+                                           name="valor_prejuizo" placeholder="0,00" 
+                                           step="0.01" min="0">
+                                    <label for="valorPrejuizo">Valor do Prejuízo (R$)</label>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Evidências -->
+                        <div class="evidence-section">
+                            <h5 class="mb-4">Evidências (marque o que você possui):</h5>
+                            
+                            <div class="evidence-type">
+                                <label class="evidence-label">
+                                    <input type="checkbox" class="evidence-checkbox" name="evidencias" value="FOTOS">
+                                    Fotos ou capturas de tela
+                                </label>
+                                <div class="evidence-description">
+                                    Fotos do produto, prints de sites, conversas, etc.
+                                </div>
+                                <div class="evidence-upload">
+                                    <input type="file" class="form-control" name="evidencia_fotos" 
+                                           accept="image/*" multiple>
+                                </div>
+                            </div>
+                            
+                            <div class="evidence-type">
+                                <label class="evidence-label">
+                                    <input type="checkbox" class="evidence-checkbox" name="evidencias" value="DOCUMENTOS">
+                                    Documentos
+                                </label>
+                                <div class="evidence-description">
+                                    Contratos, notas fiscais, e-mails, cartas, etc.
+                                </div>
+                                <div class="evidence-upload">
+                                    <input type="file" class="form-control" name="evidencia_documentos" 
+                                           accept=".pdf,.doc,.docx" multiple>
+                                </div>
+                            </div>
+                            
+                            <div class="evidence-type">
+                                <label class="evidence-label">
+                                    <input type="checkbox" class="evidence-checkbox" name="evidencias" value="AUDIO">
+                                    Áudios
+                                </label>
+                                <div class="evidence-description">
+                                    Gravações de atendimento, chamadas, etc.
+                                </div>
+                                <div class="evidence-upload">
+                                    <input type="file" class="form-control" name="evidencia_audio" 
+                                           accept="audio/*" multiple>
+                                </div>
+                            </div>
+                            
+                            <div class="evidence-type">
+                                <label class="evidence-label">
+                                    <input type="checkbox" class="evidence-checkbox" name="evidencias" value="TESTEMUNHAS">
+                                    Testemunhas
+                                </label>
+                                <div class="evidence-description">
+                                    Outras pessoas que presenciaram a situação
+                                </div>
+                                <div class="evidence-upload">
+                                    <textarea class="form-control" name="dados_testemunhas" 
+                                              placeholder="Nome, telefone e relato das testemunhas" 
+                                              rows="3"></textarea>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Denúncia Anônima -->
+                        <div class="anonymous-option">
+                            <label class="anonymous-label">
+                                <input type="checkbox" class="anonymous-checkbox" name="anonima" value="1">
+                                Fazer denúncia anônima
+                            </label>
+                            <p class="anonymous-description">
+                                Se marcado, seus dados pessoais não serão compartilhados com a empresa denunciada. 
+                                Porém, isso pode limitar algumas ações do PROCON.
+                            </p>
+                        </div>
+                        
+                        <!-- Dados do Denunciante (opcional se anônima) -->
+                        <div id="dadosDenunciante">
+                            <h5 class="mb-4">Seus dados (obrigatório para denúncia nominal):</h5>
+                            
+                            <div class="row g-3 mb-4">
+                                <div class="col-md-8">
+                                    <div class="form-floating">
+                                        <input type="text" class="form-control" id="nomeCompleto" 
+                                               name="nome_completo" placeholder="Nome completo" 
+                                               required maxlength="100">
+                                        <label for="nomeCompleto">
+                                            Nome Completo <span class="text-danger">*</span>
+                                        </label>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-4">
+                                    <div class="form-floating">
+                                        <input type="text" class="form-control" id="cpfCnpj" 
+                                               name="cpf_cnpj" placeholder="CPF ou CNPJ" 
+                                               required maxlength="20">
+                                        <label for="cpfCnpj">
+                                            CPF ou CNPJ <span class="text-danger">*</span>
+                                        </label>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-6">
+                                    <div class="form-floating">
+                                        <input type="email" class="form-control" id="email" 
+                                               name="email" placeholder="E-mail" required>
+                                        <label for="email">
+                                            E-mail <span class="text-danger">*</span>
+                                        </label>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-6">
+                                    <div class="form-floating">
+                                        <input type="tel" class="form-control" id="telefone" 
+                                               name="telefone" placeholder="Telefone" required>
+                                        <label for="telefone">
+                                            Telefone <span class="text-danger">*</span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Termos e Submissão -->
+                        <div class="submit-section">
+                            <div class="submit-warning">
+                                <div class="warning-title">
+                                    <i class="fas fa-exclamation-triangle me-2"></i>
+                                    Importante
+                                </div>
+                                <p class="warning-text">
+                                    Denúncias falsas podem resultar em responsabilização civil e criminal. 
+                                    Certifique-se de que as informações fornecidas são verdadeiras e precisas.
+                                </p>
+                            </div>
+                            
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="termsAccept" 
+                                       name="aceita_termos" required>
+                                <label class="form-check-label" for="termsAccept">
+                                    Declaro que as informações são verdadeiras e aceito os 
+                                    <a href="#" target="_blank">termos de uso</a>
+                                    <span class="text-danger">*</span>
+                                </label>
+                            </div>
+                            
+                            <div class="form-check mb-4">
+                                <input class="form-check-input" type="checkbox" id="communicationAccept" 
+                                       name="aceita_comunicacao">
+                                <label class="form-check-label" for="communicationAccept">
+                                    Autorizo contato para esclarecimentos adicionais
+                                </label>
+                            </div>
+                            
+                            <button type="submit" class="btn btn-danger btn-lg px-5">
+                                <i class="fas fa-flag me-2"></i>
+                                Enviar Denúncia
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('complaintForm');
+    const gravidadeInput = document.getElementById('gravidadeInput');
+    const urgencyIndicator = document.getElementById('urgencyIndicator');
+    const urgencyText = document.getElementById('urgencyText');
+    
+    // Seleção de gravidade
+    const severityOptions = document.querySelectorAll('.severity-option');
+    severityOptions.forEach(option => {
+        option.addEventListener('click', function() {
+            severityOptions.forEach(opt => opt.classList.remove('selected'));
+            this.classList.add('selected');
+            gravidadeInput.value = this.dataset.severity;
+            
+            // Mostrar indicador de urgência
+            updateUrgencyIndicator(this.dataset.severity);
+        });
+    });
+    
+    function updateUrgencyIndicator(severity) {
+        urgencyIndicator.style.display = 'block';
+        urgencyIndicator.className = 'urgency-indicator';
+        
+        switch(severity) {
+            case 'BAIXA':
+                urgencyText.textContent = 'Denúncia será analisada no prazo normal (até 30 dias)';
+                break;
+            case 'MEDIA':
+                urgencyText.textContent = 'Denúncia terá prioridade média (até 15 dias)';
+                urgencyIndicator.classList.add('medium');
+                break;
+            case 'ALTA':
+                urgencyText.textContent = 'Denúncia terá tratamento urgente (até 7 dias)';
+                urgencyIndicator.classList.add('high');
+                break;
+        }
+    }
+    
+    // Seleção de tipos de violação
+    const violationTypes = document.querySelectorAll('.violation-type');
+    violationTypes.forEach(type => {
+        const checkbox = type.querySelector('.violation-checkbox');
+        
+        type.addEventListener('click', function(e) {
+            if (e.target !== checkbox) {
+                checkbox.checked = !checkbox.checked;
+            }
+            
+            if (checkbox.checked) {
+                this.classList.add('selected');
+            } else {
+                this.classList.remove('selected');
+            }
+        });
+        
+        checkbox.addEventListener('change', function() {
+            if (this.checked) {
+                type.classList.add('selected');
+            } else {
+                type.classList.remove('selected');
+            }
+        });
+    });
+    
+    // Gerenciar evidências
+    const evidenceCheckboxes = document.querySelectorAll('.evidence-checkbox');
+    evidenceCheckboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            const uploadSection = this.closest('.evidence-type').querySelector('.evidence-upload');
+            if (this.checked) {
+                uploadSection.classList.add('active');
+            } else {
+                uploadSection.classList.remove('active');
+                const fileInput = uploadSection.querySelector('input[type="file"], textarea');
+                if (fileInput) fileInput.value = '';
+            }
+        });
+    });
+    
+    // Denúncia anônima
+    const anonymousCheckbox = document.querySelector('input[name="anonima"]');
+    const dadosDenunciante = document.getElementById('dadosDenunciante');
+    
+    anonymousCheckbox.addEventListener('change', function() {
+        const requiredFields = dadosDenunciante.querySelectorAll('[required]');
+        
+        if (this.checked) {
+            dadosDenunciante.style.opacity = '0.5';
+            requiredFields.forEach(field => {
+                field.removeAttribute('required');
+                field.classList.remove('is-invalid');
+            });
+        } else {
+            dadosDenunciante.style.opacity = '1';
+            requiredFields.forEach(field => {
+                field.setAttribute('required', '');
+            });
+        }
+    });
+    
+    // Busca de empresas
+    const empresaNomeInput = document.getElementById('empresaNome');
+    const searchResults = document.getElementById('searchResults');
+    let searchTimeout;
+    
+    empresaNomeInput.addEventListener('input', function() {
+        const query = this.value.trim();
+        
+        clearTimeout(searchTimeout);
+        
+        if (query.length >= 3) {
+            searchTimeout = setTimeout(() => {
+                searchCompanies(query);
+            }, 300);
+        } else {
+            hideSearchResults();
+        }
+    });
+    
+    function searchCompanies(query) {
+        // Simular busca de empresas
+        const mockResults = [
+            { nome: 'Empresa XYZ Ltda', cnpj: '12.345.678/0001-90' },
+            { nome: 'ABC Comércio S.A.', cnpj: '98.765.432/0001-10' },
+            { nome: 'Loja Virtual Online', cnpj: '11.222.333/0001-44' }
+        ].filter(company => 
+            company.nome.toLowerCase().includes(query.toLowerCase())
+        );
+        
+        showSearchResults(mockResults);
+    }
+    
+    function showSearchResults(results) {
+        if (results.length === 0) {
+            hideSearchResults();
+            return;
+        }
+        
+        searchResults.innerHTML = '';
+        
+        results.forEach(company => {
+            const resultEl = document.createElement('div');
+            resultEl.className = 'search-result';
+            resultEl.innerHTML = `
+                <div class="company-name">${company.nome}</div>
+                <div class="company-cnpj">${company.cnpj}</div>
+            `;
+            
+            resultEl.addEventListener('click', function() {
+                empresaNomeInput.value = company.nome;
+                document.getElementById('empresaCnpj').value = company.cnpj;
+                hideSearchResults();
+            });
+            
+            searchResults.appendChild(resultEl);
+        });
+        
+        searchResults.style.display = 'block';
+    }
+    
+    function hideSearchResults() {
+        searchResults.style.display = 'none';
+    }
+    
+    // Fechar resultados ao clicar fora
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('.company-search')) {
+            hideSearchResults();
+        }
+    });
+    
+    // Contadores de caracteres
+    function setupCharacterCounters() {
+        document.querySelectorAll('.character-counter').forEach(counter => {
+            const target = counter.dataset.target;
+            const max = parseInt(counter.dataset.max);
+            const field = document.getElementById(target);
+            
+            function updateCounter() {
+                const current = field.value.length;
+                counter.textContent = `${current}/${max}`;
+                
+                counter.classList.remove('warning', 'danger');
+                if (current > max * 0.9) {
+                    counter.classList.add('danger');
+                } else if (current > max * 0.8) {
+                    counter.classList.add('warning');
+                }
+            }
+            
+            field.addEventListener('input', updateCounter);
+            updateCounter();
+        });
+    }
+    
+    setupCharacterCounters();
+    
+    // Máscaras de entrada
+    function setupInputMasks() {
+        const cpfCnpjField = document.getElementById('cpfCnpj');
+        const telefoneField = document.getElementById('telefone');
+        const empresaCnpjField = document.getElementById('empresaCnpj');
+        
+        [cpfCnpjField, empresaCnpjField].forEach(field => {
+            if (field) {
+                field.addEventListener('input', function(e) {
+                    let value = e.target.value.replace(/\D/g, '');
+                    
+                    if (value.length <= 11) {
+                        value = value.replace(/(\d{3})(\d)/, '$1.$2');
+                        value = value.replace(/(\d{3})(\d)/, '$1.$2');
+                        value = value.replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+                    } else {
+                        value = value.replace(/^(\d{2})(\d)/, '$1.$2');
+                        value = value.replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3');
+                        value = value.replace(/\.(\d{3})(\d)/, '.$1/$2');
+                        value = value.replace(/(\d{4})(\d)/, '$1-$2');
+                    }
+                    
+                    e.target.value = value;
+                });
+            }
+        });
+        
+        if (telefoneField) {
+            telefoneField.addEventListener('input', function(e) {
+                let value = e.target.value.replace(/\D/g, '');
+                value = value.replace(/^(\d{2})(\d)/g, '($1) $2');
+                value = value.replace(/(\d)(\d{4})$/, '$1-$2');
+                e.target.value = value;
+            });
+        }
+    }
+    
+    setupInputMasks();
+    
+    // Validação do formulário
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        // Verificar se pelo menos um tipo de violação foi selecionado
+        const selectedViolations = document.querySelectorAll('input[name="tipos_violacao"]:checked');
+        if (selectedViolations.length === 0) {
+            SISPROCON.showToast('Selecione pelo menos um tipo de violação', 'warning');
+            return;
+        }
+        
+        // Verificar gravidade
+        if (!gravidadeInput.value) {
+            SISPROCON.showToast('Selecione a gravidade da denúncia', 'warning');
+            return;
+        }
+        
+        // Validação para denúncia não anônima
+        if (!anonymousCheckbox.checked) {
+            const requiredFields = dadosDenunciante.querySelectorAll('[required]');
+            let isValid = true;
+            
+            requiredFields.forEach(field => {
+                if (!field.value.trim()) {
+                    field.classList.add('is-invalid');
+                    isValid = false;
+                } else {
+                    field.classList.remove('is-invalid');
+                    field.classList.add('is-valid');
+                }
+            });
+            
+            if (!isValid) {
+                SISPROCON.showToast('Preencha todos os campos obrigatórios', 'warning');
+                return;
+            }
+        }
+        
+        // Confirmar envio
+        SISPROCON.confirm(
+            'Tem certeza que deseja enviar esta denúncia? Certifique-se de que todas as informações são verdadeiras.',
+            () => {
+                // Aqui faria o envio real
+                SISPROCON.showToast('Denúncia enviada com sucesso! Você receberá um número de protocolo em breve.', 'success');
+                
+                setTimeout(() => {
+                    window.location.href = '{% url "portal:home" %}';
+                }, 3000);
+            }
+        );
+    });
+    
+    // Validação em tempo real
+    form.addEventListener('input', function(e) {
+        if (e.target.hasAttribute('required')) {
+            if (e.target.value.trim()) {
+                e.target.classList.remove('is-invalid');
+                e.target.classList.add('is-valid');
+            } else {
+                e.target.classList.remove('is-valid');
+            }
+        }
+    });
+});
+</script>
+{% endblock %}
