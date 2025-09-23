@@ -2,6 +2,7 @@ from rest_framework import serializers
 from .models import (
     CaixaEntrada, AnexoCaixaEntrada, HistoricoCaixaEntrada, ConfiguracaoCaixaEntrada
 )
+from .constants import DESPACHO_PREDEFINIDOS
 
 
 class CaixaEntradaSerializer(serializers.ModelSerializer):
@@ -15,7 +16,7 @@ class CaixaEntradaSerializer(serializers.ModelSerializer):
             'remetente_email', 'empresa_nome', 'empresa_cnpj', 'setor_destino',
             'responsavel_atual', 'data_entrada', 'prazo_resposta', 'versao'
         ]
-        read_only_fields = ['id', 'numero_protocolo', 'data_entrada', 'versao']
+        read_only_fields = ['id', 'numero_protocolo', 'data_entrada', 'versao', 'protocolo']
 
 
 class CaixaEntradaDetailSerializer(serializers.ModelSerializer):
@@ -39,7 +40,7 @@ class CaixaEntradaDetailSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = [
             'id', 'numero_protocolo', 'data_entrada', 'data_atualizacao',
-            'versao', 'dias_para_vencimento', 'esta_atrasado'
+            'versao', 'dias_para_vencimento', 'esta_atrasado', 'protocolo_id', 'protocolo_numero'
         ]
     
     def get_dias_para_vencimento(self, obj):
@@ -168,6 +169,12 @@ class EncaminharDocumentoSerializer(serializers.Serializer):
                 f"Setor deve ser um dos seguintes: {', '.join(setores_validos)}"
             )
         return value
+
+    def validate(self, attrs):
+        motivo = (attrs.get('motivo_predefinido') or '').strip()
+        if motivo and motivo not in [opcao for opcao, _ in DESPACHO_PREDEFINIDOS]:
+            raise serializers.ValidationError({'motivo_predefinido': 'Motivo predefinido invalido.'})
+        return attrs
 
 
 class MarcarLidoSerializer(serializers.Serializer):

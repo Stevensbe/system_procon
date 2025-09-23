@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Despachar Documento{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <h1 class="h4 mb-4">Despachar Documento</h1>
+
+  <form method="post">
+    {% csrf_token %}
+    <div class="row g-3">
+      <div class="col-md-6">
+        <label class="form-label">Setor destino</label>
+        <select class="form-select" name="setor_destino" required>
+          <option value="" disabled selected>Selecione...</option>
+          {% for setor in setores %}
+            <option value="{{ setor }}">{{ setor }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Responsável</label>
+        <select class="form-select" name="responsavel">
+          <option value="">-- Opcional --</option>
+          {% for usuario in usuarios %}
+            <option value="{{ usuario.id }}">{{ usuario.get_full_name|default:usuario.username }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Motivo predefinido</label>
+        <select class="form-select" name="motivo_predefinido">
+          <option value="">-- Selecionar --</option>
+          {% for codigo, rotulo in motivos_predefinidos %}
+            <option value="{{ codigo }}">{{ rotulo }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Assinatura</label>
+        <input class="form-control" type="text" name="assinatura" placeholder="Digite seu nome para assinar" />
+      </div>
+      <div class="col-12">
+        <label class="form-label">Observações adicionais</label>
+        <textarea class="form-control" name="observacoes" rows="3" placeholder="Detalhe o despacho, se necessário"></textarea>
+      </div>
+    </div>
+
+    <div class="mt-4 d-flex gap-2">
+      <button class="btn btn-primary" type="submit">Despachar</button>
+      <a class="btn btn-outline-secondary" href="{% url 'caixa_entrada:documento_detail' documento.id %}">Cancelar</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

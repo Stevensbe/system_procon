@@ -2,10 +2,53 @@
 Signals para integração automática da Caixa de Entrada com outros módulos
 """
 
-from django.db.models.signals import post_save
+import logging
+
+from django.db.models.signals import pre_save, post_save
 from django.dispatch import receiver
 from django.contrib.contenttypes.models import ContentType
 from .models import CaixaEntrada, HistoricoCaixaEntrada
+from .services import sincronizar_protocolo_caixa, aplicar_roteamento_automatico
+
+
+logger = logging.getLogger(__name__)
+
+
+@receiver(pre_save, sender=CaixaEntrada)
+def aplicar_rotas_automaticas(sender, instance, raw=False, **kwargs):
+    if raw or instance.pk:
+        return
+    aplicar_roteamento_automatico(instance)
+
+
+@receiver(post_save, sender=CaixaEntrada)
+def sincronizar_caixa_no_protocolo(sender, instance, created, update_fields=None, raw=False, **kwargs):
+    """Garante que o documento da caixa de entrada esteja vinculado ao protocolo e atualiza o fluxo."""
+    if raw:
+        return
+
+    update_fields = update_fields or kwargs.get('update_fields')
+    if update_fields:
+        update_set = set(update_fields)
+        if update_set == {'protocolo'}:
+            return
+
+    try:
+        setor_origem = instance.setor_destino
+        if getattr(instance, 'documento_anterior_id', None):
+            setor_origem = instance.documento_anterior.setor_destino
+
+        acao = 'PROTOCOLADO' if created and not getattr(instance, 'documento_anterior_id', None) else None
+        sincronizar_protocolo_caixa(
+            instance,
+            usuario=instance.responsavel_atual,
+            acao=acao,
+            setor_origem=setor_origem,
+            setor_destino=instance.setor_destino,
+            observacoes=getattr(instance, 'descricao', ''),
+        )
+    except Exception as exc:
+        logger.warning('Falha ao sincronizar protocolo para documento %s: %s', getattr(instance, 'id', 'desconhecido'), exc)
 
 
 @receiver(post_save, sender='peticionamento.PeticaoEletronica')
@@ -265,3 +308,11 @@ def atualizar_status_caixa_entrada(sender, instance, created, **kwargs):
             
         except Exception as e:
             print(f"Erro ao atualizar status da caixa de entrada {instance.numero_protocolo}: {e}")
+
+
+
+
+
+
+
+

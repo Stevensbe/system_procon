@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% block title %}Painel Gerencial - Caixa de Entrada{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3 mb-0">Painel Gerencial - Caixa de Entrada</h1>
+    <a class="btn btn-outline-primary" href="{% url 'caixa_entrada:caixa_entrada' %}">Voltar para Caixa</a>
+  </div>
+
+  <section class="mb-4">
+    <h2 class="h5">Resumo Geral</h2>
+    <div class="row g-3">
+      <div class="col-sm-6 col-xl-2">
+        <div class="card shadow-sm h-100">
+          <div class="card-body">
+            <div class="text-muted small">Total</div>
+            <div class="display-6">{{ resumo.total }}</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-sm-6 col-xl-2">
+        <div class="card shadow-sm h-100">
+          <div class="card-body">
+            <div class="text-muted small">Pendentes</div>
+            <div class="display-6">{{ resumo.pendentes }}</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-sm-6 col-xl-2">
+        <div class="card shadow-sm h-100">
+          <div class="card-body text-danger">
+            <div class="text-muted small">Atrasados</div>
+            <div class="display-6">{{ resumo.atrasados }}</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-sm-6 col-xl-2">
+        <div class="card shadow-sm h-100">
+          <div class="card-body">
+            <div class="text-muted small">Em SLA</div>
+            <div class="display-6">{{ resumo.em_sla }}</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-sm-6 col-xl-2">
+        <div class="card shadow-sm h-100">
+          <div class="card-body">
+            <div class="text-muted small">SLA (%)</div>
+            <div class="display-6">{{ resumo.percentual_sla }}%</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-sm-6 col-xl-2">
+        <div class="card shadow-sm h-100">
+          <div class="card-body">
+            <div class="text-muted small">Idade média</div>
+            <div class="display-6 fs-4">{{ resumo.idade_media }}</div>
+            <div class="text-muted small">Prazo médio: {{ resumo.prazo_medio }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="mb-4">
+    <h2 class="h5">SLA por setor</h2>
+    <div class="card shadow-sm">
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-striped align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Setor</th>
+                <th>Total</th>
+                <th>Pendentes</th>
+                <th>Atrasados</th>
+                <th>Dentro do SLA</th>
+                <th>SLA (%)</th>
+                <th>Idade média</th>
+                <th>Prazo médio restante</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for setor in setores %}
+                <tr>
+                  <td>{{ setor.setor }}</td>
+                  <td>{{ setor.total }}</td>
+                  <td>{{ setor.pendentes }}</td>
+                  <td class="text-danger">{{ setor.atrasados }}</td>
+                  <td>{{ setor.em_sla }}</td>
+                  <td>
+                    <div class="d-flex align-items-center">
+                      <div class="fw-semibold me-2">{{ setor.percentual_sla }}%</div>
+                      <div class="progress flex-grow-1" style="height: 6px;">
+                        <div class="progress-bar" role="progressbar" style="width: {{ setor.percentual_sla }}%;"></div>
+                      </div>
+                    </div>
+                  </td>
+                  <td>{{ setor.idade_media }}</td>
+                  <td>{{ setor.prazo_medio }}</td>
+                </tr>
+              {% empty %}
+                <tr>
+                  <td colspan="8" class="text-center py-4">Nenhum dado disponível.</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="h5">Top atrasos</h2>
+    <div class="card shadow-sm">
+      <div class="card-body p-0">
+        <div class="list-group list-group-flush">
+          {% for item in top_atrasados %}
+            <div class="list-group-item">
+              <div class="d-flex justify-content-between">
+                <div>
+                  <div class="fw-semibold">{{ item.documento.numero_protocolo }} - {{ item.documento.assunto }}</div>
+                  <div class="text-muted small">
+                    Setor: {{ item.documento.setor_destino }} | Prioridade: {{ item.documento.prioridade }} | Prazo: {{ item.documento.prazo_resposta|date:"d/m/Y H:i" }}
+                  </div>
+                </div>
+                <div class="text-end">
+                  <div class="badge bg-danger">Atraso {{ item.tempo_atraso }}</div>
+                  <div class="text-muted small">Status: {{ item.documento.status }}</div>
+                </div>
+              </div>
+            </div>
+          {% empty %}
+            <div class="list-group-item text-center text-muted py-4">Nenhum documento atrasado.</div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+{% endblock %}

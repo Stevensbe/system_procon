@@ -2,9 +2,10 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.http import JsonResponse, HttpResponse
-from django.db.models import Count, Q
+from django.db.models import Count, Q, Avg, F, DurationField, ExpressionWrapper
 from django.utils import timezone
 from django.core.paginator import Paginator
+from django.db.models.functions import Now
 from django.contrib.contenttypes.models import ContentType
 from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action
@@ -15,7 +16,6 @@ from rest_framework.pagination import PageNumberPagination
 from django_filters.rest_framework import DjangoFilterBackend
 from datetime import datetime, timedelta
 import json
-
 from .models import (
     CaixaEntrada, AnexoCaixaEntrada, HistoricoCaixaEntrada, ConfiguracaoCaixaEntrada,
     PermissaoSetorCaixaEntrada, AcessoEspecialCaixaEntrada
@@ -25,7 +25,56 @@ from .serializers import (
     HistoricoCaixaEntradaSerializer, ConfiguracaoCaixaEntradaSerializer
 )
 from .mixins import AdminPermissionMixin
+from .services import sincronizar_protocolo_caixa
+from .constants import DESPACHO_PREDEFINIDOS
 
+
+
+@login_required
+def painel_gerencial_view(request):
+    """Painel gerencial com metricas de SLA por setor"""
+    metricas = _coletar_metricas_sla()
+    resumo = metricas['resumo']
+
+    setores_formatados = []
+    for item in metricas['setores']:
+        setores_formatados.append({
+            'setor': item['setor'],
+            'total': item['total'],
+            'pendentes': item['pendentes'],
+            'atrasados': item['atrasados'],
+            'em_sla': item['em_sla'],
+            'percentual_sla': item['percentual_sla'],
+            'idade_media': _format_duration(item['idade_media']),
+            'prazo_medio': _format_duration(item['prazo_medio']),
+        })
+
+    top_atrasados = []
+    agora = timezone.now()
+    for doc in metricas['top_atrasados']:
+        atraso = None
+        if doc.prazo_resposta:
+            atraso = agora - doc.prazo_resposta
+        top_atrasados.append({
+            'documento': doc,
+            'tempo_atraso': _format_duration(atraso),
+        })
+
+    contexto = {
+        'resumo': {
+            'total': resumo['total'],
+            'pendentes': resumo['pendentes'],
+            'atrasados': resumo['atrasados'],
+            'em_sla': resumo['em_sla'],
+            'percentual_sla': resumo['percentual_sla'],
+            'idade_media': _format_duration(resumo['idade_media']),
+            'prazo_medio': _format_duration(resumo['prazo_medio']),
+        },
+        'setores': setores_formatados,
+        'top_atrasados': top_atrasados,
+    }
+
+    return render(request, 'caixa_entrada/painel_gerencial.html', contexto)
 
 # === VIEWS PRINCIPAIS ===
 
@@ -413,7 +462,18 @@ def marcar_como_lido(request, documento_id):
     """Marca documento como lido"""
     documento = get_object_or_404(CaixaEntrada, id=documento_id)
     documento.marcar_como_lido(request.user)
-    
+
+    sincronizar_protocolo_caixa(
+        documento,
+        usuario=request.user,
+        acao='RECEBIDO',
+        setor_origem=documento.setor_destino,
+        setor_destino=documento.setor_destino,
+        motivo='Documento marcado como lido',
+        observacoes='Documento marcado como lido',
+        recebido_por=request.user,
+    )
+
     # Registrar no histórico
     HistoricoCaixaEntrada.objects.create(
         documento=documento,
@@ -434,33 +494,56 @@ def encaminhar_documento(request, documento_id):
     if request.method == 'POST':
         setor_destino = request.POST.get('setor_destino')
         responsavel_id = request.POST.get('responsavel')
-        observacoes = request.POST.get('observacoes', '')
-        
+        motivo_predefinido = request.POST.get('motivo_predefinido', '')
+        assinatura = request.POST.get('assinatura', '')
+        observacoes_livres = request.POST.get('observacoes', '')
+
         if setor_destino:
             responsavel = None
             if responsavel_id:
                 from django.contrib.auth.models import User
                 responsavel = User.objects.get(id=responsavel_id)
-            
-            # Encaminhar documento
+
+            partes_mensagem = []
+            if motivo_predefinido:
+                partes_mensagem.append('[{}]'.format(motivo_predefinido))
+            if observacoes_livres:
+                partes_mensagem.append(observacoes_livres)
+            observacoes = ' '.join(partes_mensagem).strip()
+
+            setor_origem_atual = documento.setor_destino
             nova_versao = documento.encaminhar_para_setor(
                 setor_destino=setor_destino,
                 responsavel=responsavel,
                 observacoes=observacoes
             )
-            
-            # Registrar no histórico
+
+            sincronizar_protocolo_caixa(
+                nova_versao,
+                usuario=request.user,
+                acao='ENCAMINHADO',
+                setor_origem=setor_origem_atual,
+                setor_destino=setor_destino,
+                motivo='Encaminhado para {}'.format(setor_destino),
+                observacoes=observacoes or '',
+            )
+
             HistoricoCaixaEntrada.objects.create(
                 documento=documento,
                 acao='ENCAMINHADO',
                 usuario=request.user,
-                detalhes=f'Encaminhado para {setor_destino}',
-                dados_novos={'setor_destino': setor_destino, 'responsavel': responsavel_id}
+                detalhes='Encaminhado para {}'.format(setor_destino),
+                dados_novos={
+                    'setor_destino': setor_destino,
+                    'responsavel': responsavel_id,
+                    'motivo_predefinido': motivo_predefinido,
+                    'assinatura': assinatura,
+                }
             )
-            
-            messages.success(request, f'Documento encaminhado para {setor_destino}')
+
+            messages.success(request, 'Documento encaminhado para {}'.format(setor_destino))
             return redirect('caixa_entrada:documento_detail', documento_id=nova_versao.id)
-    
+
     # Buscar setores disponíveis
     setores = CaixaEntrada.objects.values_list('setor_destino', flat=True).distinct()
     usuarios = User.objects.filter(is_active=True).order_by('first_name', 'last_name')
@@ -483,7 +566,17 @@ def arquivar_documento(request, documento_id):
         motivo = request.POST.get('motivo', '')
         documento.status = 'ARQUIVADO'
         documento.save()
-        
+
+        sincronizar_protocolo_caixa(
+            documento,
+            usuario=request.user,
+            acao='ARQUIVADO',
+            setor_origem=documento.setor_destino,
+            setor_destino=documento.setor_destino,
+            motivo=f'Documento arquivado: {motivo}' if motivo else 'Documento arquivado',
+            observacoes=motivo or '',
+        )
+
         # Registrar no histórico
         HistoricoCaixaEntrada.objects.create(
             documento=documento,
@@ -535,7 +628,18 @@ class CaixaEntradaViewSet(viewsets.ModelViewSet):
         """Marca documento como lido"""
         documento = self.get_object()
         documento.marcar_como_lido(request.user)
-        
+
+        sincronizar_protocolo_caixa(
+            documento,
+            usuario=request.user,
+            acao='RECEBIDO',
+            setor_origem=documento.setor_destino,
+            setor_destino=documento.setor_destino,
+            motivo='Documento marcado como lido',
+            observacoes='Documento marcado como lido via API',
+            recebido_por=request.user,
+        )
+
         # Registrar no histórico
         HistoricoCaixaEntrada.objects.create(
             documento=documento,
@@ -552,31 +656,55 @@ class CaixaEntradaViewSet(viewsets.ModelViewSet):
         documento = self.get_object()
         setor_destino = request.data.get('setor_destino')
         responsavel_id = request.data.get('responsavel')
-        observacoes = request.data.get('observacoes', '')
-        
+        motivo_predefinido = request.data.get('motivo_predefinido', '')
+        assinatura = request.data.get('assinatura', '')
+        observacoes_livres = request.data.get('observacoes', '')
+
         if not setor_destino:
             return Response({'error': 'Setor destino é obrigatório'}, status=400)
-        
+
         responsavel = None
         if responsavel_id:
             from django.contrib.auth.models import User
             responsavel = User.objects.get(id=responsavel_id)
-        
+
+        partes_mensagem = []
+        if motivo_predefinido:
+            partes_mensagem.append('[{}]'.format(motivo_predefinido))
+        if observacoes_livres:
+            partes_mensagem.append(observacoes_livres)
+        observacoes = ' '.join(partes_mensagem).strip()
+
+        setor_origem_atual = documento.setor_destino
         nova_versao = documento.encaminhar_para_setor(
             setor_destino=setor_destino,
             responsavel=responsavel,
             observacoes=observacoes
         )
-        
-        # Registrar no histórico
+
+        sincronizar_protocolo_caixa(
+            nova_versao,
+            usuario=request.user,
+            acao='ENCAMINHADO',
+            setor_origem=setor_origem_atual,
+            setor_destino=setor_destino,
+            motivo='Encaminhado para {}'.format(setor_destino),
+            observacoes=observacoes or '',
+        )
+
         HistoricoCaixaEntrada.objects.create(
             documento=documento,
             acao='ENCAMINHADO',
             usuario=request.user,
-            detalhes=f'Encaminhado para {setor_destino}',
-            dados_novos={'setor_destino': setor_destino, 'responsavel': responsavel_id}
+            detalhes='Encaminhado para {}'.format(setor_destino),
+            dados_novos={
+                'setor_destino': setor_destino,
+                'responsavel': responsavel_id,
+                'motivo_predefinido': motivo_predefinido,
+                'assinatura': assinatura,
+            }
         )
-        
+
         serializer = CaixaEntradaSerializer(nova_versao)
         return Response(serializer.data)
     
@@ -817,6 +945,65 @@ def gerenciar_acesso_especial_view(request):
     return render(request, 'caixa_entrada/gerenciar_acesso_especial.html', context)
 
 
+
+
+class PainelGerencialAPIView(APIView):
+    """API com metricas de SLA por setor"""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        metricas = _coletar_metricas_sla()
+        agora = timezone.now()
+
+        def _duracao_segundos(valor):
+            return valor.total_seconds() if valor else None
+
+        setores = []
+        for item in metricas['setores']:
+            setores.append({
+                'setor': item['setor'],
+                'total': item['total'],
+                'pendentes': item['pendentes'],
+                'atrasados': item['atrasados'],
+                'em_sla': item['em_sla'],
+                'percentual_sla': item['percentual_sla'],
+                'idade_media_segundos': _duracao_segundos(item['idade_media']),
+                'prazo_medio_segundos': _duracao_segundos(item['prazo_medio']),
+            })
+
+        top_atrasados = []
+        for doc in metricas['top_atrasados']:
+            atraso = None
+            if doc.prazo_resposta:
+                atraso = agora - doc.prazo_resposta
+            top_atrasados.append({
+                'id': str(doc.id),
+                'numero_protocolo': doc.numero_protocolo,
+                'assunto': doc.assunto,
+                'setor_destino': doc.setor_destino,
+                'prioridade': doc.prioridade,
+                'status': doc.status,
+                'prazo_resposta': doc.prazo_resposta,
+                'atraso_segundos': _duracao_segundos(atraso),
+            })
+
+        resposta = {
+            'resumo': {
+                'total': metricas['resumo']['total'],
+                'pendentes': metricas['resumo']['pendentes'],
+                'atrasados': metricas['resumo']['atrasados'],
+                'em_sla': metricas['resumo']['em_sla'],
+                'percentual_sla': metricas['resumo']['percentual_sla'],
+                'idade_media_segundos': _duracao_segundos(metricas['resumo']['idade_media']),
+                'prazo_medio_segundos': _duracao_segundos(metricas['resumo']['prazo_medio']),
+            },
+            'setores': setores,
+            'top_atrasados': top_atrasados,
+        }
+
+        return Response(resposta)
+
+
 class EstatisticasAPIView(APIView):
     """API para obter estatísticas da caixa de entrada"""
     permission_classes = [AllowAny]
@@ -885,3 +1072,11 @@ class EstatisticasAPIView(APIView):
             
         except Exception as e:
             return Response({'error': str(e)}, status=500)
+
+
+
+
+
+
+
+

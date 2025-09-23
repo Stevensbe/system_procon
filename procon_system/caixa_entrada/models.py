@@ -66,6 +66,13 @@ class CaixaEntrada(models.Model):
     # Setor responsável
     setor_destino = models.CharField("Setor Destino", max_length=100)
     responsavel_atual = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='documentos_responsavel')
+    protocolo = models.ForeignKey(
+        'protocolo_tramitacao.ProtocoloDocumento',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='documentos_caixa'
+    )
     
     # === NOVOS CAMPOS PARA CAIXA PESSOAL E SETOR ===
     # Destinatário direto (para Caixa Pessoal)
@@ -123,10 +130,17 @@ class CaixaEntrada(models.Model):
         return f"{self.numero_protocolo} - {self.assunto}"
     
     def save(self, *args, **kwargs):
-        # Gerar número de protocolo se não existir
+        # Gerar numero de protocolo se nao existir
         if not self.numero_protocolo:
             self.numero_protocolo = self._gerar_numero_protocolo()
-        
+
+        if getattr(self._state, 'adding', False):
+            try:
+                from .services import aplicar_roteamento_automatico  # import tardio para evitar ciclos
+                aplicar_roteamento_automatico(self)
+            except Exception:
+                pass
+
         # Marcar como lido se status mudou
         if self.status == 'LIDO' and not self.lido_em:
             self.lido_em = timezone.now()
@@ -154,6 +168,7 @@ class CaixaEntrada(models.Model):
         # Criar nova versão do documento
         nova_versao = CaixaEntrada.objects.create(
             tipo_documento=self.tipo_documento,
+            protocolo=self.protocolo,
             assunto=self.assunto,
             descricao=self.descricao,
             prioridade=self.prioridade,
@@ -400,3 +415,5 @@ class AcessoEspecialCaixaEntrada(models.Model):
             return False
         
         return True
+
+

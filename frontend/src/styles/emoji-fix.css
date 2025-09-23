@@ -1,0 +1,78 @@
+/* =========================================================================
+   === FIX PARA EMOJIS NO SIDEBAR ===
+   ========================================================================= */
+
+/* Garantir que os emojis sejam exibidos corretamente em todos os navegadores */
+.sidebar-icon-emoji {
+  font-family: 
+    'Apple Color Emoji',      /* iOS/macOS */
+    'Segoe UI Emoji',         /* Windows */
+    'Noto Color Emoji',       /* Android/Linux */
+    'Segoe UI Symbol',        /* Windows fallback */
+    'Android Emoji',          /* Android fallback */
+    'EmojiSymbols',          /* Generic fallback */
+    sans-serif;
+  
+  font-size: 16px !important;
+  line-height: 1.2;
+  display: inline-block;
+  min-width: 20px;
+  text-align: center;
+  vertical-align: middle;
+  
+  /* Garantir que os emojis não sejam cortados */
+  overflow: visible;
+  
+  /* Melhor renderização em diferentes dispositivos */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  
+  /* Garantir que funcione em modo escuro */
+  color: inherit;
+}
+
+/* Fix específico para navegadores que não suportam emojis coloridos */
+@supports not (font-family: 'Apple Color Emoji') {
+  .sidebar-icon-emoji {
+    font-size: 14px;
+    font-weight: normal;
+  }
+}
+
+/* Fix para Firefox */
+@-moz-document url-prefix() {
+  .sidebar-icon-emoji {
+    font-family: 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
+  }
+}
+
+/* Fix para Internet Explorer/Edge legado */
+@media screen and (-ms-high-contrast: active), (-ms-high-contrast: none) {
+  .sidebar-icon-emoji {
+    font-family: 'Segoe UI Symbol', sans-serif;
+    font-size: 14px;
+  }
+}
+
+/* Garantir que os ícones não quebrem o layout */
+.sidebar-nav-link {
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.sidebar-nav-link .sidebar-icon-emoji {
+  flex-shrink: 0;
+  margin-right: 12px;
+}
+
+/* Fix para temas escuros */
+.dark .sidebar-icon-emoji {
+  filter: brightness(1.1);
+}
+
+/* Animação suave para hover */
+.sidebar-nav-link:hover .sidebar-icon-emoji {
+  transform: scale(1.1);
+  transition: transform 0.2s ease;
+}

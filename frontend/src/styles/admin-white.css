@@ -1,0 +1,89 @@
+/* =========================================================================
+   === ADMIN THEME - WHITE (SCOPED) ===
+   Escopo: .admin-white ... evita interferir no Portal do Cidadão
+   ========================================================================= */
+
+.admin-white {
+  background-color: #ffffff;
+  color: #111827;
+}
+
+.admin-white header {
+  background-color: #ffffff;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.admin-white main {
+  background-color: #ffffff;
+}
+
+/* Cards, containers e painéis */
+.admin-white .card,
+.admin-white .content-wrapper,
+.admin-white .panel,
+.admin-white .box,
+.admin-white .table-wrapper {
+  background-color: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+}
+
+/* Títulos e textos */
+.admin-white h1, .admin-white h2, .admin-white h3,
+.admin-white h4, .admin-white h5, .admin-white h6 {
+  color: #0f172a;
+}
+
+.admin-white .text-muted { color: #6b7280; }
+
+/* Inputs e formulários */
+.admin-white input[type="text"],
+.admin-white input[type="number"],
+.admin-white input[type="email"],
+.admin-white input[type="password"],
+.admin-white select,
+.admin-white textarea {
+  background-color: #ffffff;
+  border: 1px solid #d1d5db;
+  color: #111827;
+  border-radius: 6px;
+}
+
+.admin-white input:focus,
+.admin-white select:focus,
+.admin-white textarea:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59,130,246,0.2);
+}
+
+/* Botões */
+.admin-white .btn { 
+  background-color: #ffffff; 
+  color: #111827; 
+  border: 1px solid #d1d5db; 
+  border-radius: 6px; 
+}
+.admin-white .btn:hover { background-color: #f9fafb; }
+
+.admin-white .btn-primary { background-color: #2563eb; color: #ffffff; border-color: #2563eb; }
+.admin-white .btn-primary:hover { background-color: #1d4ed8; }
+
+/* Tabelas */
+.admin-white table { background-color: #ffffff; }
+.admin-white thead th { background-color: #f3f4f6; color: #374151; }
+.admin-white tbody td { border-top: 1px solid #e5e7eb; }
+
+/* Navegação lateral moderna */
+.admin-white .modern-sidebar { background-color: #ffffff; border-right: 1px solid #e5e7eb; }
+.admin-white .modern-sidebar .nav-link { color: #374151; }
+.admin-white .modern-sidebar .nav-link.active { background-color: #eef2ff; color: #1e40af; }
+
+/* Scrollbar sutil */
+.admin-white ::-webkit-scrollbar { width: 8px; height: 8px; }
+.admin-white ::-webkit-scrollbar-track { background: #f3f4f6; }
+.admin-white ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+.admin-white ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+

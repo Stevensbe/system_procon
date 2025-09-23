@@ -1,0 +1,464 @@
+/* =========================================================================
+   === MODERN SIDEBAR - PROCON SYSTEM ===
+   ========================================================================= */
+
+@import url('https://fonts.googleapis.com/css?family=Open+Sans:300,400,600,700');
+@import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css');
+
+/* =========================================================================
+   === VARIÁVEIS CSS - PORTAL DO CIDADÃO STYLE ===
+   ========================================================================= */
+
+:root {
+  --sidebar-width: 280px;
+  --sidebar-bg: #ffffff;
+  --sidebar-bg-dark: #f8f9fa;
+  --sidebar-text: #495057;
+  --sidebar-text-hover: #212529;
+  --sidebar-active: #007bff;
+  --sidebar-active-bg: #e3f2fd;
+  --sidebar-border: #dee2e6;
+  --sidebar-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  --sidebar-transition: all 0.2s ease;
+  --sidebar-header-bg: #ffffff;
+  --sidebar-footer-bg: #f8f9fa;
+}
+
+/* =========================================================================
+   === SIDEBAR PRINCIPAL ===
+   ========================================================================= */
+
+.sidebar {
+  width: var(--sidebar-width);
+  height: 100vh;
+  background: var(--sidebar-bg);
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 1000;
+  transition: var(--sidebar-transition);
+  box-shadow: var(--sidebar-shadow);
+  overflow: hidden;
+}
+
+.sidebar-toggle {
+  margin-left: calc(-1 * var(--sidebar-width));
+}
+
+/* =========================================================================
+   === NANO SCROLLER ===
+   ========================================================================= */
+
+.nano {
+  height: 100%;
+  overflow: hidden;
+}
+
+.nano-content {
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* =========================================================================
+   === HEADER DO SIDEBAR ===
+   ========================================================================= */
+
+.sidebar-header {
+  background: var(--sidebar-header-bg);
+  border-bottom: 1px solid var(--sidebar-border);
+  padding: 0;
+  margin: 0;
+}
+
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  padding: 20px 25px;
+  color: var(--sidebar-text-hover);
+  text-decoration: none;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  transition: var(--sidebar-transition);
+}
+
+.sidebar-brand:hover {
+  color: var(--sidebar-active);
+  text-decoration: none;
+}
+
+.sidebar-brand i {
+  font-size: 24px;
+  margin-right: 12px;
+  color: var(--sidebar-active);
+}
+
+/* =========================================================================
+   === ITENS DO MENU ===
+   ========================================================================= */
+
+.nano-content > li {
+  list-style: none;
+  border-bottom: 1px solid var(--sidebar-border);
+  position: relative;
+}
+
+.nano-content > li > a {
+  color: var(--sidebar-text);
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  padding: 18px 25px;
+  font-size: 14px;
+  font-weight: 500;
+  outline: 0;
+  transition: var(--sidebar-transition);
+  position: relative;
+}
+
+.nano-content > li > a:hover {
+  color: var(--sidebar-text-hover);
+  background: var(--sidebar-active-bg);
+  text-decoration: none;
+}
+
+.nano-content > li > a i {
+  width: 20px;
+  margin-right: 12px;
+  font-size: 16px;
+  text-align: center;
+}
+
+.nano-content > li > a span {
+  flex: 1;
+  font-weight: 500;
+}
+
+.nano-content > li > a .arrow {
+  margin-left: auto;
+  margin-right: 0;
+  transition: var(--sidebar-transition);
+  font-size: 12px;
+}
+
+/* =========================================================================
+   === SUBMENU ===
+   ========================================================================= */
+
+.sub-menu {
+  position: relative;
+}
+
+.sub-menu > a {
+  cursor: pointer;
+}
+
+.sub-menu > a.active {
+  color: var(--sidebar-active);
+  background: var(--sidebar-active-bg);
+}
+
+.sub-menu > a.active .arrow {
+  transform: rotate(90deg);
+}
+
+.sub-menu ul {
+  display: none;
+  background: var(--sidebar-bg-dark);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--sidebar-border);
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.sub-menu ul li {
+  border-bottom: 1px solid var(--sidebar-border);
+  position: relative;
+}
+
+.sub-menu ul li:last-child {
+  border-bottom: none;
+}
+
+.sub-menu ul li a {
+  color: var(--sidebar-text);
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  padding: 15px 25px 15px 50px;
+  font-size: 13px;
+  font-weight: 400;
+  outline: 0;
+  transition: var(--sidebar-transition);
+  position: relative;
+}
+
+.sub-menu ul li a:hover {
+  color: var(--sidebar-text-hover);
+  background: var(--sidebar-active-bg);
+  text-decoration: none;
+}
+
+.sub-menu ul li a.active {
+  color: var(--sidebar-active);
+  background: var(--sidebar-active-bg);
+  font-weight: 600;
+}
+
+.sub-menu ul li a.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--sidebar-active);
+}
+
+.sub-menu ul li a i {
+  width: 16px;
+  margin-right: 10px;
+  font-size: 14px;
+  text-align: center;
+}
+
+.sub-menu ul li a span {
+  flex: 1;
+}
+
+.sub-menu ul li a .item-description {
+  display: block;
+  font-size: 11px;
+  color: rgba(189, 195, 199, 0.7);
+  margin-top: 2px;
+  font-style: italic;
+}
+
+/* =========================================================================
+   === FOOTER DO SIDEBAR ===
+   ========================================================================= */
+
+.sidebar-footer {
+  background: var(--sidebar-footer-bg);
+  border-top: 1px solid var(--sidebar-border);
+  padding: 0;
+  margin: 0;
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+}
+
+.footer-info {
+  padding: 15px 25px;
+  text-align: center;
+  color: var(--sidebar-text);
+}
+
+.footer-info small {
+  display: block;
+  font-size: 11px;
+  margin: 2px 0;
+  opacity: 0.8;
+}
+
+/* =========================================================================
+   === ESTADOS ATIVOS ===
+   ========================================================================= */
+
+.nano-content > li.active > a {
+  color: var(--sidebar-active);
+  background: var(--sidebar-active-bg);
+  font-weight: 600;
+}
+
+.nano-content > li.active > a::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--sidebar-active);
+}
+
+/* =========================================================================
+   === RESPONSIVIDADE ===
+   ========================================================================= */
+
+@media (max-width: 768px) {
+  .sidebar {
+    transform: translateX(-100%);
+    z-index: 1001;
+  }
+  
+  .sidebar.open {
+    transform: translateX(0);
+  }
+  
+  .sidebar-toggle {
+    margin-left: 0;
+  }
+  
+  /* Ajustar layout principal em mobile */
+  .main-content {
+    margin-left: 0 !important;
+  }
+  
+  /* Overlay para mobile */
+  .sidebar-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    display: none;
+  }
+  
+  .sidebar-overlay.active {
+    display: block;
+  }
+}
+
+@media (max-width: 480px) {
+  .sidebar {
+    width: 100%;
+  }
+}
+
+/* =========================================================================
+   === ANIMAÇÕES ===
+   ========================================================================= */
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.sub-menu ul {
+  animation: slideIn 0.3s ease-out;
+}
+
+/* =========================================================================
+   === SCROLLBAR PERSONALIZADA ===
+   ========================================================================= */
+
+.nano-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.nano-content::-webkit-scrollbar-track {
+  background: var(--sidebar-bg-dark);
+}
+
+.nano-content::-webkit-scrollbar-thumb {
+  background: var(--sidebar-border);
+  border-radius: 3px;
+}
+
+.nano-content::-webkit-scrollbar-thumb:hover {
+  background: var(--sidebar-text);
+}
+
+/* =========================================================================
+   === MODO ESCURO ===
+   ========================================================================= */
+
+[data-theme="dark"] .sidebar {
+  --sidebar-bg: #1a1d21;
+  --sidebar-bg-dark: #0c0f12;
+  --sidebar-text: #9ca3af;
+  --sidebar-text-hover: #f3f4f6;
+  --sidebar-active: #3b82f6;
+  --sidebar-active-bg: #374151;
+  --sidebar-border: rgba(255,255,255,0.1);
+  --sidebar-header-bg: #0c0f12;
+  --sidebar-footer-bg: #0c0f12;
+}
+
+/* =========================================================================
+   === ESTILO PORTAL DO CIDADÃO ===
+   ========================================================================= */
+
+/* Adicionar uma borda sutil no sidebar */
+.sidebar {
+  border-right: 1px solid var(--sidebar-border);
+}
+
+/* Melhorar a aparência dos ícones */
+.nano-content > li > a i {
+  color: var(--sidebar-active);
+  opacity: 0.8;
+}
+
+.nano-content > li > a:hover i {
+  opacity: 1;
+}
+
+/* Estilo mais limpo para o header */
+.sidebar-brand {
+  border-bottom: 1px solid var(--sidebar-border);
+  background: var(--sidebar-header-bg);
+}
+
+/* Footer mais discreto */
+.sidebar-footer {
+  background: var(--sidebar-footer-bg);
+  border-top: 1px solid var(--sidebar-border);
+}
+
+/* =========================================================================
+   === UTILITÁRIOS ===
+   ========================================================================= */
+
+.sidebar-collapsed {
+  width: 60px;
+}
+
+.sidebar-collapsed .sidebar-brand span,
+.sidebar-collapsed .nano-content > li > a span,
+.sidebar-collapsed .sub-menu ul {
+  display: none;
+}
+
+.sidebar-collapsed .nano-content > li > a {
+  justify-content: center;
+  padding: 18px 0;
+}
+
+.sidebar-collapsed .nano-content > li > a i {
+  margin-right: 0;
+}
+
+/* =========================================================================
+   === ACESSIBILIDADE ===
+   ========================================================================= */
+
+.nano-content > li > a:focus,
+.sub-menu ul li a:focus {
+  outline: 2px solid var(--sidebar-active);
+  outline-offset: -2px;
+}
+
+/* =========================================================================
+   === PRINT STYLES ===
+   ========================================================================= */
+
+@media print {
+  .sidebar {
+    display: none;
+  }
+}
