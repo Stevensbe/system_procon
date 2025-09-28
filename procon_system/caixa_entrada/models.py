@@ -179,6 +179,8 @@ class CaixaEntrada(models.Model):
             empresa_cnpj=self.empresa_cnpj,
             setor_destino=setor_destino,
             responsavel_atual=responsavel,
+            destinatario_direto=responsavel,
+            setor_lotacao=setor_destino,
             content_type=self.content_type,
             object_id=self.object_id,
             origem=self.origem,
@@ -415,5 +417,6 @@ class AcessoEspecialCaixaEntrada(models.Model):
             return False
         
         return True
+
 
 

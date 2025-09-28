@@ -1,10 +1,36 @@
 import api from './api';
 
+const normalizeParams = (params = {}) => {
+  const normalizados = {};
+  Object.entries(params).forEach(([chave, valor]) => {
+    if (valor === undefined || valor === null) {
+      return;
+    }
+
+    if (typeof valor === 'string' && valor.trim() === '') {
+      return;
+    }
+
+    if (chave === 'setor') {
+      normalizados['setor_destino'] = valor;
+      return;
+    }
+
+    normalizados[chave] = valor;
+  });
+  return normalizados;
+};
+
 class CaixaEntradaService {
   // Buscar documentos da caixa pessoal
   async getDocumentosPessoal(filtros = {}) {
     try {
-      const response = await api.get('/caixa-entrada/api/documentos', { params: filtros });
+      const params = normalizeParams({
+        ...filtros,
+        destinatario_direto: filtros.destinatario_direto ?? 'me',
+        apenas_pessoal: true
+      });
+      const response = await api.get('/caixa-entrada/api/documentos/', { params });
       return response.data;
     } catch (error) {
       console.error('Erro ao buscar documentos da caixa pessoal:', error);
@@ -15,7 +41,9 @@ class CaixaEntradaService {
   // Buscar documentos da caixa setor
   async getDocumentosSetor(filtros = {}) {
     try {
-      const response = await api.get('/caixa-entrada/api/documentos', { params: filtros });
+      const response = await api.get('/caixa-entrada/api/documentos/', {
+        params: normalizeParams(filtros)
+      });
       return response.data;
     } catch (error) {
       console.error('Erro ao buscar documentos da caixa setor:', error);
@@ -26,7 +54,9 @@ class CaixaEntradaService {
   // Buscar documentos notificados no DTE
   async getDocumentosNotificados(filtros = {}) {
     try {
-      const response = await api.get('/caixa-entrada/api/documentos', { params: filtros });
+      const response = await api.get('/caixa-entrada/api/documentos/', {
+        params: normalizeParams(filtros)
+      });
       return response.data;
     } catch (error) {
       console.error('Erro ao buscar documentos notificados:', error);
@@ -37,8 +67,9 @@ class CaixaEntradaService {
   // Buscar estatísticas das caixas
   async getEstatisticas(filtros = {}) {
     try {
-      const params = new URLSearchParams(filtros);
-      const response = await api.get(`/caixa-entrada/api/estatisticas?${params}`);
+      const response = await api.get('/caixa-entrada/api/estatisticas/', {
+        params: normalizeParams(filtros)
+      });
       return response.data;
     } catch (error) {
       console.error('Erro ao buscar estatísticas:', error);
@@ -49,7 +80,7 @@ class CaixaEntradaService {
   // Visualizar documento
   async visualizarDocumento(documentoId) {
     try {
-      const response = await api.get(`/caixa-entrada/api/documentos/${documentoId}`);
+      const response = await api.get(`/caixa-entrada/api/documentos/${documentoId}/`);
       return response.data;
     } catch (error) {
       console.error('Erro ao visualizar documento:', error);
@@ -64,6 +95,16 @@ class CaixaEntradaService {
       return response.data;
     } catch (error) {
       console.error('Erro ao marcar documento como lido:', error);
+      throw error;
+    }
+  }
+
+  async listarDestinatarios(filtros = {}) {
+    try {
+      const response = await api.get('/caixa-entrada/api/destinatarios/', { params: normalizeParams(filtros) });
+      return response.data;
+    } catch (error) {
+      console.error('Erro ao listar destinatarios:', error);
       throw error;
     }
   }
@@ -93,7 +134,9 @@ class CaixaEntradaService {
   // Buscar histórico do documento
   async getHistoricoDocumento(documentoId) {
     try {
-      const response = await api.get(`/caixa-entrada/api/historico`, { params: { documento: documentoId } });
+      const response = await api.get('/caixa-entrada/api/historico/', {
+        params: { documento: documentoId }
+      });
       return response.data;
     } catch (error) {
       console.error('Erro ao buscar histórico do documento:', error);
@@ -206,7 +249,7 @@ class CaixaEntradaService {
   async getRelatorios(tipo, periodo) {
     try {
       const response = await api.get('/caixa-entrada/relatorios', {
-        params: { tipo, periodo }
+        params: normalizeParams({ tipo, periodo })
       });
       return response.data;
     } catch (error) {
@@ -219,7 +262,7 @@ class CaixaEntradaService {
   async exportarDados(filtros, formato = 'excel') {
     try {
       const response = await api.get('/caixa-entrada/exportar', {
-        params: { ...filtros, formato },
+        params: { ...normalizeParams(filtros), formato },
         responseType: 'blob'
       });
       return response.data;

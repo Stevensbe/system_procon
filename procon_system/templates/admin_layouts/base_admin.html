@@ -43,7 +43,7 @@
             --admin-light: #ecf0f1;
             --admin-dark: #2c3e50;
             
-            --sidebar-width: 280px;
+            --sidebar-width: 240px;
             --header-height: 70px;
             --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             --border-radius: 8px;
@@ -147,83 +147,105 @@
             left: 0;
             width: var(--sidebar-width);
             height: calc(100vh - var(--header-height));
-            background: var(--admin-primary);
-            overflow-y: auto;
-            z-index: 999;
+            background: #293949;
             transition: var(--transition);
+            z-index: 999;
+            box-shadow: 2px 0 12px rgba(0,0,0,0.12);
+            overflow: hidden;
         }
-        
-        .sidebar-collapsed .admin-sidebar {
-            width: 70px;
+
+        .admin-sidebar .nano {
+            height: 100%;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255,255,255,0.15) transparent;
         }
-        
-        .sidebar-nav {
-            padding: 1rem 0;
+
+        .admin-sidebar .nano::-webkit-scrollbar {
+            width: 6px;
         }
-        
-        .nav-section {
-            margin-bottom: 2rem;
+
+        .admin-sidebar .nano::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.15);
+            border-radius: 3px;
         }
-        
-        .nav-section-title {
-            color: #95a5a6;
-            font-size: 0.75rem;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            padding: 0 1.5rem 0.5rem;
-            margin-bottom: 0.5rem;
+
+        #leftside-navigation ul,
+        #leftside-navigation ul ul {
+            list-style: none;
+            margin: 0;
+            padding: 0;
         }
-        
-        .sidebar-collapsed .nav-section-title {
-            display: none;
+
+        #leftside-navigation > ul > li {
+            border-bottom: 1px solid rgba(255,255,255,0.05);
         }
-        
-        .nav-item {
-            margin-bottom: 0.25rem;
-        }
-        
-        .nav-link {
+
+        #leftside-navigation a {
             display: flex;
             align-items: center;
-            padding: 0.75rem 1.5rem;
-            color: #bdc3c7;
+            gap: 0.75rem;
+            padding: 14px 25px;
+            color: #aeb2b7;
+            font-size: 0.85rem;
             text-decoration: none;
-            transition: var(--transition);
-            border-left: 3px solid transparent;
+            transition: color 0.2s ease-in, background 0.2s ease-in;
         }
-        
-        .nav-link:hover {
-            background: rgba(255,255,255,0.1);
-            color: white;
-            text-decoration: none;
+
+        #leftside-navigation a:hover,
+        #leftside-navigation li.active > a {
+            color: #1abc9c;
+            background: rgba(26, 188, 156, 0.1);
         }
-        
-        .nav-link.active {
-            background: rgba(52, 152, 219, 0.2);
-            color: white;
-            border-left-color: var(--admin-accent);
-        }
-        
-        .nav-link i {
+
+        #leftside-navigation a i {
             width: 20px;
-            margin-right: 0.75rem;
             text-align: center;
+            font-size: 0.95rem;
         }
-        
-        .sidebar-collapsed .nav-link {
-            padding: 0.75rem;
-            justify-content: center;
+
+        #leftside-navigation .sub-menu > a {
+            position: relative;
         }
-        
-        .sidebar-collapsed .nav-link span {
+
+        #leftside-navigation .arrow {
+            margin-left: auto;
+            transition: transform 0.3s ease;
+            font-size: 0.7rem;
+        }
+
+        #leftside-navigation .sub-menu.active > a .arrow {
+            transform: rotate(90deg);
+        }
+
+        #leftside-navigation .sub-menu > ul {
             display: none;
+            background: #23313f;
         }
-        
-        .sidebar-collapsed .nav-link i {
-            margin-right: 0;
+
+        #leftside-navigation .sub-menu.active > ul {
+            display: block;
         }
-        
+
+        #leftside-navigation .sub-menu ul li {
+            border-bottom: 1px solid rgba(255,255,255,0.03);
+        }
+
+        #leftside-navigation .sub-menu ul li a {
+            padding: 12px 25px 12px 55px;
+            font-size: 0.8rem;
+            color: #aeb2b7;
+        }
+
+        #leftside-navigation .sub-menu ul li a:hover,
+        #leftside-navigation .sub-menu ul li.active > a {
+            color: #1abc9c;
+        }
+
+        .sidebar-open .admin-sidebar {
+            transform: translateX(0);
+        }
+
         /* Main Content */
         .admin-content {
             margin-left: var(--sidebar-width);
@@ -516,142 +538,128 @@
     </header>
     
     <!-- Sidebar -->
-    <nav class="admin-sidebar">
-        <div class="sidebar-nav">
-            <!-- Dashboard -->
-            <div class="nav-section">
-                <div class="nav-section-title">Dashboard</div>
-                <div class="nav-item">
-                    <a href="{% url 'dashboard:home' %}" class="nav-link {% if request.resolver_match.namespace == 'dashboard' and request.resolver_match.url_name == 'home' %}active{% endif %}">
-                        <i class="fas fa-tachometer-alt"></i>
-                        <span>Painel Principal</span>
+    {% with current_match=request.resolver_match %}
+    {% with current_ns=current_match.namespace current_url=current_match.url_name %}
+    <aside class="sidebar admin-sidebar">
+        <div id="leftside-navigation" class="nano">
+            <ul class="nano-content">
+                <li class="{% if current_ns == 'dashboard' %}active{% endif %}">
+                    <a href="{% url 'dashboard:home' %}">
+                        <i class="fa-solid fa-gauge-high"></i>
+                        <span>Dashboard</span>
                     </a>
-                </div>
-                <div class="nav-item">
-                    <a href="#" class="nav-link">
-                        <i class="fas fa-chart-line"></i>
-                        <span>Relatórios</span>
+                </li>
+                <li class="sub-menu{% if current_ns == 'protocolo_tramitacao' %} active{% endif %}">
+                    <a href="javascript:void(0);">
+                        <i class="fa-solid fa-clipboard-list"></i>
+                        <span>Protocolo</span>
+                        <i class="arrow fa-solid fa-angle-right"></i>
                     </a>
-                </div>
-            </div>
-            
-            <!-- Protocolo e Tramitação -->
-            <div class="nav-section">
-                <div class="nav-section-title">Protocolo</div>
-                <div class="nav-item">
-                    <a href="#" class="nav-link">
-                        <i class="fas fa-inbox"></i>
-                        <span>Recebidos</span>
+                    <ul>
+                        <li class="{% if current_ns == 'protocolo_tramitacao' and current_url == 'dashboard' %}active{% endif %}">
+                            <a href="{% url 'protocolo_tramitacao:dashboard' %}">Visão Geral</a>
+                        </li>
+                        <li class="{% if current_ns == 'protocolo_tramitacao' and current_url == 'protocolar' %}active{% endif %}">
+                            <a href="{% url 'protocolo_tramitacao:protocolar' %}">Protocolar Documento</a>
+                        </li>
+                        <li class="{% if current_ns == 'protocolo_tramitacao' and current_url == 'consultar' %}active{% endif %}">
+                            <a href="{% url 'protocolo_tramitacao:consultar' %}">Consultar Protocolos</a>
+                        </li>
+                    </ul>
+                </li>
+                <li class="sub-menu{% if current_ns == 'caixa_entrada' %} active{% endif %}">
+                    <a href="javascript:void(0);">
+                        <i class="fa-solid fa-inbox"></i>
+                        <span>Caixa de Entrada</span>
+                        <i class="arrow fa-solid fa-angle-right"></i>
                     </a>
-                </div>
-                <div class="nav-item">
-                    <a href="#" class="nav-link">
-                        <i class="fas fa-route"></i>
-                        <span>Tramitação</span>
+                    <ul>
+                        <li class="{% if current_ns == 'caixa_entrada' and current_url == 'caixa_entrada' %}active{% endif %}">
+                            <a href="{% url 'caixa_entrada:caixa_entrada' %}">Caixa Geral</a>
+                        </li>
+                        <li class="{% if current_ns == 'caixa_entrada' and current_url == 'caixa_pessoal' %}active{% endif %}">
+                            <a href="{% url 'caixa_entrada:caixa_pessoal' %}">Caixa Pessoal</a>
+                        </li>
+                        <li class="{% if current_ns == 'caixa_entrada' and current_url == 'painel_gerencial' %}active{% endif %}">
+                            <a href="{% url 'caixa_entrada:painel_gerencial' %}">Painel Gerencial</a>
+                        </li>
+                        <li class="{% if current_ns == 'caixa_entrada' and current_url == 'caixa_notificados' %}active{% endif %}">
+                            <a href="{% url 'caixa_entrada:caixa_notificados' %}">Documentos Notificados</a>
+                        </li>
+                        <li class="{% if current_ns == 'caixa_entrada' and current_url == 'gerenciar_permissoes' %}active{% endif %}">
+                            <a href="{% url 'caixa_entrada:gerenciar_permissoes' %}">Permissões</a>
+                        </li>
+                    </ul>
+                </li>
+                <li class="sub-menu{% if current_ns == 'juridico' %} active{% endif %}">
+                    <a href="javascript:void(0);">
+                        <i class="fa-solid fa-gavel"></i>
+                        <span>Jurídico</span>
+                        <i class="arrow fa-solid fa-angle-right"></i>
                     </a>
-                </div>
-                <div class="nav-item">
-                    <a href="#" class="nav-link">
-                        <i class="fas fa-clock"></i>
-                        <span>Prazos</span>
+                    <ul>
+                        <li class="{% if current_ns == 'juridico' and current_url == 'home' %}active{% endif %}">
+                            <a href="{% url 'juridico:home' %}">Painel Jurídico</a>
+                        </li>
+                        <li class="{% if current_ns == 'juridico' and current_url == 'listar_processo' %}active{% endif %}">
+                            <a href="{% url 'juridico:listar_processo' %}">Processos</a>
+                        </li>
+                        <li class="{% if current_ns == 'juridico' and current_url == 'recursos_dashboard' %}active{% endif %}">
+                            <a href="{% url 'juridico:recursos_dashboard' %}">Recursos</a>
+                        </li>
+                    </ul>
+                </li>
+                <li class="sub-menu{% if current_ns == 'fiscalizacao' or current_ns == 'multas' %} active{% endif %}">
+                    <a href="javascript:void(0);">
+                        <i class="fa-solid fa-shield-halved"></i>
+                        <span>Fiscalização</span>
+                        <i class="arrow fa-solid fa-angle-right"></i>
                     </a>
-                </div>
-            </div>
-            
-            <!-- Análise Jurídica -->
-            <div class="nav-section">
-                <div class="nav-section-title">Jurídico</div>
-                <div class="nav-item">
-                    <a href="#" class="nav-link">
-                        <i class="fas fa-gavel"></i>
-                        <span>Análises</span>
+                    <ul>
+                        <li class="{% if current_ns == 'multas' %}active{% endif %}">
+                            <a href="{% url 'multas:multa_list' %}">Multas</a>
+                        </li>
+                        <li class="{% if current_ns == 'fiscalizacao' and current_url == 'dashboard_stats' %}active{% endif %}">
+                            <a href="{% url 'fiscalizacao:dashboard_stats' %}">Dashboard</a>
+                        </li>
+                        <li class="{% if current_ns == 'fiscalizacao' and current_url == 'estatisticas_gerais' %}active{% endif %}">
+                            <a href="{% url 'fiscalizacao:estatisticas_gerais' %}">Estatísticas</a>
+                        </li>
+                    </ul>
+                </li>
+                <li class="sub-menu{% if current_ns == 'portal' %} active{% endif %}">
+                    <a href="javascript:void(0);">
+                        <i class="fa-solid fa-globe"></i>
+                        <span>Portal</span>
+                        <i class="arrow fa-solid fa-angle-right"></i>
                     </a>
-                </div>
-                <div class="nav-item">
-                    <a href="#" class="nav-link">
-                        <i class="fas fa-file-contract"></i>
-                        <span>Pareceres</span>
+                    <ul>
+                        <li>
+                            <a href="{% url 'portal:home' %}" target="_blank">Ver Portal</a>
+                        </li>
+                    </ul>
+                </li>
+                <li class="sub-menu{% if current_ns == 'legislacao' or current_ns == 'admin' %} active{% endif %}">
+                    <a href="javascript:void(0);">
+                        <i class="fa-solid fa-gear"></i>
+                        <span>Sistema</span>
+                        <i class="arrow fa-solid fa-angle-right"></i>
                     </a>
-                </div>
-                <div class="nav-item">
-                    <a href="#" class="nav-link">
-                        <i class="fas fa-balance-scale"></i>
-                        <span>Decisões</span>
-                    </a>
-                </div>
-            </div>
-            
-            <!-- Fiscalização -->
-            <div class="nav-section">
-                <div class="nav-section-title">Fiscalização</div>
-                <div class="nav-item">
-                    <a href="#" class="nav-link">
-                        <i class="fas fa-search"></i>
-                        <span>Fiscalizações</span>
-                    </a>
-                </div>
-                <div class="nav-item">
-                    <a href="{% url 'multas:multa_list' %}" class="nav-link {% if request.resolver_match.namespace == 'multas' %}active{% endif %}">
-                        <i class="fas fa-exclamation-triangle"></i>
-                        <span>Multas</span>
-                    </a>
-                </div>
-                <div class="nav-item">
-                    <a href="#" class="nav-link">
-                        <i class="fas fa-building"></i>
-                        <span>Empresas</span>
-                    </a>
-                </div>
-            </div>
-            
-            <!-- Portal -->
-            <div class="nav-section">
-                <div class="nav-section-title">Portal</div>
-                <div class="nav-item">
-                    <a href="{% url 'portal:home' %}" class="nav-link" target="_blank">
-                        <i class="fas fa-external-link-alt"></i>
-                        <span>Ver Portal</span>
-                    </a>
-                </div>
-                <div class="nav-item">
-                    <a href="#" class="nav-link">
-                        <i class="fas fa-newspaper"></i>
-                        <span>Conteúdo</span>
-                    </a>
-                </div>
-                <div class="nav-item">
-                    <a href="#" class="nav-link">
-                        <i class="fas fa-star"></i>
-                        <span>Avaliações</span>
-                    </a>
-                </div>
-            </div>
-            
-            <!-- Configurações -->
-            <div class="nav-section">
-                <div class="nav-section-title">Sistema</div>
-                <div class="nav-item">
-                    <a href="#" class="nav-link">
-                        <i class="fas fa-users"></i>
-                        <span>Usuários</span>
-                    </a>
-                </div>
-                <div class="nav-item">
-                    <a href="{% url 'legislacao:lei_list' %}" class="nav-link {% if request.resolver_match.namespace == 'legislacao' %}active{% endif %}">
-                        <i class="fas fa-book"></i>
-                        <span>Legislação</span>
-                    </a>
-                </div>
-                <div class="nav-item">
-                    <a href="#" class="nav-link">
-                        <i class="fas fa-cog"></i>
-                        <span>Configurações</span>
-                    </a>
-                </div>
-            </div>
+                    <ul>
+                        <li class="{% if current_ns == 'legislacao' %}active{% endif %}">
+                            <a href="{% url 'legislacao:lei_list' %}">Legislação</a>
+                        </li>
+                        <li>
+                            <a href="{% url 'admin:index' %}">Admin Django</a>
+                        </li>
+                    </ul>
+                </li>
+            </ul>
         </div>
-    </nav>
-    
+    </aside>
+    {% endwith %}
+    {% endwith %}
+
     <!-- Main Content -->
     <main class="admin-content">
         <!-- Breadcrumb -->
@@ -763,6 +771,28 @@
                 });
             }
             
+            if (window.jQuery) {
+                $('#leftside-navigation .sub-menu.active > ul').show();
+                $('#leftside-navigation .sub-menu > a').on('click', function (e) {
+                    const $trigger = $(this);
+                    const $parent = $trigger.parent('.sub-menu');
+                    const $submenu = $trigger.next('ul');
+
+                    $('#leftside-navigation .sub-menu').not($parent).removeClass('active').children('ul').slideUp(200);
+
+                    if ($submenu.is(':visible')) {
+                        $submenu.slideUp(200);
+                        $parent.removeClass('active');
+                    } else {
+                        $submenu.slideDown(200);
+                        $parent.addClass('active');
+                    }
+
+                    e.preventDefault();
+                    e.stopPropagation();
+                });
+            }
+
             // Auto-dismiss alerts
             setTimeout(function() {
                 const alerts = document.querySelectorAll('.alert:not(.alert-permanent)');

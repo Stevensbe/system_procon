@@ -1,7 +1,7 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
+import '../../styles/emoji-fix.css';
 
-// ✅ CORRIGIDO: Caixas de entrada separadas por setor (como no SIGED)
 const menuItems = [
   // Itens do tipo 'main'
   { path: '/dashboard', name: 'Dashboard', icon: '🏠', type: 'main' },
@@ -11,18 +11,17 @@ const menuItems = [
   { path: '/juridico', name: 'Jurídico', icon: '⚖️', type: 'main' },
   { path: '/processos', name: 'Processos', icon: '📋', type: 'main' },
   { path: '/multas', name: 'Multas', icon: '💰', type: 'main' },
-  { path: '/financeiro', name: 'Financeiro', icon: '📊', type: 'main' },
+  { path: '/financeiro', name: 'Financeiro', icon: '💰', type: 'main' },
   { path: '/usuarios', name: 'Usuários', icon: '👥', type: 'main' },
-  { path: '/relatorios', name: 'Relatórios', icon: '📈', type: 'main' },
+  { path: '/relatorios', name: 'Relatórios', icon: '📊', type: 'main' },
   { path: '/configuracoes', name: 'Configurações', icon: '⚙️', type: 'main' },
   
-  // ✅ NOVO: Caixas de entrada separadas por setor (como no SIGED)
-  { path: '/caixa-atendimento', name: '📬 Caixa Atendimento', icon: '📬', type: 'caixas', description: 'Reclamações novas' },
-  { path: '/caixa-denuncias', name: '🚨 Caixa Denúncias', icon: '🚨', type: 'caixas', description: 'Denúncias do Portal do Cidadão' },
-  { path: '/caixa-fiscalizacao', name: '📋 Caixa Autos', icon: '📋', type: 'caixas', description: 'Autos de infração e constatação' },
-  { path: '/caixa-juridico', name: '📬 Caixa Jurídico', icon: '📬', type: 'caixas', description: 'Defesas e recursos' },
-  { path: '/caixa-financeiro', name: '📬 Caixa Financeiro', icon: '📬', type: 'caixas', description: 'Processos para cobrança' },
-  { path: '/caixa-diretoria', name: '📬 Caixa Diretoria', icon: '📬', type: 'caixas', description: 'Assinaturas e decisões' },
+  // Caixas de entrada setoriais
+  { path: '/caixa-denuncias', name: 'Caixa Denuncias', icon: '[DEN]', type: 'caixas', description: 'Denuncias direcionadas para Fiscalizacao' },
+  { path: '/caixa-fiscalizacao', name: 'Caixa Fiscalizacao', icon: '[FIS]', type: 'caixas', description: 'Documentos internos do setor de Fiscalizacao' },
+  { path: '/caixa-juridico-1', name: 'Caixa Juridico 1', icon: '[J1]', type: 'caixas', description: 'Peticoes e analises da primeira instancia juridica' },
+  { path: '/caixa-juridico-2', name: 'Caixa Juridico 2', icon: '[J2]', type: 'caixas', description: 'Recursos e segunda instancia juridica' },
+  { path: '/caixa-daf', name: 'Caixa DAF', icon: '[DAF]', type: 'caixas', description: 'Demandas da diretoria administrativa financeira' },
   
   // Itens do tipo 'juridico'
   { path: '/juridico/analises', name: 'Análises Jurídicas', icon: '📋', type: 'juridico' },
@@ -93,8 +92,17 @@ const menuItems = [
 ];
 
 function Sidebar() {
-  const linkClasses = "flex items-center px-4 py-2.5 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-all duration-200";
+  const linkClasses = "sidebar-nav-link flex items-center px-4 py-2.5 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-all duration-200";
   const activeLinkClasses = "bg-blue-500 dark:bg-blue-600 text-white shadow-md";
+  
+  // Estilo específico para garantir que os emojis sejam exibidos corretamente
+  const iconStyle = {
+    fontSize: '16px',
+    display: 'inline-block',
+    minWidth: '20px',
+    textAlign: 'center',
+    fontFamily: 'Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, sans-serif'
+  };
 
   return (
     <aside className="w-64 bg-gray-100 dark:bg-[#1a1d21] p-4 flex flex-col h-full transition-colors duration-300">
@@ -104,10 +112,10 @@ function Sidebar() {
       </div>
       
       <nav className="flex flex-col space-y-2 flex-1">
-        {/* ✅ NOVO: Seção de Caixas de Entrada por Setor */}
+        {/* Secao de Caixas de Entrada por Setor */}
         <div className="mb-6">
           <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 px-4">
-            📬 Caixas de Entrada
+            Caixas de Entrada
           </h3>
           {menuItems
             .filter(item => item.type === 'caixas')
@@ -147,7 +155,7 @@ function Sidebar() {
                   `${linkClasses} ${isActive ? activeLinkClasses : ''}`
                 }
               >
-                <span className="text-lg mr-3">{item.icon}</span>
+                <span className="sidebar-icon-emoji text-lg mr-3" style={iconStyle}>{item.icon}</span>
                 <span className="text-sm font-medium">{item.name}</span>
               </NavLink>
             ))}
@@ -196,7 +204,7 @@ function Sidebar() {
                   `${linkClasses} ${isActive ? activeLinkClasses : ''}`
                 }
               >
-                <span className="text-lg mr-3">{item.icon}</span>
+                <span className="sidebar-icon-emoji text-lg mr-3" style={iconStyle}>{item.icon}</span>
                 <span className="text-sm font-medium">{item.name}</span>
               </NavLink>
             ))}
@@ -217,7 +225,7 @@ function Sidebar() {
                   `${linkClasses} ${isActive ? activeLinkClasses : ''}`
                 }
               >
-                <span className="text-lg mr-3">{item.icon}</span>
+                <span className="sidebar-icon-emoji text-lg mr-3" style={iconStyle}>{item.icon}</span>
                 <span className="text-sm font-medium">{item.name}</span>
               </NavLink>
             ))}
@@ -238,7 +246,7 @@ function Sidebar() {
                   `${linkClasses} ${isActive ? activeLinkClasses : ''}`
                 }
               >
-                <span className="text-lg mr-3">{item.icon}</span>
+                <span className="sidebar-icon-emoji text-lg mr-3" style={iconStyle}>{item.icon}</span>
                 <span className="text-sm font-medium">{item.name}</span>
               </NavLink>
             ))}
@@ -259,7 +267,7 @@ function Sidebar() {
                   `${linkClasses} ${isActive ? activeLinkClasses : ''}`
                 }
               >
-                <span className="text-lg mr-3">{item.icon}</span>
+                <span className="sidebar-icon-emoji text-lg mr-3" style={iconStyle}>{item.icon}</span>
                 <span className="text-sm font-medium">{item.name}</span>
               </NavLink>
             ))}
@@ -280,7 +288,7 @@ function Sidebar() {
                   `${linkClasses} ${isActive ? activeLinkClasses : ''}`
                 }
               >
-                <span className="text-lg mr-3">{item.icon}</span>
+                <span className="sidebar-icon-emoji text-lg mr-3" style={iconStyle}>{item.icon}</span>
                 <span className="text-sm font-medium">{item.name}</span>
               </NavLink>
             ))}
@@ -301,7 +309,7 @@ function Sidebar() {
                   `${linkClasses} ${isActive ? activeLinkClasses : ''}`
                 }
               >
-                <span className="text-lg mr-3">{item.icon}</span>
+                <span className="sidebar-icon-emoji text-lg mr-3" style={iconStyle}>{item.icon}</span>
                 <span className="text-sm font-medium">{item.name}</span>
               </NavLink>
             ))}
@@ -319,3 +327,4 @@ function Sidebar() {
 }
 
 export default Sidebar;
+

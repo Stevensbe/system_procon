@@ -8,21 +8,28 @@ from .constants import DESPACHO_PREDEFINIDOS
 class CaixaEntradaSerializer(serializers.ModelSerializer):
     """Serializer básico para caixa de entrada"""
     
+    responsavel_atual_nome = serializers.CharField(source='responsavel_atual.get_full_name', read_only=True)
+    destinatario_direto_nome = serializers.CharField(source='destinatario_direto.get_full_name', read_only=True)
+    
     class Meta:
         model = CaixaEntrada
         fields = [
             'id', 'numero_protocolo', 'tipo_documento', 'assunto', 'descricao',
             'prioridade', 'status', 'remetente_nome', 'remetente_documento',
-            'remetente_email', 'empresa_nome', 'empresa_cnpj', 'setor_destino',
-            'responsavel_atual', 'data_entrada', 'prazo_resposta', 'versao'
+            'remetente_email', 'remetente_telefone', 'empresa_nome', 'empresa_cnpj',
+            'setor_destino', 'setor_lotacao', 'responsavel_atual', 'responsavel_atual_nome',
+            'destinatario_direto', 'destinatario_direto_nome', 'notificado_dte',
+            'data_entrada', 'prazo_resposta', 'versao'
         ]
-        read_only_fields = ['id', 'numero_protocolo', 'data_entrada', 'versao', 'protocolo']
+        read_only_fields = ['id', 'numero_protocolo', 'data_entrada', 'versao', 'protocolo',
+                             'responsavel_atual_nome', 'destinatario_direto', 'destinatario_direto_nome']
 
 
 class CaixaEntradaDetailSerializer(serializers.ModelSerializer):
     """Serializer detalhado para caixa de entrada"""
     
     responsavel_atual_nome = serializers.CharField(source='responsavel_atual.get_full_name', read_only=True)
+    destinatario_direto_nome = serializers.CharField(source='destinatario_direto.get_full_name', read_only=True)
     lido_por_nome = serializers.CharField(source='lido_por.get_full_name', read_only=True)
     dias_para_vencimento = serializers.SerializerMethodField()
     esta_atrasado = serializers.SerializerMethodField()
@@ -34,13 +41,15 @@ class CaixaEntradaDetailSerializer(serializers.ModelSerializer):
             'prioridade', 'status', 'lido_em', 'lido_por', 'lido_por_nome',
             'remetente_nome', 'remetente_documento', 'remetente_email',
             'remetente_telefone', 'empresa_nome', 'empresa_cnpj', 'setor_destino',
-            'responsavel_atual', 'responsavel_atual_nome', 'origem', 'ip_origem',
-            'prazo_resposta', 'data_entrada', 'data_atualizacao', 'versao',
+            'setor_lotacao', 'responsavel_atual', 'responsavel_atual_nome',
+            'destinatario_direto', 'destinatario_direto_nome', 'origem', 'ip_origem',
+            'notificado_dte', 'prazo_resposta', 'data_entrada', 'data_atualizacao', 'versao',
             'dias_para_vencimento', 'esta_atrasado'
         ]
         read_only_fields = [
             'id', 'numero_protocolo', 'data_entrada', 'data_atualizacao',
-            'versao', 'dias_para_vencimento', 'esta_atrasado', 'protocolo_id', 'protocolo_numero'
+            'versao', 'dias_para_vencimento', 'esta_atrasado', 'protocolo_id', 'protocolo_numero',
+            'responsavel_atual_nome', 'destinatario_direto', 'destinatario_direto_nome'
         ]
     
     def get_dias_para_vencimento(self, obj):
@@ -188,3 +197,4 @@ class ArquivarDocumentoSerializer(serializers.Serializer):
     
     motivo = serializers.CharField(max_length=500, required=False)
     observacoes = serializers.CharField(max_length=1000, required=False)
+

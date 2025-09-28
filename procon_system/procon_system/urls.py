@@ -5,6 +5,7 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, SpectacularRedocView
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+from core.views import TokenObtainPairView as RateLimitedTokenObtainPairView
 from core.views import register, login, logout, profile, update_profile, change_password, admin_dashboard, staff_dashboard, protected_endpoint
 
 # Importar métricas do Prometheus
@@ -40,7 +41,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
 
     # === AUTENTICAÇÃO ===
-    path('auth/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('auth/token/', RateLimitedTokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('auth/register/', register, name='register'),
     path('auth/login/', login, name='login'),
@@ -49,6 +50,17 @@ urlpatterns = [
     path('auth/profile/update/', update_profile, name='update_profile'),
     path('auth/change-password/', change_password, name='change_password'),
     path('auth/protected/', protected_endpoint, name='protected_endpoint'),
+
+    # aliases com prefixo /api para o frontend React
+    path('api/auth/token/', RateLimitedTokenObtainPairView.as_view(), name='api_token_obtain_pair'),
+    path('api/auth/token/refresh/', TokenRefreshView.as_view(), name='api_token_refresh'),
+    path('api/auth/register/', register, name='api_register'),
+    path('api/auth/login/', login, name='api_login'),
+    path('api/auth/logout/', logout, name='api_logout'),
+    path('api/auth/profile/', profile, name='api_profile'),
+    path('api/auth/profile/update/', update_profile, name='api_update_profile'),
+    path('api/auth/change-password/', change_password, name='api_change_password'),
+    path('api/auth/protected/', protected_endpoint, name='api_protected_endpoint'),
     
     # === ENDPOINTS ADMIN/STAFF ===
     path('api/admin/dashboard/', admin_dashboard, name='admin_dashboard'),
@@ -81,6 +93,7 @@ urlpatterns = [
     path('api/cobranca/', include(('cobranca.urls', 'cobranca'), namespace='api_cobranca')),
     path('api/notificacoes/', include(('notificacoes.urls', 'notificacoes'), namespace='api_notificacoes')),
     path('api/caixa-entrada/', include(('caixa_entrada.urls', 'caixa_entrada'), namespace='api_caixa_entrada')),
+    path('', include('dashboard.urls')),  # URLs do dashboard
     
     # URLs de template dos novos módulos
     path('peticionamento/', include(('peticionamento.urls', 'peticionamento'), namespace='peticionamento')),

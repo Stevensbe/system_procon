@@ -11,8 +11,6 @@ import {
   ArrowPathIcon,
   EyeIcon
 } from '@heroicons/react/24/outline';
-import portalCidadaoService from '../../services/portalCidadaoService';
-
 const ConsultaResultado = ({ resultado, tipo = 'protocolo' }) => {
   if (!resultado) return null;
 
@@ -63,6 +61,7 @@ const ConsultaResultado = ({ resultado, tipo = 'protocolo' }) => {
 
   const status = formatarStatus(resultado.status);
   const StatusIcon = status.icon;
+  const statusLabel = resultado.status_display || status.label;
 
   return (
     <div className="bg-white rounded-lg shadow-lg overflow-hidden">
@@ -75,7 +74,7 @@ const ConsultaResultado = ({ resultado, tipo = 'protocolo' }) => {
               {tipo === 'peticao' ? 'Petição Encontrada' : 'Protocolo Encontrado'}
             </h3>
             <p className="text-sm opacity-90">
-              Status: {status.label}
+              Status: {statusLabel}
             </p>
           </div>
         </div>
@@ -217,19 +216,19 @@ const ConsultaResultado = ({ resultado, tipo = 'protocolo' }) => {
             <div className="ml-3">
               <h4 className="font-medium text-blue-800 mb-2">Próximos Passos</h4>
               <div className="text-sm text-blue-700">
-                {status.label === 'Em Análise' && (
+                {statusLabel === 'Em Análise' && (
                   <p>Sua solicitação está sendo analisada pela equipe técnica. Você será notificado quando houver atualizações.</p>
                 )}
-                {status.label === 'Pendente' && (
+                {statusLabel === 'Pendente' && (
                   <p>Documentação complementar necessária. Verifique seu e-mail para instruções detalhadas.</p>
                 )}
-                {status.label === 'Em Tramitação' && (
+                {statusLabel === 'Em Tramitação' && (
                   <p>Sua solicitação está seguindo o fluxo normal de tramitação entre os setores competentes.</p>
                 )}
-                {status.label === 'Respondida' && (
+                {statusLabel === 'Respondida' && (
                   <p>Resposta enviada para seu e-mail cadastrado. Verifique sua caixa de entrada e spam.</p>
                 )}
-                {status.label === 'Finalizada' && (
+                {statusLabel === 'Finalizada' && (
                   <p>Processo concluído. Se necessário, você pode abrir um novo protocolo para questões relacionadas.</p>
                 )}
               </div>

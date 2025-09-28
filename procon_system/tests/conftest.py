@@ -1,3 +1,13 @@
+import os
+import sys
+import django
+from django.conf import settings
+
+# Configurar Django antes de qualquer import
+if not settings.configured:
+    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'procon_system.settings')
+    django.setup()
+
 import pytest
 from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient

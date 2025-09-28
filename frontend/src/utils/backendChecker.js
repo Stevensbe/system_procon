@@ -32,7 +32,7 @@ export const isBackendAvailable = async () => {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 1000); // 1 segundo timeout
     
-    await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}/api/`, {
+    await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'}/api/`, {
       method: 'HEAD',
       signal: controller.signal,
       mode: 'no-cors', // Evita problemas de CORS

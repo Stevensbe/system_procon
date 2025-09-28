@@ -1,5 +1,6 @@
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth import get_user_model
 from django.contrib import messages
 from django.http import JsonResponse, HttpResponse
 from django.db.models import Count, Q, Avg, F, DurationField, ExpressionWrapper
@@ -28,6 +29,58 @@ from .mixins import AdminPermissionMixin
 from .services import sincronizar_protocolo_caixa
 from .constants import DESPACHO_PREDEFINIDOS
 
+
+def filtrar_documentos_por_usuario(queryset, request, apenas_pessoal=False):
+    """Aplica regras de visibilidade de documentos considerando usuário, setor e caixa pessoal."""
+    usuario = request.user
+
+    if not usuario.is_authenticated:
+        return queryset.none()
+
+    if usuario.is_superuser or usuario.is_staff:
+        return queryset.filter(destinatario_direto=usuario) if apenas_pessoal else queryset
+
+    filtros_usuario = Q(destinatario_direto=usuario) | Q(responsavel_atual=usuario)
+
+    grupos = list(usuario.groups.values_list('name', flat=True))
+    if grupos:
+        setor_q = Q()
+        for nome in grupos:
+            if nome:
+                setor_q |= Q(setor_destino__iexact=nome) | Q(setor_destino__icontains=nome)
+        filtros_usuario |= setor_q
+
+    permissoes = PermissaoSetorCaixaEntrada.objects.filter(
+        usuarios=usuario,
+        ativo=True,
+        pode_visualizar=True
+    )
+    if permissoes.filter(setor='GERAL').exists():
+        return queryset.filter(destinatario_direto=usuario) if apenas_pessoal else queryset
+
+    setores_permitidos = set()
+    for permissao in permissoes:
+        if permissao.setor:
+            setores_permitidos.add(permissao.setor)
+        for adicional in permissao.setores_permitidos or []:
+            setores_permitidos.add(adicional)
+        for tipo in permissao.tipos_documento_permitidos or []:
+            filtros_usuario |= Q(tipo_documento=tipo)
+
+    if setores_permitidos:
+        filtros_usuario |= Q(setor_destino__in=setores_permitidos)
+
+    acessos_especiais = AcessoEspecialCaixaEntrada.objects.filter(
+        usuario=usuario,
+        ativo=True
+    ).values_list('documento_id', flat=True)
+    if acessos_especiais:
+        filtros_usuario |= Q(id__in=acessos_especiais)
+
+    queryset = queryset.filter(filtros_usuario).distinct()
+    if apenas_pessoal:
+        queryset = queryset.filter(destinatario_direto=usuario)
+    return queryset
 
 
 @login_required
@@ -597,32 +650,65 @@ class CaixaEntradaViewSet(viewsets.ModelViewSet):
     """ViewSet para caixa de entrada"""
     queryset = CaixaEntrada.objects.all()
     serializer_class = CaixaEntradaSerializer
-    permission_classes = [AllowAny]  # Temporariamente AllowAny para desenvolvimento
+    permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['status', 'tipo_documento', 'prioridade', 'setor_destino']
+    filterset_fields = ['status', 'tipo_documento', 'prioridade', 'setor_destino', 'responsavel_atual', 'notificado_dte']
     search_fields = ['assunto', 'remetente_nome', 'numero_protocolo', 'empresa_nome']
     ordering_fields = ['data_entrada', 'prazo_resposta', 'prioridade']
     ordering = ['-data_entrada']
     pagination_class = PageNumberPagination
     
+
+
     def get_queryset(self):
-        """Filtra documentos por usuário e permissões"""
+        """Filtra documentos por usuário, permissões e sinalizadores da caixa pessoal"""
         queryset = super().get_queryset()
-        
-        # Se usuário é anônimo ou não autenticado, retorna todos (para desenvolvimento)
-        if not self.request.user.is_authenticated:
-            return queryset
-        
-        # Se usuário é staff, vê todos
-        if self.request.user.is_staff:
-            return queryset
-        
-        # Senão, vê apenas documentos do seu setor ou onde é responsável
-        return queryset.filter(
-            Q(setor_destino__icontains=self.request.user.groups.first().name if self.request.user.groups.exists() else '') |
-            Q(responsavel_atual=self.request.user)
+        apenas_pessoal = (self.request.query_params.get('apenas_pessoal') or '').lower() in {'1', 'true', 't', 'yes'}
+        queryset = filtrar_documentos_por_usuario(queryset, self.request, apenas_pessoal=apenas_pessoal)
+
+        destinatario_param = (self.request.query_params.get('destinatario_direto') or '').strip()
+        if destinatario_param:
+            valor_normalizado = destinatario_param.lower()
+            if valor_normalizado in {'me', 'self', 'eu'}:
+                queryset = queryset.filter(destinatario_direto=self.request.user)
+            else:
+                try:
+                    queryset = queryset.filter(destinatario_direto_id=int(destinatario_param))
+                except ValueError:
+                    return queryset.none()
+
+        return queryset
+
+
+    @action(detail=True, methods=['post'])
+    def arquivar(self, request, pk=None):
+        """Arquiva um documento diretamente pela API"""
+        documento = self.get_object()
+        motivo = request.data.get('motivo', '')
+        observacoes = request.data.get('observacoes', '')
+
+        documento.status = 'ARQUIVADO'
+        documento.save(update_fields=['status', 'data_atualizacao'])
+
+        sincronizar_protocolo_caixa(
+            documento,
+            usuario=request.user,
+            acao='ARQUIVADO',
+            setor_origem=documento.setor_destino,
+            setor_destino=documento.setor_destino,
+            motivo=motivo or 'Documento arquivado via API',
+            observacoes=observacoes or motivo,
         )
-    
+
+        HistoricoCaixaEntrada.objects.create(
+            documento=documento,
+            acao='ARQUIVADO',
+            usuario=request.user,
+            detalhes=motivo or 'Documento arquivado via API',
+            dados_novos={'status': 'ARQUIVADO'}
+        )
+
+        return Response({'status': 'success'})
     @action(detail=True, methods=['post'])
     def marcar_lido(self, request, pk=None):
         """Marca documento como lido"""
@@ -650,6 +736,49 @@ class CaixaEntradaViewSet(viewsets.ModelViewSet):
         
         return Response({'status': 'success'})
     
+
+    @action(detail=False, methods=['get'])
+    def destinatarios(self, request):
+        """Lista usuarios ativos elegiveis para encaminhamento."""
+        UserModel = get_user_model()
+        termo = (request.query_params.get('search') or '').strip()
+        setor = (request.query_params.get('setor') or '').strip()
+
+        queryset = UserModel.objects.filter(is_active=True)
+        if termo:
+            queryset = queryset.filter(
+                Q(first_name__icontains=termo)
+                | Q(last_name__icontains=termo)
+                | Q(username__icontains=termo)
+                | Q(email__icontains=termo)
+            )
+        if setor:
+            setor_upper = setor.upper()
+            queryset = queryset.filter(
+                Q(groups__name__icontains=setor_upper)
+                | Q(user_permissions__codename__icontains=setor_upper)
+            )
+
+        queryset = queryset.distinct().order_by('first_name', 'last_name', 'username')[:100]
+
+        resultados = []
+        for usuario in queryset:
+            nome = (usuario.get_full_name() or '').strip()
+            if not nome:
+                nome = usuario.username
+            grupos = list(usuario.groups.values_list('name', flat=True))
+            resultados.append(
+                {
+                    'id': usuario.id,
+                    'nome': nome,
+                    'username': usuario.username,
+                    'email': usuario.email,
+                    'grupos': grupos,
+                }
+            )
+
+        return Response({'results': resultados})
+
     @action(detail=True, methods=['post'])
     def encaminhar(self, request, pk=None):
         """Encaminha documento para outro setor"""
@@ -661,12 +790,15 @@ class CaixaEntradaViewSet(viewsets.ModelViewSet):
         observacoes_livres = request.data.get('observacoes', '')
 
         if not setor_destino:
-            return Response({'error': 'Setor destino é obrigatório'}, status=400)
+            return Response({'error': 'Setor destino e obrigatorio'}, status=400)
 
         responsavel = None
         if responsavel_id:
             from django.contrib.auth.models import User
-            responsavel = User.objects.get(id=responsavel_id)
+            try:
+                responsavel = User.objects.get(id=responsavel_id)
+            except (User.DoesNotExist, ValueError):
+                return Response({'error': 'Responsavel informado nao foi encontrado'}, status=400)
 
         partes_mensagem = []
         if motivo_predefinido:
@@ -1006,52 +1138,77 @@ class PainelGerencialAPIView(APIView):
 
 class EstatisticasAPIView(APIView):
     """API para obter estatísticas da caixa de entrada"""
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     
+
+
+
     def get(self, request):
         try:
-            # Parâmetros de filtro
             setor = request.GET.get('setor', '')
             tipo_documento = request.GET.get('tipo_documento', '')
-            
-            # Query base
+            status_param = request.GET.get('status', '')
+            prioridade = request.GET.get('prioridade', '')
+            busca = request.GET.get('busca', '')
+            destinatario = request.GET.get('destinatario_direto', '')
+            notificado_dte = request.GET.get('notificado_dte', '')
+            apenas_pessoal = (request.GET.get('apenas_pessoal') or '').lower() in {'1', 'true', 't', 'yes'}
+
             documentos = CaixaEntrada.objects.all()
-            
-            # Aplicar filtros
+            documentos = filtrar_documentos_por_usuario(documentos, request, apenas_pessoal)
+
             if setor:
                 documentos = documentos.filter(setor_destino__icontains=setor)
             if tipo_documento:
                 documentos = documentos.filter(tipo_documento=tipo_documento)
-            
-            # Calcular estatísticas
+            if status_param:
+                documentos = documentos.filter(status=status_param)
+            if prioridade:
+                documentos = documentos.filter(prioridade=prioridade)
+            if destinatario:
+                if destinatario in {'me', 'self', 'eu'}:
+                    documentos = documentos.filter(destinatario_direto=request.user)
+                else:
+                    try:
+                        documentos = documentos.filter(destinatario_direto_id=int(destinatario))
+                    except ValueError:
+                        pass
+            if notificado_dte:
+                valor = notificado_dte.lower()
+                if valor in {'1', 'true', 't', 'yes'}:
+                    documentos = documentos.filter(notificado_dte=True)
+                elif valor in {'0', 'false', 'f', 'no'}:
+                    documentos = documentos.filter(notificado_dte=False)
+            if busca:
+                documentos = documentos.filter(
+                    Q(assunto__icontains=busca) |
+                    Q(remetente_nome__icontains=busca) |
+                    Q(numero_protocolo__icontains=busca) |
+                    Q(empresa_nome__icontains=busca)
+                )
+
             total = documentos.count()
             nao_lidos = documentos.filter(status='NAO_LIDO').count()
             em_analise = documentos.filter(status='EM_ANALISE').count()
             encaminhados = documentos.filter(status='ENCAMINHADO').count()
             arquivados = documentos.filter(status='ARQUIVADO').count()
-            
-            # Estatísticas por setor
+            atrasados = documentos.filter(
+                prazo_resposta__lt=timezone.now(),
+                status__in=['NAO_LIDO', 'EM_ANALISE']
+            ).count()
+            urgentes = documentos.filter(prioridade='URGENTE').count()
+
             estatisticas_setor = documentos.values('setor_destino').annotate(
                 total=Count('id'),
                 nao_lidos=Count('id', filter=Q(status='NAO_LIDO')),
                 em_analise=Count('id', filter=Q(status='EM_ANALISE')),
                 encaminhados=Count('id', filter=Q(status='ENCAMINHADO'))
             ).order_by('-total')
-            
-            # Estatísticas por tipo
+
             estatisticas_tipo = documentos.values('tipo_documento').annotate(
                 total=Count('id')
             ).order_by('-total')
-            
-            # Documentos atrasados
-            atrasados = documentos.filter(
-                prazo_resposta__lt=timezone.now(),
-                status__in=['NAO_LIDO', 'EM_ANALISE']
-            ).count()
-            
-            # Documentos urgentes
-            urgentes = documentos.filter(prioridade='URGENTE').count()
-            
+
             estatisticas = {
                 'total': total,
                 'nao_lidos': nao_lidos,
@@ -1064,14 +1221,22 @@ class EstatisticasAPIView(APIView):
                 'por_tipo': list(estatisticas_tipo),
                 'filtros_aplicados': {
                     'setor': setor,
-                    'tipo_documento': tipo_documento
+                    'tipo_documento': tipo_documento,
+                    'status': status_param,
+                    'prioridade': prioridade,
+                    'busca': busca,
+                    'destinatario_direto': destinatario,
+                    'notificado_dte': notificado_dte,
+                    'apenas_pessoal': apenas_pessoal,
                 }
             }
-            
+
             return Response(estatisticas)
-            
         except Exception as e:
             return Response({'error': str(e)}, status=500)
+
+
+
 
 
 

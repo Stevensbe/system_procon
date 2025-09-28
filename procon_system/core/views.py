@@ -9,10 +9,29 @@ from rest_framework import status
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
+from django.db import IntegrityError, transaction
 from rest_framework_simplejwt.tokens import RefreshToken
 from core.decorators import auth_ratelimit
+from core.validators import validate_cpf, validate_phone, validate_email
+from portal_cidadao.models import PerfilCidadao
 
 User = get_user_model()
+
+
+def _format_cpf(cpf_value):
+    if cpf_value and len(cpf_value) == 11:
+        return f"{cpf_value[:3]}.{cpf_value[3:6]}.{cpf_value[6:9]}-{cpf_value[9:]}"
+    return cpf_value
+
+
+def _format_phone(phone_value):
+    if phone_value and phone_value.isdigit():
+        if len(phone_value) == 11:
+            return f"({phone_value[:2]}) {phone_value[2:7]}-{phone_value[7:]}"
+        if len(phone_value) == 10:
+            return f"({phone_value[:2]}) {phone_value[2:6]}-{phone_value[6:]}"
+    return phone_value
+
 
 class TokenObtainPairView(BaseTokenObtainPairView):
     """
@@ -26,45 +45,106 @@ class TokenObtainPairView(BaseTokenObtainPairView):
 @auth_ratelimit(rate='3/m')
 def register(request):
     """Endpoint de registro de usuário"""
-    username = request.data.get('username')
-    email = request.data.get('email')
+    username = (request.data.get('username') or '').strip().lower()
+    email = (request.data.get('email') or '').strip().lower()
     password = request.data.get('password')
-    
-    if not all([username, email, password]):
-        return Response({
-            'errors': {'detail': 'Username, email e password são obrigatórios'}
-        }, status=status.HTTP_400_BAD_REQUEST)
-    
+    nome = (request.data.get('nome') or request.data.get('first_name') or '').strip()
+    cpf = (request.data.get('cpf') or '').strip()
+    telefone = (request.data.get('telefone') or '').strip()
+    cidade = (request.data.get('cidade') or '').strip()
+    estado = (request.data.get('estado') or '').strip()
+    endereco = (request.data.get('endereco') or '').strip()
+
+    if not email:
+        return Response({'errors': {'email': 'Email é obrigatório'}}, status=status.HTTP_400_BAD_REQUEST)
+
+    if not password:
+        return Response({'errors': {'password': 'Senha é obrigatória'}}, status=status.HTTP_400_BAD_REQUEST)
+
+    if not cpf:
+        return Response({'errors': {'cpf': 'CPF é obrigatório'}}, status=status.HTTP_400_BAD_REQUEST)
+
+    if not username:
+        username = email
+
+    try:
+        email = validate_email(email)
+    except ValidationError as e:
+        return Response({'errors': {'email': list(e.messages)}}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        cpf_normalizado = validate_cpf(cpf)
+    except ValidationError as e:
+        return Response({'errors': {'cpf': list(e.messages)}}, status=status.HTTP_400_BAD_REQUEST)
+
+    telefone_normalizado = ''
+    if telefone:
+        try:
+            telefone_normalizado = validate_phone(telefone)
+        except ValidationError as e:
+            return Response({'errors': {'telefone': list(e.messages)}}, status=status.HTTP_400_BAD_REQUEST)
+
     if User.objects.filter(username=username).exists():
-        return Response({
-            'errors': {'username': 'Username já existe'}
-        }, status=status.HTTP_400_BAD_REQUEST)
-    
+        return Response({'errors': {'username': 'Username já existe'}}, status=status.HTTP_400_BAD_REQUEST)
+
     if User.objects.filter(email=email).exists():
-        return Response({
-            'errors': {'email': 'Email já existe'}
-        }, status=status.HTTP_400_BAD_REQUEST)
-    
+        return Response({'errors': {'email': 'Email já existe'}}, status=status.HTTP_400_BAD_REQUEST)
+
+    if PerfilCidadao.objects.filter(cpf=cpf_normalizado).exists():
+        return Response({'errors': {'cpf': 'CPF já cadastrado'}}, status=status.HTTP_400_BAD_REQUEST)
+
     try:
         validate_password(password)
     except ValidationError as e:
-        return Response({
-            'errors': {'password': list(e.messages)}
-        }, status=status.HTTP_400_BAD_REQUEST)
-    
-    user = User.objects.create_user(
-        username=username,
-        email=email,
-        password=password
-    )
-    
+        return Response({'errors': {'password': list(e.messages)}}, status=status.HTTP_400_BAD_REQUEST)
+
+    first_name = nome.split()[0] if nome else ''
+    last_name = ' '.join(nome.split()[1:]) if nome and len(nome.split()) > 1 else ''
+
+    try:
+        with transaction.atomic():
+            user = User.objects.create_user(
+                username=username,
+                email=email,
+                password=password,
+                first_name=first_name,
+                last_name=last_name
+            )
+
+            PerfilCidadao.objects.create(
+                user=user,
+                nome_completo=nome or user.get_full_name() or username,
+                cpf=cpf_normalizado,
+                telefone=telefone_normalizado,
+                cidade=cidade,
+                estado=(estado.upper()[:2] if estado else ''),
+                endereco=endereco,
+            )
+    except IntegrityError:
+        return Response({'errors': {'detail': 'Não foi possível concluir o cadastro. Verifique se as informações já estão em uso.'}}, status=status.HTTP_400_BAD_REQUEST)
+
     refresh = RefreshToken.for_user(user)
+    perfil = getattr(user, 'perfil_cidadao', None)
+    perfil_data = None
+    if perfil:
+        perfil_data = {
+            'nome_completo': perfil.nome_completo,
+            'cpf': _format_cpf(perfil.cpf),
+            'telefone': _format_phone(perfil.telefone),
+            'cidade': perfil.cidade,
+            'estado': perfil.estado,
+            'endereco': perfil.endereco,
+        }
+
     return Response({
         'user': {
             'id': user.id,
             'username': user.username,
-            'email': user.email
+            'email': user.email,
+            'first_name': user.first_name,
+            'last_name': user.last_name,
         },
+        'profile': perfil_data,
         'tokens': {
             'refresh': str(refresh),
             'access': str(refresh.access_token)
@@ -88,14 +168,28 @@ def login(request):
     user = authenticate(username=username, password=password)
     if user:
         refresh = RefreshToken.for_user(user)
+        perfil = getattr(user, 'perfil_cidadao', None)
+        perfil_data = None
+        if perfil:
+            perfil_data = {
+                'nome_completo': perfil.nome_completo,
+                'cpf': _format_cpf(perfil.cpf),
+                'telefone': _format_phone(perfil.telefone),
+                'cidade': perfil.cidade,
+                'estado': perfil.estado,
+                'endereco': perfil.endereco,
+            }
         return Response({
             'access': str(refresh.access_token),
             'refresh': str(refresh),
             'user': {
                 'id': user.id,
                 'username': user.username,
-                'email': user.email
-            }
+                'email': user.email,
+                'first_name': user.first_name,
+                'last_name': user.last_name,
+            },
+            'profile': perfil_data
         })
     
     return Response({
@@ -120,6 +214,18 @@ def logout(request):
 def profile(request):
     """Endpoint para obter perfil do usuário"""
     user = request.user
+    perfil = getattr(user, 'perfil_cidadao', None)
+    perfil_data = None
+    if perfil:
+        perfil_data = {
+            'nome_completo': perfil.nome_completo,
+            'cpf': _format_cpf(perfil.cpf),
+            'telefone': _format_phone(perfil.telefone),
+            'cidade': perfil.cidade,
+            'estado': perfil.estado,
+            'endereco': perfil.endereco,
+        }
+
     return Response({
         'id': user.id,
         'username': user.username,
@@ -128,7 +234,8 @@ def profile(request):
         'last_name': user.last_name,
         'is_staff': user.is_staff,
         'is_superuser': user.is_superuser,
-        'date_joined': user.date_joined
+        'date_joined': user.date_joined,
+        'profile': perfil_data,
     })
 
 @api_view(['PUT', 'PATCH'])

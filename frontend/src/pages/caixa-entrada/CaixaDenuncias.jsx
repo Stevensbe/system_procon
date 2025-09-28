@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   ExclamationTriangleIcon,
   EyeIcon,
@@ -7,12 +7,14 @@ import {
   ArchiveBoxIcon,
   MagnifyingGlassIcon,
   FunnelIcon,
-  DocumentTextIcon
+  DocumentTextIcon,
+  ArrowPathIcon
 } from '@heroicons/react/24/outline';
 import { ProconCard, ProconButton } from '../../components/ui';
 import DocumentoCard from '../../components/caixa-entrada/DocumentoCard';
 import FiltrosCaixa from '../../components/caixa-entrada/FiltrosCaixa';
 import caixaEntradaService from '../../services/caixaEntradaService';
+import EncaminharModal from '../../components/caixa-entrada/EncaminharModal';
 
 const CaixaDenuncias = () => {
   const [documentos, setDocumentos] = useState([]);
@@ -24,6 +26,7 @@ const CaixaDenuncias = () => {
     prioridade: '',
     busca: ''
   });
+  const [modalEncaminhar, setModalEncaminhar] = useState({ open: false, documento: null });
 
   // Mock data para desenvolvimento
   const mockDocumentos = [
@@ -37,7 +40,7 @@ const CaixaDenuncias = () => {
       data_entrada: '2025-01-15T10:30:00Z',
       status: 'NAO_LIDO',
       prioridade: 'URGENTE',
-      setor_destino: 'FISCALIZACAO',
+      setor_destino: 'FISCALIZACAO_DENUNCIAS',
       prazo_resposta: '2025-01-22T10:30:00Z',
       notificado_dte: false
     },
@@ -51,7 +54,7 @@ const CaixaDenuncias = () => {
       data_entrada: '2025-01-14T14:20:00Z',
       status: 'EM_ANALISE',
       prioridade: 'NORMAL',
-      setor_destino: 'FISCALIZACAO',
+      setor_destino: 'FISCALIZACAO_DENUNCIAS',
       prazo_resposta: '2025-01-21T14:20:00Z',
       notificado_dte: false
     },
@@ -65,7 +68,7 @@ const CaixaDenuncias = () => {
       data_entrada: '2025-01-13T09:15:00Z',
       status: 'NAO_LIDO',
       prioridade: 'ALTA',
-      setor_destino: 'FISCALIZACAO',
+      setor_destino: 'FISCALIZACAO_DENUNCIAS',
       prazo_resposta: '2025-01-20T09:15:00Z',
       notificado_dte: false
     }
@@ -79,33 +82,31 @@ const CaixaDenuncias = () => {
     atrasados: 0
   };
 
-  useEffect(() => {
-    carregarDados();
-  }, [filtros]);
-
-  const carregarDados = async () => {
+  const carregarDados = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
 
       // Buscar estatísticas
       const stats = await caixaEntradaService.getEstatisticas({
-        setor: 'FISCALIZACAO',
+        setor: 'FISCALIZACAO_DENUNCIAS',
         tipo_documento: 'DENUNCIA'
       });
-      setEstatisticas(stats);
+      setEstatisticas(stats?.estatisticas ?? stats ?? {});
 
       // Buscar documentos
       const docs = await caixaEntradaService.getDocumentosSetor({
-        setor: 'FISCALIZACAO',
+        setor: 'FISCALIZACAO_DENUNCIAS',
         tipo_documento: 'DENUNCIA',
         ...filtros
       });
-      setDocumentos(docs.results || docs);
+      const listaDocumentos = Array.isArray(docs) ? docs : docs?.results ?? docs?.documentos ?? [];
+      setDocumentos(listaDocumentos);
 
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
-      setError('Erro ao carregar dados. Usando dados de exemplo.');
+      const mensagem = error?.response?.data?.detail || error?.response?.data?.error || error.message || 'Erro ao carregar dados. Usando dados de exemplo.';
+      setError(mensagem);
       
       // Fallback para dados mock
       setEstatisticas(mockEstatisticas);
@@ -113,39 +114,56 @@ const CaixaDenuncias = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filtros]);
+
+  useEffect(() => {
+    carregarDados();
+
+    // Faz uma nova tentativa automática após 2 segundos.
+    const retryTimeout = setTimeout(() => {
+      carregarDados();
+    }, 2000);
+
+    return () => clearTimeout(retryTimeout);
+  }, [carregarDados]);
+
+  const handleRefresh = useCallback(() => {
+    carregarDados();
+  }, [carregarDados]);
 
   const handleAcaoDocumento = async (documentoId, acao, dados = {}) => {
     try {
       setLoading(true);
-      
+
       switch (acao) {
         case 'visualizar':
           console.log('Visualizando documento:', documentoId);
           break;
-          
+
         case 'marcar_lido':
           await caixaEntradaService.marcarComoLido(documentoId);
           break;
-          
-        case 'encaminhar':
-          await caixaEntradaService.encaminharDocumento(documentoId, dados);
-          break;
-          
+
+        case 'encaminhar': {
+          const documentoAtual = documentos.find((doc) => doc.id === documentoId) || null;
+          setModalEncaminhar({ open: true, documento: documentoAtual });
+          setLoading(false);
+          return;
+        }
+
         case 'arquivar':
           await caixaEntradaService.arquivarDocumento(documentoId);
           break;
-          
+
         default:
           console.log('Ação não implementada:', acao);
       }
-      
-      // Recarregar dados após ação
+
       await carregarDados();
-      
     } catch (error) {
       console.error('Erro ao executar ação:', error);
-      setError('Erro ao executar ação. Tente novamente.');
+      const mensagem = error?.response?.data?.detail || error?.response?.data?.error || error.message || 'Erro ao executar ação. Tente novamente.';
+      setError(mensagem);
     } finally {
       setLoading(false);
     }
@@ -153,6 +171,30 @@ const CaixaDenuncias = () => {
 
   const handleFiltrosChange = (novosFiltros) => {
     setFiltros(prev => ({ ...prev, ...novosFiltros }));
+  };
+
+  const handleConfirmEncaminhar = async (dadosEncaminhamento) => {
+    if (!modalEncaminhar.documento) {
+      setModalEncaminhar({ open: false, documento: null });
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await caixaEntradaService.encaminharDocumento(modalEncaminhar.documento.id, dadosEncaminhamento);
+      setModalEncaminhar({ open: false, documento: null });
+      await carregarDados();
+    } catch (error) {
+      console.error('Erro ao encaminhar documento:', error);
+      const mensagem = error?.response?.data?.detail || error?.response?.data?.error || error.message || 'Erro ao encaminhar documento.';
+      setError(mensagem);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCancelarEncaminhar = () => {
+    setModalEncaminhar({ open: false, documento: null });
   };
 
   if (loading && documentos.length === 0) {
@@ -176,6 +218,24 @@ const CaixaDenuncias = () => {
           subtitle="Gerencie denúncias recebidas dos cidadãos"
           variant="danger"
         >
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
+            {error && (
+              <div className="text-sm text-red-600 dark:text-red-300">
+                {error}
+              </div>
+            )}
+            <div className="flex justify-end">
+              <ProconButton
+                variant="secondary"
+                size="sm"
+                icon={ArrowPathIcon}
+                onClick={handleRefresh}
+                disabled={loading}
+              >
+                Recarregar fila
+              </ProconButton>
+            </div>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <div className="text-center">
               <div className="text-2xl font-bold text-gray-900 dark:text-white">
@@ -296,8 +356,15 @@ const CaixaDenuncias = () => {
           </div>
         </ProconCard>
       </div>
+      <EncaminharModal
+        open={modalEncaminhar.open}
+        documento={modalEncaminhar.documento}
+        onClose={handleCancelarEncaminhar}
+        onConfirm={handleConfirmEncaminhar}
+      />
     </div>
   );
 };
 
 export default CaixaDenuncias;
+

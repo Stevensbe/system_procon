@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   MagnifyingGlassIcon,
   DocumentTextIcon,
@@ -34,6 +34,8 @@ import useNotification from '../hooks/useNotification';
 import PortalAI from '../components/portal/PortalAI';
 // Importar apenas PWA Manager - Auditoria desabilitada para economizar memória
 import { pwaManager } from '../utils/pwa';
+import { auditSystem } from '../utils/audit';
+import { saveToken, removeToken, getToken } from '../utils/token';
 
 const PortalCidadao = () => {
   const [activeTab, setActiveTab] = useState('consulta');
@@ -84,37 +86,63 @@ const PortalCidadao = () => {
     removeNotification
   } = useNotification();
 
+  const displayName = useMemo(() => {
+    if (!user) {
+      return 'Usuário';
+    }
+    return user.profile?.nome_completo || user.first_name || user.username || user.email || 'Usuário';
+  }, [user]);
+
+  const sanitizeDigits = (value) => {
+    if (!value) return '';
+    return value.replace(/\D/g, '');
+  };
+
   // === CONSULTA PÚBLICA ===
   const handleConsultaSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    
+    setConsultaResult(null);
+
     try {
-      const response = await portalCidadaoService.consultarPublica(consultaData);
-      
-      if (response.data) {
-        setConsultaResult({
-          encontrado: true,
-          dados: response.data
-        });
+      const resultado = await portalCidadaoService.consultarPublica(consultaData);
+
+      if (resultado?.encontrado) {
+        setConsultaResult(resultado);
         showSuccess('Consulta realizada', 'Dados encontrados com sucesso!');
       } else {
+        const message =
+          resultado?.detail ||
+          resultado?.erro ||
+          'Nenhum resultado encontrado para os dados informados.';
+
         setConsultaResult({
+          ...(resultado || {}),
           encontrado: false,
-          erro: 'Nenhum resultado encontrado para os dados informados.'
+          erro: message,
         });
-        showWarning('Nenhum resultado', 'Verifique os dados informados e tente novamente.');
+
+        if (resultado?.statusCode === 501) {
+          showInfo('Consulta indisponível', message);
+        } else if (resultado?.statusCode === 400) {
+          showWarning('Dados inválidos', message);
+        } else if (resultado?.statusCode === 404) {
+          showWarning('Nenhum resultado', message);
+        } else {
+          showWarning('Consulta não concluída', message);
+        }
       }
     } catch (error) {
       console.error('Erro na consulta:', error);
+      const message = error.message || 'Erro ao realizar consulta. Tente novamente.';
       setConsultaResult({
         encontrado: false,
-        erro: 'Erro ao realizar consulta. Tente novamente.'
+        erro: message,
       });
-      showError('Erro na consulta', 'Não foi possível realizar a consulta. Tente novamente.');
+      showError('Erro na consulta', message);
+    } finally {
+      setLoading(false);
     }
-    
-    setLoading(false);
   };
 
   // === DENÚNCIA ===
@@ -191,20 +219,6 @@ const PortalCidadao = () => {
     }
   };
 
-  // === ACOMPANHAMENTO DE PROCESSO ===
-  const handleAcompanhamentoSubmit = async (protocolo) => {
-    try {
-      const response = await portalCidadaoService.acompanharProcesso(protocolo);
-      
-      if (response.data) {
-        showSuccess('Processo encontrado', 'Dados do processo carregados com sucesso!');
-      }
-    } catch (error) {
-      console.error('Erro ao acompanhar processo:', error);
-      showError('Erro ao buscar processo', 'Não foi possível encontrar o processo. Verifique o número do protocolo.');
-    }
-  };
-
   // === CONTATO ===
   const handleContatoSubmit = async (e) => {
     e.preventDefault();
@@ -235,17 +249,20 @@ const PortalCidadao = () => {
   const handleLogin = async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
+    const email = (formData.get('email') || '').trim();
     const dados = {
-      email: formData.get('email'),
+      username: email,
       password: formData.get('password')
     };
 
     setAuthLoading(true);
     try {
       const response = await portalCidadaoService.login(dados);
-      if (response.data.access) {
-        localStorage.setItem('token', response.data.access);
-        setUser(response.data.user);
+      if (response.data?.access) {
+        saveToken({ access: response.data.access, refresh: response.data.refresh });
+        const userData = response.data.user || {};
+        const profileData = response.data.profile || null;
+        setUser({ ...userData, profile: profileData });
         setIsAuthenticated(true);
         setShowLoginModal(false);
         showSuccess('Login realizado', 'Bem-vindo de volta!');
@@ -260,9 +277,22 @@ const PortalCidadao = () => {
   const handleRegister = async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
+    const nome = (formData.get('nome') || '').trim();
+    const email = (formData.get('email') || '').trim();
+    const cpf = (formData.get('cpf') || '').trim();
+    const telefone = (formData.get('telefone') || '').trim();
+    const cidade = (formData.get('cidade') || '').trim();
+    const estado = (formData.get('estado') || '').trim();
+    const endereco = (formData.get('endereco') || '').trim();
+
     const dados = {
-      nome: formData.get('nome'),
-      email: formData.get('email'),
+      nome,
+      email,
+      cpf,
+      telefone,
+      cidade,
+      estado,
+      endereco,
       password: formData.get('password'),
       confirmPassword: formData.get('confirmPassword')
     };
@@ -272,23 +302,75 @@ const PortalCidadao = () => {
       return;
     }
 
+    if (!dados.cpf) {
+      showError('CPF obrigatório', 'Informe um CPF válido para concluir o cadastro.');
+      return;
+    }
+
+    if (!dados.cidade) {
+      showError('Local obrigatório', 'Informe a cidade ou localidade para concluir o cadastro.');
+      return;
+    }
+
     setAuthLoading(true);
     try {
-      const response = await portalCidadaoService.register(dados);
-      if (response.data.success) {
-        setShowRegisterModal(false);
-        setShowLoginModal(true);
-        showSuccess('Conta criada', 'Sua conta foi criada com sucesso! Faça login para continuar.');
+      const payload = {
+        username: email,
+        email,
+        password: dados.password,
+        nome,
+        cpf: sanitizeDigits(cpf),
+        telefone: sanitizeDigits(telefone),
+        cidade,
+        estado: estado ? estado.toUpperCase() : '',
+        endereco,
+      };
+
+      const response = await portalCidadaoService.register(payload);
+      const tokens = response.data?.tokens;
+      const userData = response.data?.user;
+      const profileData = response.data?.profile || null;
+
+      if (tokens?.access) {
+        saveToken({ access: tokens.access, refresh: tokens.refresh });
       }
+
+      if (userData) {
+        setUser({ ...userData, profile: profileData });
+        setIsAuthenticated(true);
+      }
+
+      setShowRegisterModal(false);
+      showSuccess('Conta criada', 'Sua conta foi criada com sucesso! Você já está conectado.');
     } catch (error) {
       console.error('Erro no registro:', error);
-      showError('Erro no registro', 'Não foi possível criar sua conta. Tente novamente.');
+      const backendErrors = error.response?.data?.errors || error.response?.data;
+      let message = 'Não foi possível criar sua conta. Tente novamente.';
+
+      if (backendErrors) {
+        if (typeof backendErrors === 'string') {
+          message = backendErrors;
+        } else if (backendErrors.detail) {
+          message = backendErrors.detail;
+        } else if (typeof backendErrors === 'object') {
+          const joined = Object.values(backendErrors)
+            .flat()
+            .filter(Boolean)
+            .map(item => (typeof item === 'string' ? item : JSON.stringify(item)))
+            .join('\n');
+          if (joined) {
+            message = joined;
+          }
+        }
+      }
+
+      showError('Erro no registro', message);
     }
     setAuthLoading(false);
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
+    removeToken();
     setUser(null);
     setIsAuthenticated(false);
     showSuccess('Logout realizado', 'Você saiu da sua conta.');
@@ -296,15 +378,17 @@ const PortalCidadao = () => {
 
   // Verificar token ao carregar
   useEffect(() => {
-    const token = localStorage.getItem('token');
+    const token = getToken();
     if (token) {
       portalCidadaoService.verifyToken()
         .then(response => {
-          setUser(response.data.user);
+          const userData = response.data || {};
+          const profileData = userData.profile || null;
+          setUser({ ...userData, profile: profileData });
           setIsAuthenticated(true);
         })
         .catch(() => {
-          localStorage.removeItem('token');
+          removeToken();
         });
     }
 
@@ -484,7 +568,7 @@ const PortalCidadao = () => {
                     )}
                   </button>
                   
-                  <span className="text-blue-200 text-sm">Olá, {user?.nome || 'Usuário'}</span>
+                  <span className="text-blue-200 text-sm">Olá, {displayName}</span>
                   <button
                     onClick={handleLogout}
                     className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 text-sm"
@@ -855,7 +939,7 @@ const PortalCidadao = () => {
                   <div className="mt-8">
                     <ConsultaResultado 
                       resultado={consultaResult} 
-                      tipo="protocolo" 
+                      tipo={(consultaResult?.tipo || consultaData.tipo_consulta || 'PROTOCOLO').toLowerCase()} 
                     />
                   </div>
                 )}
@@ -864,7 +948,10 @@ const PortalCidadao = () => {
             
             {/* ACOMPANHAMENTO DE PROCESSO */}
             {activeTab === 'acompanhamento' && (
-              <AcompanhamentoProcesso onSubmit={handleAcompanhamentoSubmit} />
+              <AcompanhamentoProcesso
+                onSuccess={() => showSuccess('Processo encontrado', 'Dados do processo carregados com sucesso!')}
+                onError={(mensagem) => showError('Erro ao buscar processo', mensagem)}
+              />
             )}
 
             {/* NOVA DENÚNCIA */}
@@ -1456,6 +1543,20 @@ const PortalCidadao = () => {
                   placeholder="Seu nome completo"
                 />
               </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  CPF
+                </label>
+                <input
+                  type="text"
+                  name="cpf"
+                  required
+                  maxLength={14}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="000.000.000-00"
+                />
+              </div>
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1467,6 +1568,59 @@ const PortalCidadao = () => {
                   required
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="seu@email.com"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Telefone (opcional)
+                </label>
+                <input
+                  type="text"
+                  name="telefone"
+                  maxLength={20}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="(00) 00000-0000"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Cidade / Localidade
+                  </label>
+                  <input
+                    type="text"
+                    name="cidade"
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Cidade"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Estado (UF)
+                  </label>
+                  <input
+                    type="text"
+                    name="estado"
+                    maxLength={2}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 uppercase"
+                    placeholder="UF"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Endereço (opcional)
+                </label>
+                <input
+                  type="text"
+                  name="endereco"
+                  maxLength={255}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Rua, número, complemento"
                 />
               </div>
               

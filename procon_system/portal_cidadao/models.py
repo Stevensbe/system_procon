@@ -5,6 +5,28 @@ from django.core.validators import MinValueValidator, MaxValueValidator
 import uuid
 
 
+class PerfilCidadao(models.Model):
+    """Informações adicionais dos cidadãos cadastrados no portal"""
+
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='perfil_cidadao')
+    nome_completo = models.CharField("Nome completo", max_length=150)
+    cpf = models.CharField("CPF", max_length=14, unique=True)
+    telefone = models.CharField("Telefone", max_length=20, blank=True)
+    cidade = models.CharField("Cidade", max_length=100, blank=True)
+    estado = models.CharField("Estado", max_length=2, blank=True)
+    endereco = models.CharField("Endereço", max_length=255, blank=True)
+    criado_em = models.DateTimeField("Criado em", auto_now_add=True)
+    atualizado_em = models.DateTimeField("Atualizado em", auto_now=True)
+
+    class Meta:
+        verbose_name = "Perfil do Cidadão"
+        verbose_name_plural = "Perfis dos Cidadãos"
+        ordering = ['nome_completo']
+
+    def __str__(self):
+        return f"{self.nome_completo} ({self.cpf})"
+
+
 class CategoriaConteudo(models.Model):
     """Categorias de conteúdo do portal"""
     

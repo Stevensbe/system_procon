@@ -47,6 +47,8 @@ urlpatterns = [
     # === APIs ===
     path('api/denuncia/', views.DenunciaCidadaoAPIView.as_view(), name='api_denuncia'),
     path('api/peticao-juridica/', views.PeticaoJuridicaAPIView.as_view(), name='api_peticao_juridica'),
+    path('api/tipos-peticao/', views.TiposPeticaoPortalAPIView.as_view(), name='api_tipos_peticao'),
+    path('api/acompanhar-processo/', views.AcompanhamentoProcessoAPIView.as_view(), name='api_acompanhar_processo'),
     
     # === PORTAL REACT ===
     path('react/', views.react_portal_view, name='react_portal'),

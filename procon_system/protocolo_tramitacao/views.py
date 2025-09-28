@@ -9,7 +9,7 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from .models import (
     ProtocoloDocumento, TipoDocumento, Setor, 
@@ -18,8 +18,10 @@ from .models import (
 from .serializers import (
     ProtocoloDocumentoSerializer, TipoDocumentoSerializer,
     SetorSerializer, TramitacaoDocumentoSerializer,
-    AnexoProtocoloSerializer
+    AnexoProtocoloSerializer, ProtocolarDocumentoSerializer,
+    TramitarProtocoloSerializer
 )
+from .services import workflow_service
 
 
 # === VIEWS PRINCIPAIS ===
@@ -85,24 +87,42 @@ def dashboard_view(request):
 @login_required
 def protocolar_documento(request):
     """Formulário para protocolar novo documento"""
+    form = ProtocolarDocumentoSerializer()
+
     if request.method == 'POST':
-        # Lógica para salvar novo protocolo
-        try:
-            # Aqui implementaria a lógica de salvamento
-            messages.success(request, 'Documento protocolado com sucesso!')
-            return redirect('protocolo_tramitacao:dashboard')
-        except Exception as e:
-            messages.error(request, f'Erro ao protocolar documento: {str(e)}')
-    
+        form = ProtocolarDocumentoSerializer(data=request.POST)
+        if form.is_valid():
+            try:
+                protocolo, _ = workflow_service.protocolar_documento(
+                    form.validated_data,
+                    request.user,
+                )
+                messages.success(request, 'Documento protocolado com sucesso!')
+                return redirect(
+                    'protocolo_tramitacao:detalhe',
+                    numero=protocolo.numero_protocolo,
+                )
+            except Exception as exc:
+                messages.error(
+                    request,
+                    f'Erro ao protocolar documento: {exc}',
+                )
+        else:
+            messages.error(
+                request,
+                'Não foi possível protocolar o documento. Verifique os dados informados.',
+            )
+
     # Dados para o formulário
     tipos_documento = TipoDocumento.objects.filter(ativo=True)
     setores = Setor.objects.filter(ativo=True, pode_protocolar=True)
-    
+
     context = {
         'tipos_documento': tipos_documento,
         'setores': setores,
+        'form': form,
     }
-    
+
     return render(request, 'protocolo_tramitacao/protocolar.html', context)
 
 
@@ -186,25 +206,53 @@ def detalhe_protocolo(request, numero):
 def tramitar_documento(request, protocolo_id):
     """Tramitar documento para outro setor"""
     protocolo = get_object_or_404(ProtocoloDocumento, id=protocolo_id)
-    
+    form = TramitarProtocoloSerializer()
+
     if request.method == 'POST':
-        # Lógica para tramitar documento
-        try:
-            # Aqui implementaria a lógica de tramitação
-            messages.success(request, 'Documento tramitado com sucesso!')
-            return redirect('protocolo_tramitacao:detalhe', numero=protocolo.numero_protocolo)
-        except Exception as e:
-            messages.error(request, f'Erro ao tramitar documento: {str(e)}')
-    
+        form = TramitarProtocoloSerializer(data=request.POST)
+        if form.is_valid():
+            setor_destino = form.validated_data['setor_destino']
+            if setor_destino == protocolo.setor_atual:
+                messages.error(
+                    request,
+                    'Selecione um setor de destino diferente do setor atual.',
+                )
+            else:
+                try:
+                    workflow_service.tramitar_protocolo(
+                        protocolo=protocolo,
+                        setor_destino=setor_destino,
+                        motivo=form.validated_data['motivo'],
+                        usuario=request.user,
+                        observacoes=form.validated_data.get('observacoes', ''),
+                        prazo_dias=form.validated_data.get('prazo_dias'),
+                    )
+                    messages.success(request, 'Documento tramitado com sucesso!')
+                    return redirect(
+                        'protocolo_tramitacao:detalhe',
+                        numero=protocolo.numero_protocolo,
+                    )
+                except Exception as exc:
+                    messages.error(
+                        request,
+                        f'Erro ao tramitar documento: {exc}',
+                    )
+        else:
+            messages.error(
+                request,
+                'Não foi possível tramitar o documento. Verifique os dados informados.',
+            )
+
     setores = Setor.objects.filter(ativo=True, pode_tramitar=True).exclude(
         id=protocolo.setor_atual_id
     )
-    
+
     context = {
         'protocolo': protocolo,
         'setores': setores,
+        'form': form,
     }
-    
+
     return render(request, 'protocolo_tramitacao/tramitar.html', context)
 
 
@@ -214,21 +262,17 @@ def receber_documento(request, tramitacao_id):
     tramitacao = get_object_or_404(TramitacaoDocumento, id=tramitacao_id)
     
     if request.method == 'POST':
+        observacoes = request.POST.get('observacoes', '')
         try:
-            tramitacao.data_recebimento = timezone.now()
-            tramitacao.recebido_por = request.user
-            tramitacao.save()
-            
-            # Atualizar protocolo
-            protocolo = tramitacao.protocolo
-            protocolo.setor_atual = tramitacao.setor_destino
-            protocolo.status = 'EM_TRAMITACAO'
-            protocolo.save()
-            
+            workflow_service.receber(
+                tramitacao,
+                usuario=request.user,
+                observacoes=observacoes,
+            )
             messages.success(request, 'Documento recebido com sucesso!')
             return redirect('protocolo_tramitacao:dashboard')
-        except Exception as e:
-            messages.error(request, f'Erro ao receber documento: {str(e)}')
+        except Exception as exc:
+            messages.error(request, f'Erro ao receber documento: {exc}')
     
     context = {
         'tramitacao': tramitacao,
@@ -308,8 +352,34 @@ class ProtocoloDocumentoViewSet(viewsets.ModelViewSet):
     def tramitar(self, request, pk=None):
         """Endpoint para tramitar protocolo"""
         protocolo = self.get_object()
-        # Implementar lógica de tramitação
-        return Response({'status': 'Protocolo tramitado com sucesso'})
+        serializer = TramitarProtocoloSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        setor_destino = serializer.validated_data['setor_destino']
+        if setor_destino == protocolo.setor_atual:
+            return Response(
+                {'detail': 'O setor de destino deve ser diferente do setor atual.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        protocolo, tramitacao = workflow_service.tramitar_protocolo(
+            protocolo=protocolo,
+            setor_destino=setor_destino,
+            motivo=serializer.validated_data['motivo'],
+            usuario=request.user,
+            observacoes=serializer.validated_data.get('observacoes', ''),
+            prazo_dias=serializer.validated_data.get('prazo_dias'),
+        )
+
+        protocolo_serializer = self.get_serializer(protocolo)
+        tramitacao_serializer = TramitacaoDocumentoSerializer(tramitacao)
+
+        return Response(
+            {
+                'protocolo': protocolo_serializer.data,
+                'tramitacao': tramitacao_serializer.data,
+            }
+        )
     
     @action(detail=False)
     def vencidos(self, request):

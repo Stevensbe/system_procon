@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   InboxIcon,
   DocumentTextIcon,
@@ -36,21 +36,17 @@ const CaixaFiscalizacao = () => {
     busca: ''
   });
 
-  useEffect(() => {
-    carregarDocumentos();
-    carregarEstatisticas();
-  }, [filtros]);
-
-  const carregarDocumentos = async () => {
+  const carregarDocumentos = useCallback(async () => {
     setLoading(true);
     try {
       // Buscar documentos do setor Fiscalização via API
       const response = await caixaEntradaService.getDocumentosSetor({
         ...filtros,
-        setor: 'FISCALIZACAO',
+        setor: 'FISCALIZACAO_PROPRIO',
         tipo_documento: 'AUTO_INFRACAO'
       });
-      setDocumentos(response.documentos || []);
+      const lista = Array.isArray(response) ? response : response?.results ?? response?.documentos ?? [];
+      setDocumentos(lista);
     } catch (error) {
       console.error('Erro ao carregar documentos:', error);
       // Fallback para mock data em caso de erro
@@ -65,7 +61,7 @@ const CaixaFiscalizacao = () => {
           prazo_resposta: '2024-01-22T10:30:00',
           prioridade: 'URGENTE',
           status: 'NAO_LIDO',
-          setor_destino: 'Fiscalização',
+          setor_destino: 'FISCALIZACAO_PROPRIO',
           tipo_documento: 'AUTO_INFRACAO',
           notificado_dte: false,
           anexos_count: 3
@@ -80,7 +76,7 @@ const CaixaFiscalizacao = () => {
           prazo_resposta: '2024-01-20T14:20:00',
           prioridade: 'ALTA',
           status: 'EM_ANALISE',
-          setor_destino: 'Fiscalização',
+          setor_destino: 'FISCALIZACAO_PROPRIO',
           tipo_documento: 'DENUNCIA',
           notificado_dte: false,
           anexos_count: 2
@@ -95,7 +91,7 @@ const CaixaFiscalizacao = () => {
           prazo_resposta: '2024-01-25T16:45:00',
           prioridade: 'NORMAL',
           status: 'NAO_LIDO',
-          setor_destino: 'Fiscalização',
+          setor_destino: 'FISCALIZACAO_PROPRIO',
           tipo_documento: 'RELATORIO',
           notificado_dte: false,
           anexos_count: 1
@@ -105,24 +101,28 @@ const CaixaFiscalizacao = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filtros]);
 
-  const carregarEstatisticas = async () => {
+  const carregarEstatisticas = useCallback(async () => {
     try {
-      const response = await caixaEntradaService.getEstatisticas();
-      setEstatisticas(response.estatisticas || {
-        total: documentos.length,
-        naoLidos: documentos.filter(d => d.status === 'NAO_LIDO').length,
-        urgentes: documentos.filter(d => d.prioridade === 'URGENTE').length,
-        atrasados: documentos.filter(d => {
-          const prazo = new Date(d.prazo_resposta);
-          const hoje = new Date();
-          return prazo < hoje && d.status !== 'ARQUIVADO';
-        }).length
+      const response = await caixaEntradaService.getEstatisticas({
+        setor: 'FISCALIZACAO_PROPRIO',
+        tipo_documento: filtros.tipo || 'AUTO_INFRACAO'
+      });
+      const dados = response && response.estatisticas ? response.estatisticas : (response || {});
+      const total = dados.total ?? dados.count ?? 0;
+      const naoLidos = dados.nao_lidos ?? dados.naoLidos ?? 0;
+      const urgentes = dados.urgentes ?? dados.prioridade_urgente ?? 0;
+      const atrasados = dados.atrasados ?? dados.vencidos ?? 0;
+      setEstatisticas({
+        total,
+        naoLidos,
+        urgentes,
+        atrasados,
       });
     } catch (error) {
-      console.error('Erro ao carregar estatísticas:', error);
-      // Fallback para cálculo local
+      console.error('Erro ao carregar estatisticas:', error);
+      // Fallback para calculo local
       setEstatisticas({
         total: documentos.length,
         naoLidos: documentos.filter(d => d.status === 'NAO_LIDO').length,
@@ -134,76 +134,71 @@ const CaixaFiscalizacao = () => {
         }).length
       });
     }
-  };
+  }, [documentos, filtros]);
+
+  useEffect(() => {
+    carregarDocumentos();
+  }, [carregarDocumentos]);
+
+  useEffect(() => {
+    carregarEstatisticas();
+  }, [carregarEstatisticas]);
 
   const handleFiltrosChange = (novosFiltros) => {
     setFiltros(novosFiltros);
   };
 
-  const handleRefresh = () => {
+  const handleRefresh = useCallback(() => {
     carregarDocumentos();
     carregarEstatisticas();
-  };
+  }, [carregarDocumentos, carregarEstatisticas]);
 
-  // ✅ NOVA FUNÇÃO: Implementar ações dos documentos
-  const handleAcaoDocumento = async (documentoId, acao) => {
+  const handleAcaoDocumento = useCallback(async (documentoId, acao) => {
+    if (acao === 'visualizar') {
+      return;
+    }
+
     try {
       setLoading(true);
-      
-      switch (acao) {
-        case 'visualizar':
-          const documento = await caixaEntradaService.visualizarDocumento(documentoId);
-          console.log('Documento visualizado:', documento);
-          // Aqui você pode abrir um modal ou navegar para a página de detalhes
-          alert(`Visualizando documento ${documentoId}`);
-          break;
-          
-        case 'marcar_lido':
-          await caixaEntradaService.marcarComoLido(documentoId);
-          console.log('Documento marcado como lido:', documentoId);
-          // Atualizar o status localmente
-          setDocumentos(prev => prev.map(doc => 
-            doc.id === documentoId ? { ...doc, status: 'LIDO' } : doc
-          ));
-          break;
-          
-        case 'encaminhar':
-          // Aqui você pode abrir um modal para selecionar o setor de destino
-          const setorDestino = prompt('Para qual setor deseja encaminhar? (JURIDICO/FINANCEIRO/DIRETORIA)');
-          if (setorDestino) {
-            await caixaEntradaService.encaminharDocumento(documentoId, {
-              setor_destino: setorDestino,
-              observacao: 'Encaminhado pela Fiscalização'
-            });
-            console.log('Documento encaminhado:', documentoId, 'para', setorDestino);
-            // Remover da lista atual
-            setDocumentos(prev => prev.filter(doc => doc.id !== documentoId));
-          }
-          break;
-          
-        case 'arquivar':
-          await caixaEntradaService.arquivarDocumento(documentoId);
-          console.log('Documento arquivado:', documentoId);
-          // Atualizar o status localmente
-          setDocumentos(prev => prev.map(doc => 
-            doc.id === documentoId ? { ...doc, status: 'ARQUIVADO' } : doc
-          ));
-          break;
-          
-        default:
-          console.warn('Ação não reconhecida:', acao);
+      if (acao === 'marcar_lido') {
+        await caixaEntradaService.marcarComoLido(documentoId);
+        setDocumentos(prev => prev.map(doc => (
+          doc.id === documentoId ? { ...doc, status: 'LIDO' } : doc
+        )));
+      } else if (acao === 'encaminhar') {
+        const setorDestino = typeof window !== 'undefined'
+          ? window.prompt('Para qual setor deseja encaminhar? (JURIDICO/FINANCEIRO/DIRETORIA)')
+          : null;
+        if (!setorDestino) {
+          return;
+        }
+
+        await caixaEntradaService.encaminharDocumento(documentoId, {
+          setor_destino: setorDestino,
+          observacoes: 'Encaminhado pela Fiscalização',
+        });
+        setDocumentos(prev => prev.filter(doc => doc.id !== documentoId));
+      } else if (acao === 'arquivar') {
+        await caixaEntradaService.arquivarDocumento(documentoId);
+        setDocumentos(prev => prev.map(doc => (
+          doc.id === documentoId ? { ...doc, status: 'ARQUIVADO' } : doc
+        )));
+      } else {
+        console.warn('Ação não reconhecida:', acao);
       }
-      
-      // Recarregar estatísticas após ação
+
+      await carregarDocumentos();
       await carregarEstatisticas();
-      
+
     } catch (error) {
       console.error('Erro ao executar ação:', error);
-      alert(`Erro ao executar ação: ${error.message}`);
+      if (typeof window !== 'undefined') {
+        window.alert(`Erro ao executar ação: ${error.message}`);
+      }
     } finally {
       setLoading(false);
     }
-  };
+  }, [carregarDocumentos, carregarEstatisticas]);
 
   if (loading) {
     return <LoadingSpinner />;
@@ -359,3 +354,5 @@ const CaixaFiscalizacao = () => {
 };
 
 export default CaixaFiscalizacao;
+
+

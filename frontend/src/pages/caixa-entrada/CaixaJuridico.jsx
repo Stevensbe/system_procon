@@ -17,7 +17,26 @@ import DocumentoCard from '../../components/caixa-entrada/DocumentoCard';
 import FiltrosCaixa from '../../components/caixa-entrada/FiltrosCaixa';
 import caixaEntradaService from '../../services/caixaEntradaService';
 
-const CaixaJuridico = () => {
+const VARIANTES_JURIDICO = {
+  J1: {
+    setor: 'JURIDICO_1',
+    tipoDocumento: 'PETICAO',
+    titulo: 'Caixa Juridico 1',
+    subtitulo: 'Peticoes, defesas e manifestacoes da primeira instancia',
+    cardVariant: 'warning',
+  },
+  J2: {
+    setor: 'JURIDICO_2_RECURSOS',
+    tipoDocumento: 'RECURSO',
+    titulo: 'Caixa Juridico 2',
+    subtitulo: 'Recursos e revisoes da segunda instancia',
+    cardVariant: 'warning',
+  },
+};
+
+const CaixaJuridico = ({ variant = 'J1' }) => {
+  const configKey = (variant || 'J1').toUpperCase();
+  const config = VARIANTES_JURIDICO[configKey] || VARIANTES_JURIDICO.J1;
   const [documentos, setDocumentos] = useState([]);
   const [estatisticas, setEstatisticas] = useState({});
   const [loading, setLoading] = useState(true);
@@ -33,42 +52,42 @@ const CaixaJuridico = () => {
     {
       id: '1',
       numero_protocolo: 'PROT-2025-000001',
-      tipo_documento: 'PETICAO',
+      tipo_documento: config.tipoDocumento,
       assunto: 'Petição eletrônica - Recurso administrativo',
       remetente_nome: 'João Silva',
       empresa_nome: 'Empresa ABC Ltda',
       data_entrada: '2025-01-15T10:30:00Z',
       status: 'NAO_LIDO',
       prioridade: 'URGENTE',
-      setor_destino: 'JURIDICO',
+      setor_destino: config.setor,
       prazo_resposta: '2025-01-22T10:30:00Z',
       notificado_dte: false
     },
     {
       id: '2',
       numero_protocolo: 'PROT-2025-000002',
-      tipo_documento: 'PETICAO',
+      tipo_documento: config.tipoDocumento,
       assunto: 'Defesa prévia - Auto de infração',
       remetente_nome: 'Maria Santos',
       empresa_nome: 'Comércio XYZ',
       data_entrada: '2025-01-14T14:20:00Z',
       status: 'EM_ANALISE',
       prioridade: 'NORMAL',
-      setor_destino: 'JURIDICO',
+      setor_destino: config.setor,
       prazo_resposta: '2025-01-21T14:20:00Z',
       notificado_dte: false
     },
     {
       id: '3',
       numero_protocolo: 'PROT-2025-000003',
-      tipo_documento: 'PETICAO',
+      tipo_documento: config.tipoDocumento,
       assunto: 'Recurso contra multa aplicada',
       remetente_nome: 'Pedro Costa',
       empresa_nome: 'Posto de Combustível ABC',
       data_entrada: '2025-01-13T09:15:00Z',
       status: 'NAO_LIDO',
       prioridade: 'ALTA',
-      setor_destino: 'JURIDICO',
+      setor_destino: config.setor,
       prazo_resposta: '2025-01-20T09:15:00Z',
       notificado_dte: false
     }
@@ -91,18 +110,25 @@ const CaixaJuridico = () => {
       setLoading(true);
       setError(null);
 
-      // Buscar estatísticas
-      const stats = await caixaEntradaService.getEstatisticas({
-        setor: 'JURIDICO'
-      });
-      setEstatisticas(stats);
+      // Buscar estatisticas
+      const filtrosEstatisticas = { setor: config.setor };
+      if (config.tipoDocumento) {
+        filtrosEstatisticas.tipo_documento = config.tipoDocumento;
+      }
+      const stats = await caixaEntradaService.getEstatisticas(filtrosEstatisticas);
+      setEstatisticas(stats?.estatisticas ?? stats ?? {});
 
       // Buscar documentos
-      const docs = await caixaEntradaService.getDocumentosSetor({
-        setor: 'JURIDICO',
-        ...filtros
-      });
-      setDocumentos(docs.results || docs);
+      const filtrosDocumentos = {
+        setor: config.setor,
+        ...filtros,
+      };
+      if (config.tipoDocumento) {
+        filtrosDocumentos.tipo_documento = config.tipoDocumento;
+      }
+      const docs = await caixaEntradaService.getDocumentosSetor(filtrosDocumentos);
+      const lista = Array.isArray(docs) ? docs : docs?.results ?? docs?.documentos ?? [];
+      setDocumentos(lista);
 
     } catch (error) {
       console.error('Erro ao carregar dados:', error);

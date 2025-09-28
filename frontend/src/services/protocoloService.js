@@ -459,14 +459,27 @@ class ProtocoloService {
   /**
    * Listar tipos de protocolo
    */
-  async listarTipos() {
+  async listarTiposProtocolo(ativo = true) {
     try {
-      const response = await api.get('/protocolo/tipos/');
-      return response.data;
+      const params = {};
+      if (ativo !== undefined && ativo !== null) {
+        params.ativo = ativo;
+      }
+      const config = Object.keys(params).length ? { params } : {};
+      const response = await api.get('/protocolo/tipos/', config);
+      const data = response.data;
+      return data?.results ?? data;
     } catch (error) {
       console.error('Erro ao listar tipos de protocolo:', error);
       throw error;
     }
+  }
+
+  /**
+   * Alias para compatibilidade com código legado
+   */
+  async listarTipos(ativo = true) {
+    return this.listarTiposProtocolo(ativo);
   }
 
   /**

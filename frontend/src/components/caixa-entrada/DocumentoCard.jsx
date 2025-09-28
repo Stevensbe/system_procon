@@ -13,17 +13,39 @@ import {
   FlagIcon
 } from '@heroicons/react/24/outline';
 import { ProconButton, ProconCard } from '../ui';
+import useDocumentoDetalhes from '../../hooks/useDocumentoDetalhes';
+import DocumentoDetalheModal from './DocumentoDetalheModal';
 
-const DocumentoCard = ({ documento, onAcao }) => {
-  const [loading, setLoading] = useState(false);
+const DocumentoCard = ({ documento, onAcao, onVisualizar }) => {
+  const [acaoCarregando, setAcaoCarregando] = useState(false);
+  const {
+    modalAberto,
+    carregandoDetalhes,
+    documentoDetalhes,
+    historicoDocumento,
+    anexosDocumento,
+    erroDetalhes,
+    abrirDetalhes,
+    fecharModal,
+    limparErro,
+  } = useDocumentoDetalhes();
 
   const handleAcao = async (acao, dados = {}) => {
+    if (acao === 'visualizar') {
+      if (onVisualizar) {
+        await onVisualizar(documento.id, dados);
+        return;
+      }
+      await abrirDetalhes(documento.id);
+      return;
+    }
+
     if (onAcao) {
-      setLoading(true);
+      setAcaoCarregando(true);
       try {
         await onAcao(documento.id, acao, dados);
       } finally {
-        setLoading(false);
+        setAcaoCarregando(false);
       }
     }
   };
@@ -210,7 +232,7 @@ const DocumentoCard = ({ documento, onAcao }) => {
             size="sm"
             icon={EyeIcon}
             onClick={() => handleAcao('visualizar')}
-            disabled={loading}
+            disabled={acaoCarregando || carregandoDetalhes}
             fullWidth
           >
             Visualizar
@@ -222,7 +244,7 @@ const DocumentoCard = ({ documento, onAcao }) => {
               size="sm"
               icon={CheckIcon}
               onClick={() => handleAcao('marcar_lido')}
-              disabled={loading}
+              disabled={acaoCarregando}
               fullWidth
             >
               Marcar Lido
@@ -234,7 +256,7 @@ const DocumentoCard = ({ documento, onAcao }) => {
             size="sm"
             icon={ArrowUpIcon}
             onClick={() => handleAcao('encaminhar')}
-            disabled={loading}
+            disabled={acaoCarregando}
             fullWidth
           >
             Encaminhar
@@ -245,13 +267,24 @@ const DocumentoCard = ({ documento, onAcao }) => {
             size="sm"
             icon={ArchiveBoxIcon}
             onClick={() => handleAcao('arquivar')}
-            disabled={loading}
+            disabled={acaoCarregando}
             fullWidth
           >
             Arquivar
           </ProconButton>
         </div>
       </div>
+
+      <DocumentoDetalheModal
+        aberto={modalAberto}
+        carregando={carregandoDetalhes}
+        documento={documentoDetalhes}
+        historico={historicoDocumento}
+        anexos={anexosDocumento}
+        erro={erroDetalhes}
+        onClose={fecharModal}
+        onErroLimpar={limparErro}
+      />
     </ProconCard>
   );
 };

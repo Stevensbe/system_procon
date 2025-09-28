@@ -40,7 +40,7 @@ const CaixaFinanceiro = () => {
       data_entrada: '2025-01-15T10:30:00Z',
       status: 'NAO_LIDO',
       prioridade: 'URGENTE',
-      setor_destino: 'FINANCEIRO',
+      setor_destino: 'DAF',
       prazo_resposta: '2025-01-22T10:30:00Z',
       notificado_dte: false,
       valor_multa: 5000.00
@@ -55,7 +55,7 @@ const CaixaFinanceiro = () => {
       data_entrada: '2025-01-14T14:20:00Z',
       status: 'EM_ANALISE',
       prioridade: 'NORMAL',
-      setor_destino: 'FINANCEIRO',
+      setor_destino: 'DAF',
       prazo_resposta: '2025-01-21T14:20:00Z',
       notificado_dte: false,
       valor_multa: 3000.00
@@ -70,7 +70,7 @@ const CaixaFinanceiro = () => {
       data_entrada: '2025-01-13T09:15:00Z',
       status: 'NAO_LIDO',
       prioridade: 'ALTA',
-      setor_destino: 'FINANCEIRO',
+      setor_destino: 'DAF',
       prazo_resposta: '2025-01-20T09:15:00Z',
       notificado_dte: false,
       valor_multa: 2500.00
@@ -95,18 +95,33 @@ const CaixaFinanceiro = () => {
       setLoading(true);
       setError(null);
 
-      // Buscar estatísticas
+      // Buscar estatisticas
       const stats = await caixaEntradaService.getEstatisticas({
-        setor: 'FINANCEIRO'
+        setor: 'DAF'
       });
-      setEstatisticas(stats);
+      const estatisticasNormalizadas = stats?.estatisticas ?? stats ?? {};
+      const total = estatisticasNormalizadas.total ?? estatisticasNormalizadas.count ?? 0;
+      const naoLidos = estatisticasNormalizadas.nao_lidos ?? estatisticasNormalizadas.naoLidos ?? 0;
+      const emAnalise = estatisticasNormalizadas.em_analise ?? estatisticasNormalizadas.emAnalise ?? 0;
+      const urgentes = estatisticasNormalizadas.urgentes ?? estatisticasNormalizadas.prioridade_urgente ?? 0;
+      const atrasados = estatisticasNormalizadas.atrasados ?? estatisticasNormalizadas.vencidos ?? 0;
+      const valorTotal = estatisticasNormalizadas.valor_total ?? estatisticasNormalizadas.valorTotal ?? 0;
+      setEstatisticas({
+        total,
+        nao_lidos: naoLidos,
+        em_analise: emAnalise,
+        urgentes,
+        atrasados,
+        valor_total: valorTotal,
+      });
 
       // Buscar documentos
       const docs = await caixaEntradaService.getDocumentosSetor({
-        setor: 'FINANCEIRO',
+        setor: 'DAF',
         ...filtros
       });
-      setDocumentos(docs.results || docs);
+      const listaDocumentos = Array.isArray(docs) ? docs : docs?.results ?? docs?.documentos ?? [];
+      setDocumentos(listaDocumentos);
 
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
@@ -177,8 +192,8 @@ const CaixaFinanceiro = () => {
         {/* Header com Estatísticas */}
         <ProconCard
           icon={BanknotesIcon}
-          title="💰 Caixa Financeiro"
-          subtitle="Gerencie multas e processos de cobrança"
+          title="Caixa DAF"
+          subtitle="Demandas da diretoria administrativa financeira"
           variant="success"
         >
           <div className="grid grid-cols-1 md:grid-cols-6 gap-4">

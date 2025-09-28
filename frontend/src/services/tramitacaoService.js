@@ -382,7 +382,8 @@ class TramitacaoService {
   async listarSetores() {
     try {
       const response = await api.get('/protocolo-tramitacao/setores/');
-      return response.data;
+      const data = response.data;
+      return data?.results ?? data?.setores ?? data;
     } catch (error) {
       console.error('Erro ao listar setores:', error);
       throw error;

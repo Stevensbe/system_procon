@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="utf-8">
+    <title>Receber Documento</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 2rem; background: #f8f9fb; }
+        h1 { margin-bottom: 1.5rem; }
+        .card { background: #fff; border-radius: 8px; padding: 1.5rem; box-shadow: 0 2px 6px rgba(15, 23, 42, 0.1); max-width: 640px; }
+        .field { margin-bottom: 1.25rem; }
+        label { display: block; font-weight: 600; margin-bottom: 0.5rem; }
+        textarea { width: 100%; padding: 0.75rem; border: 1px solid #cbd5f5; border-radius: 6px; resize: vertical; min-height: 120px; }
+        .meta { font-size: 0.95rem; color: #334155; margin-bottom: 1rem; }
+        .actions { display: flex; gap: 1rem; }
+        .btn { padding: 0.75rem 1.5rem; border-radius: 6px; border: none; cursor: pointer; font-weight: 600; }
+        .btn-primary { background: #2563eb; color: #fff; }
+        .btn-secondary { background: #e2e8f0; color: #1e293b; text-decoration: none; display: inline-flex; align-items: center; }
+    </style>
+</head>
+<body>
+    <h1>Receber Documento</h1>
+
+    <div class="card">
+        <p class="meta"><strong>Protocolo:</strong> {{ tramitacao.protocolo.numero_protocolo }}<br>
+            <strong>Assunto:</strong> {{ tramitacao.protocolo.assunto }}<br>
+            <strong>Setor de origem:</strong> {{ tramitacao.setor_origem.nome }}<br>
+            <strong>Setor destino:</strong> {{ tramitacao.setor_destino.nome }}
+        </p>
+
+        <form method="post">
+            {% csrf_token %}
+            <div class="field">
+                <label for="observacoes">Observações (opcional)</label>
+                <textarea id="observacoes" name="observacoes" placeholder="Registre observações relevantes ao recebimento...">{{ request.POST.observacoes }}</textarea>
+            </div>
+
+            <div class="actions">
+                <button type="submit" class="btn btn-primary">Confirmar recebimento</button>
+                <a href="{% url 'protocolo_tramitacao:detalhe' numero=tramitacao.protocolo.numero_protocolo %}" class="btn btn-secondary">Voltar ao protocolo</a>
+            </div>
+        </form>
+    </div>
+</body>
+</html>

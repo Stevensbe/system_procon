@@ -228,12 +228,12 @@ const PeticionamentoForm = React.lazy(() => import('./pages/peticionamento/Petic
 const PeticionamentoDetail = React.lazy(() => import('./pages/peticionamento/PeticionamentoDetail'));
 
 // --- Módulo de Caixa de Entrada por Setor (Novo) ---
-const CaixaAtendimento = React.lazy(() => import('./pages/caixa-entrada/CaixaAtendimento'));
 const CaixaDenuncias = React.lazy(() => import('./pages/caixa-entrada/CaixaDenuncias'));
 const CaixaFiscalizacao = React.lazy(() => import('./pages/caixa-entrada/CaixaFiscalizacao'));
 const CaixaJuridico = React.lazy(() => import('./pages/caixa-entrada/CaixaJuridico'));
 const CaixaFinanceiro = React.lazy(() => import('./pages/caixa-entrada/CaixaFinanceiro'));
 const CaixaDiretoria = React.lazy(() => import('./pages/caixa-entrada/CaixaDiretoria'));
+const CaixaEntradaRedirect = React.lazy(() => import('./pages/caixa-entrada/CaixaEntradaRedirect'));
 
 // --- Módulo de Configurações (Novo) ---
 const ConfiguracoesDashboard = React.lazy(() => import('./pages/configuracoes/ConfiguracoesDashboard'));
@@ -336,7 +336,7 @@ function App() {
             <Route path="/portal-cidadao" element={<PortalCidadao />} />
             
             {/* ===== REDIRECIONAMENTO RAIZ ===== */}
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/" element={<Navigate to="/caixa-entrada/pessoal" replace />} />
             
             {/* ===== ROTAS PROTEGIDAS (COM LAYOUT) ===== */}
             <Route path="/" element={
@@ -444,11 +444,14 @@ function App() {
               <Route path="peticionamento/:id/editar" element={<PeticionamentoForm />} />
 
               {/* === MÓDULO DE CAIXA DE ENTRADA POR SETOR === */}
-              <Route path="caixa-atendimento" element={<CaixaAtendimento />} />
+                            <Route path="caixa-entrada" element={<CaixaEntradaRedirect />} />
+              <Route path="caixa-entrada/:setor" element={<CaixaEntradaRedirect />} />
+              <Route path="caixa-entrada/:setor/:categoria" element={<CaixaEntradaRedirect />} />
               <Route path="caixa-denuncias" element={<CaixaDenuncias />} />
               <Route path="caixa-fiscalizacao" element={<CaixaFiscalizacao />} />
-              <Route path="caixa-juridico" element={<CaixaJuridico />} />
-              <Route path="caixa-financeiro" element={<CaixaFinanceiro />} />
+              <Route path="caixa-juridico-1" element={<CaixaJuridico variant="J1" />} />
+              <Route path="caixa-juridico-2" element={<CaixaJuridico variant="J2" />} />
+              <Route path="caixa-daf" element={<CaixaFinanceiro />} />
               <Route path="caixa-diretoria" element={<CaixaDiretoria />} />
 
               {/* === MÓDULO DE RECURSOS === */}
@@ -607,3 +610,4 @@ function App() {
 }
 
 export default App;
+

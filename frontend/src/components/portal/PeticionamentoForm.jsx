@@ -8,6 +8,97 @@ import {
 } from '@heroicons/react/24/outline';
 import portalCidadaoService from '../../services/portalCidadaoService';
 
+const TIPOS_PETICAO_FALLBACK = [
+  {
+    id: 'DEFESA_PREVIA',
+    slug: 'DEFESA_PREVIA',
+    nome: 'Defesa Previa / Impugnacao',
+    descricao: 'Peticao apresentada apos o auto de infracao para impugnacao da autuacao.',
+    setor_destino: 'JURIDICO_1',
+    tipo_caixa: 'PETICAO'
+  },
+  {
+    id: 'RECURSO_PRIMEIRA_INSTANCIA',
+    slug: 'RECURSO_PRIMEIRA_INSTANCIA',
+    nome: 'Recurso Administrativo - 1ª instancia',
+    descricao: 'Recurso direcionado ao Juridico 1 contra decisao de primeira instancia.',
+    setor_destino: 'JURIDICO_1',
+    tipo_caixa: 'RECURSO'
+  },
+  {
+    id: 'RECURSO_SEGUNDA_INSTANCIA',
+    slug: 'RECURSO_SEGUNDA_INSTANCIA',
+    nome: 'Recurso Administrativo - 2ª instancia',
+    descricao: 'Recurso para reanalise no Juridico 2.',
+    setor_destino: 'JURIDICO_2_RECURSOS',
+    tipo_caixa: 'RECURSO'
+  },
+  {
+    id: 'PEDIDO_DILACAO_PRAZO',
+    slug: 'PEDIDO_DILACAO_PRAZO',
+    nome: 'Pedido de Dilacao de Prazo',
+    descricao: 'Solicitacao de prazo adicional para defesa ou recurso.',
+    setor_destino: 'JURIDICO_1',
+    tipo_caixa: 'SOLICITACAO'
+  },
+  {
+    id: 'PEDIDO_VISTA_AUTOS',
+    slug: 'PEDIDO_VISTA_AUTOS',
+    nome: 'Pedido de Copia / Vista dos Autos',
+    descricao: 'Solicitacao de acesso aos autos do processo administrativo.',
+    setor_destino: 'JURIDICO_1',
+    tipo_caixa: 'SOLICITACAO'
+  },
+  {
+    id: 'JUNTADA_DOCUMENTOS',
+    slug: 'JUNTADA_DOCUMENTOS',
+    nome: 'Peticao de Juntada de Documentos',
+    descricao: 'Apresentacao de novos documentos ao processo.',
+    setor_destino: 'JURIDICO_1',
+    tipo_caixa: 'PETICAO'
+  },
+  {
+    id: 'MANIFESTACAO_COMPLEMENTAR',
+    slug: 'MANIFESTACAO_COMPLEMENTAR',
+    nome: 'Manifestacao Complementar',
+    descricao: 'Complementacao de argumentos anteriormente apresentados.',
+    setor_destino: 'JURIDICO_1',
+    tipo_caixa: 'PETICAO'
+  },
+  {
+    id: 'ALEGACOES_FINAIS',
+    slug: 'ALEGACOES_FINAIS',
+    nome: 'AlegacA�es Finais',
+    descricao: 'Apresentacao de alegacA�es finais antes da decisao.',
+    setor_destino: 'JURIDICO_1',
+    tipo_caixa: 'PETICAO'
+  },
+  {
+    id: 'PARCELAMENTO_MULTA',
+    slug: 'PARCELAMENTO_MULTA',
+    nome: 'Pedido de Parcelamento ou Negociacao de Multa',
+    descricao: 'Solicitacao de parcelamento ou negociacao do debito.',
+    setor_destino: 'DAF',
+    tipo_caixa: 'MULTA'
+  },
+  {
+    id: 'REVISAO_MULTA',
+    slug: 'REVISAO_MULTA',
+    nome: 'Pedido de Revisao de Multa / Reconsideracao',
+    descricao: 'Pedido de reavaliacao do valor ou condicA�es da multa.',
+    setor_destino: 'JURIDICO_2_RECURSOS',
+    tipo_caixa: 'RECURSO'
+  },
+  {
+    id: 'EMBARGOS_DECLARACAO',
+    slug: 'EMBARGOS_DECLARACAO',
+    nome: 'Embargos de Declaracao Administrativos',
+    descricao: 'Peticao para sanar omissao, contradicao ou obscuridade na decisao.',
+    setor_destino: 'JURIDICO_2_RECURSOS',
+    tipo_caixa: 'RECURSO'
+  },
+];
+
 const PeticionamentoForm = ({ onSuccess, onCancel }) => {
   const [loading, setLoading] = useState(false);
   const [tiposPeticao, setTiposPeticao] = useState([]);
@@ -35,22 +126,23 @@ const PeticionamentoForm = ({ onSuccess, onCancel }) => {
 
   const carregarTiposPeticao = async () => {
     try {
-      // Usar o serviço de peticionamento para buscar tipos
-      const response = await fetch('/peticionamento/api/tipos-peticao/');
-      const data = await response.json();
-      setTiposPeticao(data.results || data || []);
+      const tipos = await portalCidadaoService.getTiposPeticaoPortal();
+      setTiposPeticao(Array.isArray(tipos) ? tipos : []);
     } catch (error) {
       console.error('Erro ao carregar tipos:', error);
-      setTiposPeticao([
-        { id: 1, nome: 'Apresentação de Defesa Processual', categoria: 'DEFESA_PROCESSUAL' },
-        { id: 2, nome: 'Inserir Anexo de Defesa Processual Jurídico 1ª Instância', categoria: 'ANEXO_DEFESA_1A' },
-        { id: 3, nome: 'Inserir Anexo de Defesa Processual Jurídico 2ª Instância', categoria: 'ANEXO_DEFESA_2A' },
-        { id: 4, nome: 'Solicitação de Carga (Cópia ou Acesso aos Autos) de Processo da 1ª Instância', categoria: 'SOLICITACAO_CARGA_1A' },
-        { id: 5, nome: 'Solicitação de Carga (Cópia ou Acesso aos Autos) de Processo da 2ª Instância', categoria: 'SOLICITACAO_CARGA_2A' },
-        { id: 6, nome: 'Solicitação de Guia para Recolhimento de Multa-GRM. Processos em 1ª Instância', categoria: 'SOLICITACAO_GUIA_MULTA_1A' }
-      ]);
+      setTiposPeticao(TIPOS_PETICAO_FALLBACK);
     }
   };
+  const obterNomeSetor = (setor) => {
+    const mapa = {
+      JURIDICO_1: 'Juridico 1',
+      JURIDICO_2_RECURSOS: 'Juridico 2',
+      DAF: 'Financeiro (DAF)',
+      FINANCEIRO: 'Financeiro'
+    };
+    return mapa[setor] || setor || 'Setor nao informado';
+  };
+
 
   const handleInputChange = (field, value) => {
     setFormData(prev => ({
@@ -75,7 +167,7 @@ const PeticionamentoForm = ({ onSuccess, onCancel }) => {
       if (file.size > 10 * 1024 * 1024) { // 10MB
         setErrors(prev => ({
           ...prev,
-          anexos: 'Arquivos devem ter no máximo 10MB'
+          anexos: 'Arquivos devem ter no mA¡ximo 10MB'
         }));
         return;
       }
@@ -106,35 +198,35 @@ const PeticionamentoForm = ({ onSuccess, onCancel }) => {
     const novosErrors = {};
     
     if (!formData.tipo_peticao_id) {
-      novosErrors.tipo_peticao_id = 'Tipo de petição é obrigatório';
+      novosErrors.tipo_peticao_id = 'Tipo de petiA§A£o A© obrigatA³rio';
     }
     
     if (!formData.assunto) {
-      novosErrors.assunto = 'Assunto é obrigatório';
+      novosErrors.assunto = 'Assunto A© obrigatA³rio';
     }
     
     if (!formData.descricao || formData.descricao.length < 50) {
-      novosErrors.descricao = 'Descrição deve ter pelo menos 50 caracteres';
+      novosErrors.descricao = 'DescriA§A£o deve ter pelo menos 50 caracteres';
     }
     
     if (!formData.nome_completo) {
-      novosErrors.nome_completo = 'Nome completo é obrigatório';
+      novosErrors.nome_completo = 'Nome completo A© obrigatA³rio';
     }
     
     if (!formData.cpf_cnpj) {
-      novosErrors.cpf_cnpj = 'CPF/CNPJ é obrigatório';
+      novosErrors.cpf_cnpj = 'CPF/CNPJ A© obrigatA³rio';
     } else if (!portalCidadaoService.validarCPF(formData.cpf_cnpj) && !portalCidadaoService.validarCNPJ(formData.cpf_cnpj)) {
-      novosErrors.cpf_cnpj = 'CPF/CNPJ inválido';
+      novosErrors.cpf_cnpj = 'CPF/CNPJ invA¡lido';
     }
     
     if (!formData.email) {
-      novosErrors.email = 'E-mail é obrigatório';
+      novosErrors.email = 'E-mail A© obrigatA³rio';
     } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      novosErrors.email = 'E-mail inválido';
+      novosErrors.email = 'E-mail invA¡lido';
     }
     
     if (!formData.telefone) {
-      novosErrors.telefone = 'Telefone é obrigatório';
+      novosErrors.telefone = 'Telefone A© obrigatA³rio';
     }
     
     setErrors(novosErrors);
@@ -143,32 +235,55 @@ const PeticionamentoForm = ({ onSuccess, onCancel }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (!validarFormulario()) {
       return;
     }
-    
+
     setLoading(true);
     try {
-      // Criar FormData com dados e anexos
       const formDataToSend = new FormData();
-      
-      // Adicionar dados básicos
-      Object.keys(formData).forEach(key => {
-        formDataToSend.append(key, formData[key]);
+
+      Object.entries(formData).forEach(([campo, valor]) => {
+        if (valor !== undefined && valor !== null) {
+          formDataToSend.append(campo, valor);
+        }
       });
-      
-      // Adicionar anexos
-      anexos.forEach((anexo, index) => {
+
+      const codigoSelecionado = formData.tipo_peticao_codigo || selectedTipo?.slug || '';
+      if (codigoSelecionado) {
+        formDataToSend.set('tipo_peticao_codigo', codigoSelecionado);
+      }
+
+      anexos.forEach((anexo) => {
         formDataToSend.append('documentos', anexo);
       });
-      
-      const resultado = await portalCidadaoService.enviarPeticaoJuridica(formDataToSend);
-      onSuccess && onSuccess(resultado.data);
+
+      const resposta = await portalCidadaoService.enviarPeticao(formDataToSend);
+      onSuccess && onSuccess(resposta.data);
+
+      setSelectedTipo(null);
+      setAnexos([]);
+      setFormData({
+        tipo_peticao_id: '',
+        tipo_peticao_codigo: '',
+        assunto: '',
+        descricao: '',
+        nome_completo: '',
+        cpf_cnpj: '',
+        email: '',
+        telefone: '',
+        endereco: '',
+        cep: '',
+        empresa_envolvida: '',
+        cnpj_empresa: '',
+        valor_envolvido: '',
+        data_ocorrencia: ''
+      });
     } catch (error) {
-      console.error('Erro ao enviar petição:', error);
+      console.error('Erro ao enviar peticao:', error);
       setErrors({
-        geral: 'Erro ao enviar petição. Tente novamente.'
+        geral: 'Erro ao enviar peticao. Tente novamente.'
       });
     } finally {
       setLoading(false);
@@ -180,10 +295,10 @@ const PeticionamentoForm = ({ onSuccess, onCancel }) => {
       <div className="px-6 py-4 border-b border-gray-200">
         <h3 className="text-lg font-semibold text-gray-900 flex items-center">
           <DocumentTextIcon className="h-6 w-6 mr-2 text-blue-600" />
-          Nova Petição Eletrônica
+          Nova PetiA§A£o EletrA´nica
         </h3>
         <p className="text-sm text-gray-600 mt-1">
-          Preencha todos os campos para enviar sua petição
+          Preencha todos os campos para enviar sua petiA§A£o
         </p>
       </div>
       
@@ -201,10 +316,10 @@ const PeticionamentoForm = ({ onSuccess, onCancel }) => {
           </div>
         )}
         
-        {/* Tipo de Petição */}
+        {/* Tipo de PetiA§A£o */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Tipo de Petição *
+            Tipo de PetiA§A£o *
           </label>
           <select
             value={formData.tipo_peticao_id}
@@ -213,16 +328,25 @@ const PeticionamentoForm = ({ onSuccess, onCancel }) => {
               errors.tipo_peticao_id ? 'border-red-300' : 'border-gray-300'
             }`}
           >
-            <option value="">Selecione o tipo de petição</option>
-            {tiposPeticao.map(tipo => (
+            <option value="">Selecione o tipo de peticao</option>
+            {tiposPeticao.map((tipo) => (
               <option key={tipo.id} value={tipo.id}>
-                {tipo.nome}
+                {tipo.nome} - Destino: {obterNomeSetor(tipo.setor_destino)}
               </option>
             ))}
           </select>
+          {selectedTipo && (
+            <div className="mt-2 text-sm text-gray-600">
+              <p>Destinado a: <span className="font-semibold">{obterNomeSetor(selectedTipo.setor_destino)}</span></p>
+              {selectedTipo.descricao && (
+                <p className="text-xs text-gray-500 mt-1">{selectedTipo.descricao}</p>
+              )}
+            </div>
+          )}
           {errors.tipo_peticao_id && (
             <p className="text-sm text-red-600 mt-1">{errors.tipo_peticao_id}</p>
           )}
+
         </div>
         
         {/* Assunto */}
@@ -234,7 +358,7 @@ const PeticionamentoForm = ({ onSuccess, onCancel }) => {
             type="text"
             value={formData.assunto}
             onChange={(e) => handleInputChange('assunto', e.target.value)}
-            placeholder="Descreva brevemente o assunto da petição"
+            placeholder="Descreva brevemente o assunto da petiA§A£o"
             className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
               errors.assunto ? 'border-red-300' : 'border-gray-300'
             }`}
@@ -244,15 +368,15 @@ const PeticionamentoForm = ({ onSuccess, onCancel }) => {
           )}
         </div>
         
-        {/* Descrição */}
+        {/* DescriA§A£o */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Descrição Detalhada *
+            DescriA§A£o Detalhada *
           </label>
           <textarea
             value={formData.descricao}
             onChange={(e) => handleInputChange('descricao', e.target.value)}
-            placeholder="Descreva detalhadamente sua solicitação, incluindo fatos, datas e circunstâncias relevantes..."
+            placeholder="Descreva detalhadamente sua solicitaA§A£o, incluindo fatos, datas e circunstA¢ncias relevantes..."
             rows={6}
             className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
               errors.descricao ? 'border-red-300' : 'border-gray-300'
@@ -263,14 +387,14 @@ const PeticionamentoForm = ({ onSuccess, onCancel }) => {
               <p className="text-sm text-red-600">{errors.descricao}</p>
             )}
             <p className="text-sm text-gray-500">
-              {formData.descricao.length}/2000 caracteres (mínimo 50)
+              {formData.descricao.length}/2000 caracteres (mA­nimo 50)
             </p>
           </div>
         </div>
         
-        {/* Dados do Peticionário */}
+        {/* Dados do PeticionA¡rio */}
         <div className="border-t pt-6">
-          <h4 className="text-lg font-medium text-gray-900 mb-4">Dados do Peticionário</h4>
+          <h4 className="text-lg font-medium text-gray-900 mb-4">Dados do PeticionA¡rio</h4>
           
           <div className="grid md:grid-cols-2 gap-6">
             <div>
@@ -346,13 +470,13 @@ const PeticionamentoForm = ({ onSuccess, onCancel }) => {
           
           <div className="mt-4">
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Endereço Completo
+              EndereA§o Completo
             </label>
             <input
               type="text"
               value={formData.endereco}
               onChange={(e) => handleInputChange('endereco', e.target.value)}
-              placeholder="Rua, número, bairro, cidade, estado"
+              placeholder="Rua, nAºmero, bairro, cidade, estado"
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
@@ -373,7 +497,7 @@ const PeticionamentoForm = ({ onSuccess, onCancel }) => {
         
         {/* Dados da Empresa Envolvida */}
         <div className="border-t pt-6">
-          <h4 className="text-lg font-medium text-gray-900 mb-4">Empresa Envolvida (se aplicável)</h4>
+          <h4 className="text-lg font-medium text-gray-900 mb-4">Empresa Envolvida (se aplicA¡vel)</h4>
           
           <div className="grid md:grid-cols-2 gap-6">
             <div>
@@ -403,9 +527,9 @@ const PeticionamentoForm = ({ onSuccess, onCancel }) => {
           </div>
         </div>
         
-        {/* Informações Adicionais */}
+        {/* InformaA§Aµes Adicionais */}
         <div className="border-t pt-6">
-          <h4 className="text-lg font-medium text-gray-900 mb-4">Informações Adicionais</h4>
+          <h4 className="text-lg font-medium text-gray-900 mb-4">InformaA§Aµes Adicionais</h4>
           
           <div className="grid md:grid-cols-2 gap-6">
             <div>
@@ -424,7 +548,7 @@ const PeticionamentoForm = ({ onSuccess, onCancel }) => {
             
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Data da Ocorrência
+                Data da OcorrAªncia
               </label>
               <input
                 type="date"
@@ -455,7 +579,7 @@ const PeticionamentoForm = ({ onSuccess, onCancel }) => {
                 hover:file:bg-blue-100"
             />
             <p className="text-sm text-gray-500 mt-1">
-              Arquivos aceitos: PDF, JPG, PNG, DOC, DOCX (máximo 10MB cada)
+              Arquivos aceitos: PDF, JPG, PNG, DOC, DOCX (mA¡ximo 10MB cada)
             </p>
             {errors.anexos && (
               <p className="text-sm text-red-600 mt-1">{errors.anexos}</p>
@@ -487,14 +611,14 @@ const PeticionamentoForm = ({ onSuccess, onCancel }) => {
           )}
         </div>
         
-        {/* Botões */}
+        {/* BotAµes */}
         <div className="border-t pt-6 flex space-x-4">
           <button
             type="submit"
             disabled={loading}
             className="flex-1 bg-blue-600 text-white py-3 px-6 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
           >
-            {loading ? 'Enviando...' : 'Enviar Petição'}
+            {loading ? 'Enviando...' : 'Enviar PetiA§A£o'}
           </button>
           
           {onCancel && (

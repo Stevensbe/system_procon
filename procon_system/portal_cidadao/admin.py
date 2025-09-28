@@ -3,7 +3,8 @@ from django.utils.html import format_html
 from django.utils import timezone
 from .models import (
     CategoriaConteudo, ConteudoPortal, FormularioPublico, BannerPortal,
-    ConsultaPublica, AvaliacaoServico, ConfiguracaoPortal, EstatisticaPortal
+    ConsultaPublica, AvaliacaoServico, ConfiguracaoPortal, EstatisticaPortal,
+    PerfilCidadao
 )
 
 
@@ -153,6 +154,15 @@ class FormularioPublicoAdmin(admin.ModelAdmin):
         count = queryset.update(destaque=False)
         self.message_user(request, f'{count} formulário(s) desmarcado(s) como destaque.')
     desmarcar_destaque.short_description = 'Desmarcar destaque'
+
+
+@admin.register(PerfilCidadao)
+class PerfilCidadaoAdmin(admin.ModelAdmin):
+    list_display = ['nome_completo', 'cpf', 'cidade', 'estado', 'telefone', 'criado_em']
+    search_fields = ['nome_completo', 'cpf', 'cidade', 'estado', 'user__username', 'user__email']
+    list_filter = ['estado', 'cidade']
+    readonly_fields = ['criado_em', 'atualizado_em']
+    ordering = ['nome_completo']
 
 
 @admin.register(BannerPortal)
