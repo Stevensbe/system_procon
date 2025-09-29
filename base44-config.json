@@ -1,0 +1,38 @@
+{
+  "project_name": "sistema-procon",
+  "description": "Sistema de Fiscalização PROCON - Gestão de Protocolos, Tramitação e Caixas de Entrada",
+  "framework": "django",
+  "python_version": "3.12",
+  "dependencies": [
+    "Django==5.2.5",
+    "djangorestframework==3.15.2",
+    "django-cors-headers==4.3.1",
+    "django-filter==23.5",
+    "drf-spectacular==0.27.0",
+    "Pillow==10.1.0",
+    "python-decouple==3.8",
+    "celery==5.3.4",
+    "redis==5.0.1",
+    "psycopg2-binary==2.9.9"
+  ],
+  "database": {
+    "type": "postgresql",
+    "name": "procon_db"
+  },
+  "static_files": true,
+  "media_files": true,
+  "environment_variables": {
+    "SECRET_KEY": "your-secret-key-here",
+    "DEBUG": "False",
+    "ALLOWED_HOSTS": "your-domain.com",
+    "DATABASE_URL": "postgresql://user:password@host:port/dbname"
+  },
+  "deployment": {
+    "platform": "base44",
+    "region": "us-east-1",
+    "instance_type": "t3.medium",
+    "auto_scaling": true,
+    "ssl": true,
+    "domain": "sistema-procon.base44.app"
+  }
+}
