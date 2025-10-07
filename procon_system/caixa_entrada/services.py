@@ -15,6 +15,10 @@ from protocolo_tramitacao.models import (
 )
 from .models import PermissaoSetorCaixaEntrada
 
+# Importar sistema de logging estruturado
+import logging_config
+from logging_config import logger_manager, LoggedOperation, log_execution_time
+
 
 
 SETOR_LABELS = {
@@ -76,7 +80,7 @@ ROTEAMENTO_TIPO = {
 
 ROTAS_PRIORIDADE = {
     'URGENTE': 'Diretoria',
-    'ALTA': 'Juridico',
+    # ALTA não força diretoria - respeita setor manual se definido
 }
 
 SETOR_PERMISSAO_MAP = {
@@ -124,40 +128,69 @@ def _escolher_responsavel_para_setor(nome_setor: Optional[str]):
     return permissao.usuarios.filter(is_active=True).order_by('id').first()
 
 
+@log_execution_time('roteamento_automatico')
 def aplicar_roteamento_automatico(documento) -> bool:
     """Define setor destino e responsavel com base nas regras de roteamento."""
-    print('aplicar roteamento', documento.tipo_documento, documento.setor_destino, documento.prioridade)
-    changed = False
-    tipo = (getattr(documento, 'tipo_documento', '') or 'OUTROS').upper()
-    prioridade = (getattr(documento, 'prioridade', '') or 'NORMAL').upper()
-    setor_atual = (getattr(documento, 'setor_destino', '') or '').strip()
+    logger = logger_manager.get_logger('caixa_entrada')
+    
+    with LoggedOperation('roteamento_automatico', {
+        'documento_id': getattr(documento, 'id', None),
+        'tipo_documento': getattr(documento, 'tipo_documento', None),
+        'prioridade_inicial': getattr(documento, 'prioridade', None),
+        'setor_inicial': getattr(documento, 'setor_destino', None),
+    }):
+        changed = False
+        tipo = (getattr(documento, 'tipo_documento', '') or 'OUTROS').upper()
+        prioridade = (getattr(documento, 'prioridade', '') or 'NORMAL').upper()
+        setor_atual = (getattr(documento, 'setor_destino', '') or '').strip()
 
-    setor_prioridade = ROTAS_PRIORIDADE.get(prioridade)
-    if setor_prioridade and setor_prioridade != setor_atual:
-        documento.setor_destino = setor_prioridade
-        setor_atual = setor_prioridade
-        changed = True
+        setor_prioridade = ROTAS_PRIORIDADE.get(prioridade)
+        routing_decisions = []
+        
+        if setor_prioridade:
+            setor_atual_lower = setor_atual.lower()
+            setor_prioridade_lower = setor_prioridade.lower()
+            # URGENTE sempre força Diretoria, ALTA só se não há setor definido
+            prioridade_override = prioridade == 'URGENTE' or (prioridade == 'ALTA' and not setor_atual)
+            if prioridade_override:
+                if setor_atual_lower != setor_prioridade_lower:
+                    documento.setor_destino = setor_prioridade
+                    setor_atual = setor_prioridade
+                    changed = True
+                    routing_decisions.append(f'Prioridade {prioridade} -> {setor_prioridade}')
 
-    if not setor_atual:
-        setor_tipo = ROTEAMENTO_TIPO.get(tipo)
-        if setor_tipo:
-            documento.setor_destino = setor_tipo
-            setor_atual = setor_tipo
+        if not setor_atual:
+            setor_tipo = ROTEAMENTO_TIPO.get(tipo)
+            if setor_tipo:
+                documento.setor_destino = setor_tipo
+                setor_atual = setor_tipo
+                changed = True
+                routing_decisions.append(f'Tipo {tipo} -> {setor_tipo}')
+
+        if not getattr(documento, 'prioridade', None):
+            documento.prioridade = 'NORMAL'
             changed = True
+            routing_decisions.append('Prioridade definida como NORMAL')
 
-    if not getattr(documento, 'prioridade', None):
-        documento.prioridade = 'NORMAL'
+        responsavel = _escolher_responsavel_para_setor(setor_atual)
+        if responsavel:
+            if getattr(documento, 'responsavel_atual_id', None) != responsavel.id:
+                documento.responsavel_atual = responsavel
+                changed = True
+                routing_decisions.append(f'Responsável definido: {responsavel.username}')
+            if getattr(documento, 'destinatario_direto_id', None) != responsavel.id:
+                documento.destinatario_direto = responsavel
+                changed = True
+        
+        # Log das decisões de roteamento
+        logger.log_operation('roteamento_aplicado', {
+            'routing_decisions': routing_decisions,
+            'setor_final': documento.setor_destino,
+            'responsavel_final': responsavel.username if responsavel else None,
+            'changes_made': changed,
+        })
 
-    responsavel = _escolher_responsavel_para_setor(setor_atual)
-    if responsavel:
-        if getattr(documento, 'responsavel_atual_id', None) != responsavel.id:
-            documento.responsavel_atual = responsavel
-            changed = True
-        if getattr(documento, 'destinatario_direto_id', None) != responsavel.id:
-            documento.destinatario_direto = responsavel
-            changed = True
-
-    return changed
+        return changed
 
 
 def _slug_sigla(valor: str) -> str:
@@ -228,15 +261,29 @@ def _obter_usuario_padrao(usuario_hint=None):
     UserModel = get_user_model()
     if usuario_hint:
         return usuario_hint
+    
+    # Tentar encontrar usuários existentes primeiro
     candidatos = [
         UserModel.objects.filter(is_superuser=True).first(),
         UserModel.objects.filter(is_staff=True).first(),
+        UserModel.objects.filter(is_active=True).first(),
         UserModel.objects.first(),
     ]
     for candidato in candidatos:
         if candidato:
             return candidato
-    raise ValueError('Nenhum usuario disponivel para registrar a tramitacao')
+    
+    # Se não existir nenhum usuário, criar um padrão para sincronização
+    usuario_padrao = UserModel.objects.create_user(
+        username='usuario_sincronizacao',
+        email='sincronizacao@procon.local',
+        password='senha_temporaria_123',
+        first_name='Usuário',
+        last_name='Sincronização',
+        is_staff=True,
+        is_active=True
+    )
+    return usuario_padrao
 
 
 @transaction.atomic

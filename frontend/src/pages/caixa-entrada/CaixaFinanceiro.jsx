@@ -16,6 +16,7 @@ import { ProconCard, ProconButton, ProconInput, ProconSelect } from '../../compo
 import DocumentoCard from '../../components/caixa-entrada/DocumentoCard';
 import FiltrosCaixa from '../../components/caixa-entrada/FiltrosCaixa';
 import caixaEntradaService from '../../services/caixaEntradaService';
+import { normalizeSetorFiltro } from '../../utils/setor';
 
 const CaixaFinanceiro = () => {
   const [documentos, setDocumentos] = useState([]);
@@ -121,7 +122,15 @@ const CaixaFinanceiro = () => {
         ...filtros
       });
       const listaDocumentos = Array.isArray(docs) ? docs : docs?.results ?? docs?.documentos ?? [];
-      setDocumentos(listaDocumentos);
+      const setorAlvo = normalizeSetorFiltro('DAF');
+      const filtrados = listaDocumentos.filter((doc) => {
+        const destinoNormalizado = normalizeSetorFiltro(doc?.setor_destino || doc?.setor);
+        if (!setorAlvo) {
+          return !destinoNormalizado;
+        }
+        return destinoNormalizado === setorAlvo;
+      });
+      setDocumentos(filtrados);
 
     } catch (error) {
       console.error('Erro ao carregar dados:', error);

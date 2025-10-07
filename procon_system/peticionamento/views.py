@@ -196,7 +196,7 @@ class AnexoPeticaoViewSet(viewsets.ModelViewSet):
     queryset = AnexoPeticao.objects.all()
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['peticao', 'tipo_anexo']
+    filterset_fields = ['peticao', 'tipo']
     search_fields = ['nome_arquivo', 'descricao']
     ordering_fields = ['uploaded_em', 'nome_arquivo']
     ordering = ['-uploaded_em']
@@ -362,7 +362,7 @@ class UploadAnexoAPIView(APIView):
         serializer = UploadAnexoSerializer(data=request.data)
         if serializer.is_valid():
             arquivo = serializer.validated_data['arquivo']
-            tipo_anexo = serializer.validated_data['tipo_anexo']
+            tipo_anexo = serializer.validated_data['tipo']
             descricao = serializer.validated_data.get('descricao', '')
             
             # Gera hash do arquivo

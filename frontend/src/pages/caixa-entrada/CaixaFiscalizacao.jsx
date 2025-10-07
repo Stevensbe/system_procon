@@ -19,6 +19,7 @@ import DocumentoCard from '../../components/caixa-entrada/DocumentoCard';
 import FiltrosCaixa from '../../components/caixa-entrada/FiltrosCaixa';
 import { formatDate, formatDateTime } from '../../utils/formatters';
 import caixaEntradaService from '../../services/caixaEntradaService';
+import { normalizeSetorFiltro } from '../../utils/setor';
 
 const CaixaFiscalizacao = () => {
   const [loading, setLoading] = useState(false);
@@ -46,7 +47,15 @@ const CaixaFiscalizacao = () => {
         tipo_documento: 'AUTO_INFRACAO'
       });
       const lista = Array.isArray(response) ? response : response?.results ?? response?.documentos ?? [];
-      setDocumentos(lista);
+      const setorAlvo = normalizeSetorFiltro('FISCALIZACAO_PROPRIO');
+      const filtrada = lista.filter((item) => {
+        const destinoNormalizado = normalizeSetorFiltro(item?.setor_destino || item?.setor_lotacao || item?.setor);
+        if (!setorAlvo) {
+          return !destinoNormalizado;
+        }
+        return destinoNormalizado === setorAlvo;
+      });
+      setDocumentos(filtrada);
     } catch (error) {
       console.error('Erro ao carregar documentos:', error);
       // Fallback para mock data em caso de erro
@@ -97,7 +106,7 @@ const CaixaFiscalizacao = () => {
           anexos_count: 1
         }
       ];
-      setDocumentos(mockDocumentos);
+      setDocumentos(mockDocumentos.filter((doc) => doc.tipo_documento !== 'DENUNCIA'));
     } finally {
       setLoading(false);
     }

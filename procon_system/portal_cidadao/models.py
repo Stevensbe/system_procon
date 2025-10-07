@@ -510,3 +510,227 @@ class DenunciaCidadao(models.Model):
             self.numero_denuncia = f"DEN-{seq:06d}/{ano}"
         
         super().save(*args, **kwargs)
+
+
+class ReclamacaoDenuncia(models.Model):
+    """Modelo completo para Reclamação/Denúncia - Cópia do Pro Consumidor"""
+    
+    # === DADOS BÁSICOS ===
+    numero_protocolo = models.CharField("Número do Protocolo", max_length=50, unique=True, blank=True)
+    tipo_demanda = models.CharField("Tipo de Demanda", max_length=20, choices=[
+        ('RECLAMACAO', 'Reclamação'),
+        ('DENUNCIA', 'Denúncia'),
+    ], default='RECLAMACAO')
+    
+    # === DADOS DO CONSUMIDOR ===
+    consumidor_nome = models.CharField("Nome do Consumidor", max_length=255)
+    consumidor_cpf = models.CharField("CPF do Consumidor", max_length=14)
+    consumidor_email = models.EmailField("E-mail do Consumidor")
+    consumidor_telefone = models.CharField("Telefone do Consumidor", max_length=20)
+    consumidor_endereco = models.TextField("Endereço do Consumidor")
+    consumidor_cep = models.CharField("CEP do Consumidor", max_length=10)
+    consumidor_cidade = models.CharField("Cidade do Consumidor", max_length=100)
+    consumidor_uf = models.CharField("UF do Consumidor", max_length=2)
+    
+    # === DADOS DA EMPRESA ===
+    empresa_razao_social = models.CharField("Razão Social", max_length=255)
+    empresa_cnpj = models.CharField("CNPJ da Empresa", max_length=18)
+    empresa_endereco = models.TextField("Endereço da Empresa")
+    empresa_telefone = models.CharField("Telefone da Empresa", max_length=20, blank=True)
+    empresa_email = models.EmailField("E-mail da Empresa", blank=True)
+    
+    # === DADOS DA RECLAMAÇÃO/DENÚNCIA ===
+    descricao_fatos = models.TextField("Descrição dos Fatos")
+    data_ocorrencia = models.DateField("Data da Ocorrência")
+    valor_envolvido = models.DecimalField("Valor Envolvido", max_digits=15, decimal_places=2, null=True, blank=True)
+    
+    # === CLASSIFICAÇÃO E ANÁLISE ===
+    STATUS_CHOICES = [
+        ('REGISTRADA', 'Registrada'),
+        ('EM_ANALISE', 'Em Análise'),
+        ('CLASSIFICADA', 'Classificada'),
+        ('NOTIFICADA', 'Notificada'),
+        ('AGUARDANDO_RESPOSTA', 'Aguardando Resposta'),
+        ('EM_CONCILIACAO', 'Em Conciliação'),
+        ('CONCILIADA', 'Conciliada'),
+        ('EM_INSTRUCAO', 'Em Instrução'),
+        ('DECIDIDA', 'Decidida'),
+        ('APLICADA_PENALIDADE', 'Aplicada Penalidade'),
+        ('RECURSO_APRESENTADO', 'Recurso Apresentado'),
+        ('FINALIZADA', 'Finalizada'),
+        ('ARQUIVADA', 'Arquivada'),
+    ]
+    status = models.CharField("Status", max_length=25, choices=STATUS_CHOICES, default='REGISTRADA')
+    
+    TIPO_CLASSIFICACAO_CHOICES = [
+        ('ATENDIMENTO_SIMPLES', 'Atendimento Simples'),
+        ('CIP', 'Carta de Informação Preliminar'),
+        ('PROCESSO_ADMINISTRATIVO', 'Processo Administrativo'),
+    ]
+    tipo_classificacao = models.CharField("Tipo de Classificação", max_length=25, choices=TIPO_CLASSIFICACAO_CHOICES, null=True, blank=True)
+    
+    assunto_classificado = models.CharField("Assunto Classificado", max_length=200, blank=True)
+    competencia_procon = models.BooleanField("É Competência do PROCON", default=True)
+    observacoes_analise = models.TextField("Observações da Análise", blank=True)
+    
+    # === NOTIFICAÇÃO AO FORNECEDOR ===
+    notificacao_enviada = models.BooleanField("Notificação Enviada", default=False)
+    data_notificacao = models.DateTimeField("Data da Notificação", null=True, blank=True)
+    prazo_resposta = models.DateTimeField("Prazo para Resposta", null=True, blank=True)
+    resposta_recebida = models.BooleanField("Resposta Recebida", default=False)
+    data_resposta = models.DateTimeField("Data da Resposta", null=True, blank=True)
+    conteudo_resposta = models.TextField("Conteúdo da Resposta", blank=True)
+    
+    # === CONCILIAÇÃO ===
+    conciliacao_marcada = models.BooleanField("Conciliação Marcada", default=False)
+    data_conciliacao = models.DateTimeField("Data da Conciliação", null=True, blank=True)
+    conciliacao_realizada = models.BooleanField("Conciliação Realizada", default=False)
+    resultado_conciliacao = models.CharField("Resultado da Conciliação", max_length=50, choices=[
+        ('ACORDO', 'Acordo'),
+        ('NAO_ACORDO', 'Não Houve Acordo'),
+        ('NAO_COMPARECEU', 'Não Compareceu'),
+    ], blank=True)
+    valor_acordo = models.DecimalField("Valor do Acordo", max_digits=15, decimal_places=2, null=True, blank=True)
+    
+    # === INSTRUÇÃO DO PROCESSO ===
+    instrucao_iniciada = models.BooleanField("Instrução Iniciada", default=False)
+    data_inicio_instrucao = models.DateTimeField("Data Início Instrução", null=True, blank=True)
+    provas_coletadas = models.TextField("Provas Coletadas", blank=True)
+    impugnacao_consumidor = models.TextField("Impugnação do Consumidor", blank=True)
+    encaminhado_juridico_1 = models.BooleanField("Encaminhado Jurídico 1", default=False)
+    encaminhado_juridico_2 = models.BooleanField("Encaminhado Jurídico 2", default=False)
+    
+    # === DECISÃO ADMINISTRATIVA ===
+    decisao_elaborada = models.BooleanField("Decisão Elaborada", default=False)
+    data_decisao = models.DateTimeField("Data da Decisão", null=True, blank=True)
+    tipo_decisao = models.CharField("Tipo da Decisão", max_length=25, choices=[
+        ('PROCEDENTE', 'Procedente'),
+        ('IMPROCEDENTE', 'Improcedente'),
+        ('PARCIALMENTE_PROCEDENTE', 'Parcialmente Procedente'),
+    ], blank=True)
+    fundamentacao_decisao = models.TextField("Fundamentação da Decisão", blank=True)
+    
+    # === PENALIDADES ===
+    penalidade_aplicada = models.BooleanField("Penalidade Aplicada", default=False)
+    tipo_penalidade = models.CharField("Tipo de Penalidade", max_length=50, choices=[
+        ('MULTA', 'Multa'),
+        ('OBRIGACAO_FAZER', 'Obrigação de Fazer'),
+        ('SUSPENSAO_ATIVIDADE', 'Suspensão de Atividade'),
+    ], blank=True)
+    valor_multa = models.DecimalField("Valor da Multa", max_digits=15, decimal_places=2, null=True, blank=True)
+    boleto_emitido = models.BooleanField("Boleto Emitido", default=False)
+    
+    # === RECURSOS ===
+    recurso_apresentado = models.BooleanField("Recurso Apresentado", default=False)
+    data_recurso = models.DateTimeField("Data do Recurso", null=True, blank=True)
+    tipo_recurso = models.CharField("Tipo de Recurso", max_length=50, blank=True)
+    decisao_recurso = models.CharField("Decisão do Recurso", max_length=50, choices=[
+        ('MANTIDA', 'Mantida'),
+        ('MODIFICADA', 'Modificada'),
+        ('ANULADA', 'Anulada'),
+    ], blank=True)
+    
+    # === CONTROLE ===
+    atendente_responsavel = models.ForeignKey(
+        'auth.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='reclamacoes_atendidas',
+        verbose_name="Atendente Responsável"
+    )
+    analista_responsavel = models.ForeignKey(
+        'auth.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='reclamacoes_analisadas',
+        verbose_name="Analista Responsável"
+    )
+    
+    # === METADADOS ===
+    criado_em = models.DateTimeField("Criado em", auto_now_add=True)
+    atualizado_em = models.DateTimeField("Atualizado em", auto_now=True)
+    ip_origem = models.GenericIPAddressField("IP de Origem", null=True, blank=True)
+    user_agent = models.TextField("User Agent", blank=True)
+    
+    class Meta:
+        verbose_name = "Reclamação/Denúncia"
+        verbose_name_plural = "Reclamações/Denúncias"
+        ordering = ['-criado_em']
+        indexes = [
+            models.Index(fields=['numero_protocolo']),
+            models.Index(fields=['status']),
+            models.Index(fields=['tipo_classificacao']),
+            models.Index(fields=['empresa_cnpj']),
+            models.Index(fields=['consumidor_cpf']),
+            models.Index(fields=['criado_em']),
+        ]
+    
+    def __str__(self):
+        return f"{self.numero_protocolo} - {self.consumidor_nome} vs {self.empresa_razao_social}"
+    
+    def save(self, *args, **kwargs):
+        """Gera número automático do protocolo"""
+        if not self.numero_protocolo:
+            from datetime import datetime
+            agora = datetime.now()
+            ano = agora.year
+            
+            # Busca último protocolo do ano
+            ultimo = ReclamacaoDenuncia.objects.filter(
+                numero_protocolo__endswith=f'/{ano}'
+            ).order_by('-id').first()
+            
+            seq = 1
+            if ultimo:
+                try:
+                    seq = int(ultimo.numero_protocolo.split('/')[0].split('-')[1]) + 1
+                except (ValueError, IndexError):
+                    seq = 1
+            
+            self.numero_protocolo = f"REC-{seq:06d}/{ano}"
+        
+        super().save(*args, **kwargs)
+
+
+class AnexoReclamacao(models.Model):
+    """Anexos da reclamação/denúncia"""
+    
+    reclamacao = models.ForeignKey(ReclamacaoDenuncia, on_delete=models.CASCADE, related_name='anexos')
+    arquivo = models.FileField("Arquivo", upload_to='reclamacoes/anexos/')
+    descricao = models.CharField("Descrição", max_length=200)
+    tipo_documento = models.CharField("Tipo de Documento", max_length=50, choices=[
+        ('NOTA_FISCAL', 'Nota Fiscal'),
+        ('CONTRATO', 'Contrato'),
+        ('COMPROVANTE', 'Comprovante'),
+        ('PRINT_TELA', 'Print de Tela'),
+        ('OUTROS', 'Outros'),
+    ])
+    data_upload = models.DateTimeField("Data do Upload", auto_now_add=True)
+    
+    class Meta:
+        verbose_name = "Anexo da Reclamação"
+        verbose_name_plural = "Anexos da Reclamação"
+    
+    def __str__(self):
+        return f"Anexo: {self.descricao}"
+
+
+class HistoricoReclamacao(models.Model):
+    """Histórico de movimentações da reclamação/denúncia"""
+    
+    reclamacao = models.ForeignKey(ReclamacaoDenuncia, on_delete=models.CASCADE, related_name='historico')
+    acao = models.CharField("Ação", max_length=100)
+    descricao = models.TextField("Descrição")
+    usuario = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True)
+    data_acao = models.DateTimeField("Data da Ação", auto_now_add=True)
+    observacoes = models.TextField("Observações", blank=True)
+    
+    class Meta:
+        verbose_name = "Histórico da Reclamação"
+        verbose_name_plural = "Histórico das Reclamações"
+        ordering = ['-data_acao']
+    
+    def __str__(self):
+        return f"{self.reclamacao.numero_protocolo} - {self.acao}"

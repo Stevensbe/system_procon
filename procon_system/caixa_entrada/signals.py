@@ -119,7 +119,7 @@ def criar_documento_caixa_entrada_multa(sender, instance, created, **kwargs):
             documento = CaixaEntrada.objects.create(
                 tipo_documento='MULTA',
                 assunto=f'Multa - {instance.empresa.razao_social}',
-                descricao=f'Multa {instance.numero} - Valor: R$ {instance.valor}',
+                descricao=f'Multa #{getattr(instance, 'pk', '')} - Valor: R$ {instance.valor}',
                 prioridade='NORMAL',
                 remetente_nome=instance.empresa.razao_social,
                 remetente_documento=instance.empresa.cnpj,
@@ -141,7 +141,7 @@ def criar_documento_caixa_entrada_multa(sender, instance, created, **kwargs):
             print(f"Documento {documento.numero_protocolo} criado na caixa de entrada para multa {instance.numero}")
             
         except Exception as e:
-            print(f"Erro ao criar documento na caixa de entrada para multa {instance.numero}: {e}")
+            print(f"Erro ao criar documento na caixa de entrada para multa #{getattr(instance, 'pk', '')}: {e}")
 
 
 @receiver(post_save, sender='juridico.ProcessoJuridico')
@@ -238,35 +238,41 @@ def criar_documento_caixa_entrada_auto_fiscal(sender, instance, created, **kwarg
     """
     Cria documento na caixa de entrada quando um auto de infração é criado pelo fiscal
     """
-    if created and instance.origem_denuncia != 'PORTAL_CIDADAO':
-        try:
-            # Criar documento na caixa de entrada para AUTOS DE FISCALIZAÇÃO
-            documento = CaixaEntrada.objects.create(
-                tipo_documento='AUTO_INFRACAO',
-                assunto=f'Auto de Infração - {instance.razao_social}',
-                descricao=f'Auto de infração {instance.numero_auto} - {instance.descricao_infracao}',
-                prioridade='ALTA',
-                remetente_nome=instance.razao_social,
-                remetente_documento=instance.cnpj,
-                empresa_nome=instance.razao_social,
-                empresa_cnpj=instance.cnpj,
-                setor_destino='Fiscalização',
-                origem='FISCALIZACAO',
-                content_type=ContentType.objects.get_for_model(instance),
-                object_id=instance.id
-            )
-            
-            # Registrar no histórico
-            HistoricoCaixaEntrada.objects.create(
-                documento=documento,
-                acao='CRIADO',
-                detalhes=f'Auto de infração {instance.numero_auto} criado pelo fiscal'
-            )
-            
-            print(f"Documento {documento.numero_protocolo} criado na Caixa de Autos para auto {instance.numero_auto}")
-            
-        except Exception as e:
-            print(f"Erro ao criar documento na caixa de entrada para auto {instance.numero_auto}: {e}")
+    if not created:
+        return
+
+    origem_denuncia = getattr(instance, 'origem_denuncia', None)
+    if origem_denuncia == 'PORTAL_CIDADAO':
+        return
+
+    try:
+        # Criar documento na caixa de entrada para AUTOS DE FISCALIZAÇÃO
+        documento = CaixaEntrada.objects.create(
+            tipo_documento='AUTO_INFRACAO',
+            assunto=f'Auto de Infração - {instance.razao_social}',
+            descricao=f'Auto de infração {getattr(instance, "numero", "")} - {getattr(instance, "relatorio", "")[0:200]}',
+            prioridade='ALTA',
+            remetente_nome=instance.razao_social,
+            remetente_documento=instance.cnpj,
+            empresa_nome=instance.razao_social,
+            empresa_cnpj=instance.cnpj,
+            setor_destino='Fiscalização',
+            origem='FISCALIZACAO',
+            content_type=ContentType.objects.get_for_model(instance),
+            object_id=instance.id
+        )
+
+        # Registrar no histórico
+        HistoricoCaixaEntrada.objects.create(
+            documento=documento,
+            acao='CRIADO',
+            detalhes=f'Auto de infração {getattr(instance, "numero", "")} criado pelo fiscal'
+        )
+
+        print(f"Documento {documento.numero_protocolo} criado na Caixa de Autos para auto {getattr(instance, 'numero', '')}")
+
+    except Exception as e:
+        print(f"Erro ao criar documento na caixa de entrada para auto {getattr(instance, 'numero', '')}: {e}")
 
 
 # Signal para atualizar status da caixa de entrada quando documento relacionado é atualizado

@@ -1,3 +1,62 @@
+from __future__ import annotations
+
+import os
+import random
+from typing import Generator
+
+import pytest
+from django.conf import settings
+from django.test import Client
+from faker import Faker
+
+from .factories import UserFactory, SuperUserFactory
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _configure_settings_for_tests() -> None:
+    # Ensure emails use console backend during tests to avoid external calls
+    settings.EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"
+    settings.PASSWORD_HASHERS = [
+        "django.contrib.auth.hashers.MD5PasswordHasher",
+    ]
+
+
+@pytest.fixture(scope="session")
+def faker_locale() -> str:
+    return os.getenv("FAKER_LOCALE", "pt_BR")
+
+
+@pytest.fixture(scope="session")
+def faker(faker_locale: str) -> Faker:
+    # One shared Faker seeded for repeatability across test session
+    seed = int(os.getenv("PYTEST_FAKER_SEED", "12345"))
+    fake = Faker(locale=faker_locale)
+    Faker.seed(seed)
+    random.seed(seed)
+    return fake
+
+
+@pytest.fixture()
+def user(db) -> Generator:
+    yield UserFactory()
+
+
+@pytest.fixture()
+def superuser(db) -> Generator:
+    yield SuperUserFactory()
+
+
+@pytest.fixture()
+def client_logged(client: Client, user) -> Client:
+    client.force_login(user)
+    return client
+
+
+@pytest.fixture()
+def admin_client(client: Client, superuser) -> Client:
+    client.force_login(superuser)
+    return client
+
 import os
 import sys
 import django

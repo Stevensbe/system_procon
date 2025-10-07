@@ -1,0 +1,296 @@
+{% extends 'base.html' %}
+
+{% block title %}Dashboard - Performance & SLA{% endblock %}
+
+{% block extra_css %}
+<style>
+.sla-card {
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.sla-indicator {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    margin-right: 8px;
+}
+
+.sla-green { background: #2ecc71; }
+.sla-yellow { background: #f39c12; }
+.sla-red { background: #e74c3c; }
+
+.workload-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 10px;
+}
+
+.workload-high { background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%); }
+.workload-medium { background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%); }
+.workload-low { background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%); }
+
+.alert-card {
+    border-left: 4px solid #e74c3c;
+    background: #fff5f5;
+    padding: 15px;
+    margin-bottom: 10px;
+    border-radius: 4px;
+}
+
+.alert-critical {
+    border-left-color: #e74c3c;
+    background: #fff5f5;
+}
+
+.alert-warning {
+    border-left-color: #f39c12;
+    background: #fffaf0;
+}
+
+.alert-info {
+    border-left-color: #3498db;
+    background: #f0f8ff;
+}
+
+.metric-value {
+    font-size: 2em;
+    font-weight: bold;
+}
+
+.chart-container {
+    height: 300px;
+    margin-bottom: 20px;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h1 class="mb-4">📈 Dashboard - Performance & SLA</h1>
+    
+    <!-- Alertas Ativos -->
+    {% if active_alerts %}
+    <div class="dashboard-card">
+        <h3>🚨 Alertas Ativos do Sistema</h3>
+        {% for alert in active_alerts %}
+        <div class="alert-card alert-{{ alert.type }}">
+            <div class="d-flex align-items-center">
+                {% if alert.type == 'critical' %}
+                    <i class="fas fa-exclamation-triangle text-danger fa-2x mr-3"></i>
+                {% elif alert.type == 'warning' %}
+                    <i class="fas fa-exclamation-circle text-warning fa-2x mr-3"></i>
+                {% else %}
+                    <i class="fas fa-info-circle text-info fa-2x mr-3"></i>
+                {% endif %}
+                <div>
+                    <h5 class="mb-1">{{ alert.type|title }}</h5>
+                    <p class="mb-0">{{ alert.message }}</p>
+                    <small class="text-muted">Severidade: {{ alert.severity|title }}</small>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="row">
+        <!-- SLA por Setor -->
+        <div class="col-md-8">
+            <div class="sla-card">
+                <h3>SLA por Setor (Últimos {{ period_days }} dias)</h3>
+                {% if sla_data %}
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Setor</th>
+                                    <th>Documentos</th>
+                                    <th>Tempo Médio</th>
+                                    <th>SLA</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for data in sla_data %}
+                                <tr>
+                                    <td><strong>{{ data.setor }}</strong></td>
+                                    <td>{{ data.total_documentos }}</td>
+                                    <td>{{ data.tempo_medio_resposta|floatformat:1 }} dias</td>
+                                    <td>
+                                        <span class="badge badge-{% if data.sla_percentage >= 90 %}success{% elif data.sla_percentage >= 70 %}warning{% else %}danger{% endif %}">
+                                            {{ data.sla_percentage|floatformat:1 }}%
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span class="sla-indicator sla-{{ data.status }}"></span>
+                                        <span class="text-{{ data.status }}">
+                                            {% if data.status == 'red' %}Crítico
+                                            {% elif data.status == 'yellow' %}Atenção
+                                            {% else %}OK{% endif %}
+                                        </span>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="text-center text-muted py-4">
+                        <i class="fas fa-chart-line fa-3x mb-3"></i>
+                        <p>Nenhum dado de SLA disponível</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Carga de Trabalho -->
+        <div class="col-md-4">
+            <div class="sla-card">
+                <h3>Carga de Trabalho</h3>
+                {% if workload_data %}
+                    {% for user_data in workload_data %}
+                    <div class="workload-card workload-{{ user_data.carga_status }}">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div>
+                                <strong>{{ user_data.username }}</strong>
+                                <br>
+                                <small>{{ user_data.total_documentos }} documento{{ user_data.total_documentos|pluralize }}</small>
+                                {% if user_data.urgentes_pendentes_pendentes > 0 %}
+                                    <br>
+                                    <small>🔴 {{ user_data.urgentes_pendentes }} urgente{{ user_data.urgentes_pendentes|pluralize }}</small>
+                                {% endif %}
+                            </div>
+                            <div class="metric-value">
+                                {{ user_data.total_documentos }}
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="text-center text-muted py-4">
+                        <i class="fas fa-users fa-3x mb-3"></i>
+                        <p>Nenhum dado de carga disponível</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Métricas de Sistema -->
+    <div class="row">
+        <div class="col-md-3">
+            <div class="sla-card text-center">
+                <h3 class="text-success">
+                    <i class="fas fa-check-circle"></i> SLA Geral
+                </h3>
+                <div class="metric-value text-success">85%</div>
+                <p class="text-muted">Meta: 90%</p>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="sla-card text-center">
+                <h3 class="text-info">
+                    <i class="fas fa-clock"></i> Tempo Médio
+                </h3>
+                <div class="metric-value text-info">3.2 dias</div>
+                <p class="text-muted">Meta: < 2 dias</p>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="sla-card text-center">
+                <h3 class="text-warning">
+                    <i class="fas fa-exclamation-triangle"></i> Pendentes
+                </h3>
+                <div class="metric-value text-warning">47</div>
+                <p class="text-muted">Urgentes: 12</p>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="sla-card text-center">
+                <h3 class="text-primary">
+                    <i class="fas fa-chart-bar"></i> Produtividade
+                </h3>
+                <div class="metric-value text-primary">124%</div>
+                <p class="text-muted">vs mês anterior</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Gráfico de Performance -->
+    <div class="sla-card">
+        <h3>Tendência de Performance (Últimos 7 dias)</h3>
+        <div id="performanceChart" class="chart-container">
+            <!-- Aqui seria integrado com Chart.js ou similar -->
+            <div class="text-center text-muted py-5">
+                <i class="fas fa-chart-area fa-3x mb-3"></i>
+                <p>Gráfico de tendência em desenvolvimento</p>
+                <p><small>Mostrará evolução dos SLA por dia</small></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Ações Recomendadas -->
+    <div class="sla-card">
+        <h3>💡 Ações Recomendadas</h3>
+        <div class="row">
+            <div class="col-md-6">
+                <div class="alert alert-info">
+                    <h5><i class="fas fa-lightbulb"></i> Otimizações</h5>
+                    <ul class="mb-0">
+                        <li>Setores com SLA < 70% precisam de atenção</li>
+                        <li>Considerar redistribuição de carga de trabalho</li>
+                        <li>Avaliar processos de roteamento automático</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="alert alert-warning">
+                    <h5><i class="fas fa-exclamation"></i> Alertas</h5>
+                    <ul class="mb-0">
+                        <li>{{ overdue_count|default:0 }} documentos vencidos requerem ação imediata</li>
+                        <li>Usuários com alta carga podem precisar de apoio</li>
+                        <li>Sistema de alertas configurado e funcionando</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="text-center text-muted mt-4">
+        <small>
+            <i class="fas fa-sync-alt"></i> Dados atualizados automaticamente
+            | <a href="#" onclick="location.reload()">Atualizar agora</a>
+        </small>
+    </div>
+</div>
+
+<script>
+// Auto-refresh dashboard a cada 60 segundos
+setTimeout(function() {
+    location.reload();
+}, 60000);
+
+// Funcionalidade de notificações em tempo real (placeholder)
+function checkRealTimeAlerts() {
+    fetch('/monitoring/api/alerts-realtime/')
+        .then(response => response.json())
+        .then(data => {
+            if (data.alerts && data.alerts.length > 0) {
+                // Mostrar notificações (implementar notificação visual)
+                console.log('Novos alertas recebidos:', data.alerts);
+            }
+        })
+        .catch(error => console.error('Erro ao buscar alertas:', error));
+}
+
+// Verificar alertas em tempo real a cada 30 segundos
+setInterval(checkRealTimeAlerts, 30000);
+</script>
+{% endblock %}

@@ -6,7 +6,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { ProconInput, ProconSelect, ProconButton } from '../ui';
 
-const FiltrosCaixa = ({ filtros, onFiltrosChange, showSetorFilter = true }) => {
+const FiltrosCaixa = ({ filtros, onFiltrosChange, showSetorFilter = true, setorOptions = null }) => {
   const [showFiltrosAvancados, setShowFiltrosAvancados] = useState(false);
 
   const handleInputChange = (name, value) => {
@@ -42,14 +42,15 @@ const FiltrosCaixa = ({ filtros, onFiltrosChange, showSetorFilter = true }) => {
     { value: 'BAIXA', label: 'Baixa' }
   ];
 
-  const opcoesSetor = [
-    { value: '', label: 'Todos os Setores' },
+  const opcoesSetorPadrao = [
     { value: 'ATENDIMENTO', label: 'Atendimento' },
     { value: 'FISCALIZACAO', label: 'Fiscalização' },
     { value: 'JURIDICO', label: 'Jurídico' },
     { value: 'FINANCEIRO', label: 'Financeiro' },
     { value: 'DIRETORIA', label: 'Diretoria' }
   ];
+
+  const opcoesSetor = (setorOptions && setorOptions.length) ? setorOptions : opcoesSetorPadrao;
 
   const opcoesTipo = [
     { value: '', label: 'Todos os Tipos' },

@@ -85,16 +85,26 @@ const DocumentoDetalheModal = ({
 
     setDownloadEmProgresso(anexo.id);
     try {
-      const blob = await caixaEntradaService.downloadAnexo(anexo.id);
-      const url = window.URL.createObjectURL(new Blob([blob]));
+      const resposta = await caixaEntradaService.downloadAnexo(anexo.id);
+      let arquivoUrl = resposta?.arquivo;
+      const nomeArquivo = resposta?.nome_original || anexo.nome_original || `anexo-${anexo.id}`;
+
+      if (!arquivoUrl) {
+        throw new Error('URL do anexo não disponível');
+      }
+
+      if (!/^https?:\/\//i.test(arquivoUrl)) {
+        const base = window.location.origin;
+        arquivoUrl = `${base}${arquivoUrl.startsWith('/') ? '' : '/'}${arquivoUrl}`;
+      }
+
       const link = document.createElement('a');
-      link.href = url;
-      const nomeArquivo = anexo.nome_original || 'anexo-' + anexo.id;
+      link.href = arquivoUrl;
       link.setAttribute('download', nomeArquivo);
+      link.rel = 'noopener noreferrer';
       document.body.appendChild(link);
       link.click();
       link.remove();
-      window.URL.revokeObjectURL(url);
     } catch (errorOcorrido) {
       console.error('Erro ao baixar anexo:', errorOcorrido);
       window.alert('Não foi possível baixar o anexo. Tente novamente.');

@@ -1301,7 +1301,7 @@ class AssinaturaDigitalSerializer(serializers.ModelSerializer):
 
 # --- SERIALIZERS PARA NOTIFICAÇÃO ELETRÔNICA ---
 class NotificacaoEletronicaSerializer(serializers.ModelSerializer):
-    destinatario_nome = serializers.CharField(source='destinatario_nome', read_only=True)
+    destinatario_nome = serializers.CharField(read_only=True)
     
     class Meta:
         model = NotificacaoEletronica

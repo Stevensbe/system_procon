@@ -1,0 +1,275 @@
+{% extends 'base.html' %}
+
+{% block title %}Dashboard - Prazos Críticos{% endblock %}
+
+{% block extra_css %}
+<style>
+.dashboard-card {
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.deadline-item {
+    padding: 12px;
+    border-left: 4px solid #e74c3c;
+    background: #fff5f5;
+    margin-bottom: 8px;
+    border-radius: 4px;
+}
+
+.deadline-item.critical {
+    border-left-color: #e74c3c;
+    background: #fff5f5;
+}
+
+.deadline-item.upcoming {
+    border-left-color: #f39c12;
+    background: #fffaf0;
+}
+
+.deadline-item.overdue {
+    border-left-color: #8e44ad;
+    background: #f8f5fc;
+}
+
+.metric-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 20px;
+    border-radius: 10px;
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.metric-value {
+    font-size: 2.5em;
+    font-weight: bold;
+    margin-bottom: 10px;
+}
+
+.metric-label {
+    font-size: 1.1em;
+    opacity: 0.9;
+}
+
+.alert-badge {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    background: #e74c3c;
+    color: white;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.status-indicator {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 8px;
+}
+
+.status-nao-lido { background: #e74c3c; }
+.status-lido { background: #f39c12; }
+.status-em-analise { background: #3498db; }
+.status-respondido { background: #2ecc71; }
+
+.priority-high { font-weight: bold; color: #e74c3c; }
+.priority-normal { color: #2c3e50; }
+.priority-low { color: #7f8c8d; }
+
+.sector-badge {
+    background: #3498db;
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.8em;
+    margin-right: 8px;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h1 class="mb-4">📊 Dashboard - Prazos Críticos</h1>
+    
+    <!-- Métricas Gerais -->
+    <div class="row">
+        <div class="col-md-3">
+            <div class="metric-card">
+                <div class="metric-value">{{ stats.total_criticos }}</div>
+                <div class="metric-label">Críticos</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="metric-card">
+                <div class="metric-value text-danger">{{ stats.total_vencidos }}</div>
+                <div class="metric-label">Vencidos</div>
+                {% if stats.total_vencidos > 0 %}
+                    <div class="alert-badge">{{ stats.total_vencidos }}</div>
+                {% endif %}
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="metric-card">
+                <div class="metric-value">{{ stats.total_proximos }}</div>
+                <div class="metric-label">Próximos</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="metric-card">
+                <div class="metric-value">{{ stats.taxa_atraso|floatformatformat:1 }}%</div>
+                <div class="metric-label">Taxa de Atraso</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Alertas por Setor -->
+    {% if alerts_by_sector %}
+    <div class="dashboard-card">
+        <h3>🚨 Alertas por Setor</h3>
+        <div class="row">
+            {% for setor, count in alerts_by_sector.items %}
+            <div class="col-md-4 mb-2">
+                <div class="badge badge-danger p-3 w-100">
+                    {{ setor }}: {{ count }} vencido{{ count|pluralize }}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="row">
+        <!-- Documentos Vencidos -->
+        <div class="col-md-6">
+            <div class="dashboard-card">
+                <h3 class="text-purple">🔴 Documentos Vencidos ({{ deadlines_data.overdue.count }})</h3>
+                {% if deadlines_data.overdue %}
+                    {% for doc in deadlines_data.overdue %}
+                    <div class="deadline-item overdue">
+                        <div class="d-flex align-items-center">
+                            <span class="status-indicator status-{{ doc.status|lower|cut:'_' }}"></span>
+                            <strong>{{ doc.assunto }}</strong>
+                            <span class="ml-auto badge badge-danger">
+                                {{ doc.prazo_resposta|timesince }} atrás
+                            </span>
+                        </div>
+                        <div class="mt-2 text-muted">
+                            <span class="sector-badge">{{ doc.setor_destino }}</span>
+                            {% if doc.responsavel_atual %}
+                                <i class="fas fa-user"></i> {{ doc.responsavel_atual.username }}
+                            {% endif %}
+                            <span class="priority-{{ doc.prioridade|lower }} ml-2">
+                                {{ doc.get_prioridade_display }}
+                            </span>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="text-center text-success py-4">
+                        <i class="fas fa-check-circle fa-3x mb-3"></i>
+                        <p>Nenhum documento vencido!</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Documentos Críticos -->
+        <div class="col-md-6">
+            <div class="dashboard-card">
+                <h3 class="text-danger">⚠️ Documentos Críticos ({{ deadlines_data.critical.count }})</h3>
+                {% if deadlines_data.critical %}
+                    {% for doc in deadlines_data.critical %}
+                    <div class="deadline-item critical">
+                        <div class="d-flex align-items-center">
+                            <span class="status-indicator status-{{ doc.status|lower|cut:'_' }}"></span>
+                            <strong>{{ doc.assunto }}</strong>
+                            <span class="ml-auto badge badge-warning">
+                                {{ doc.prazo_resposta|timeuntil }}
+                            </span>
+                        </div>
+                        <div class="mt-2 text-muted">
+                            <span class="sector-badge">{{ doc.setor_destino }}</span>
+                            {% if doc.responsavel_atual %}
+                                <i class="fas fa-user"></i> {{ doc.responsavel_atual.username }}
+                            {% endif %}
+                            <span class="priority-{{ doc.prioridade|lower }} ml-2">
+                                {{ doc.get_prioridade_display }}
+                            </span>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="text-center text-success py-4">
+                        <i class="fas fa-star fa-3x mb-3"></i>
+                        <p>Nenhum documento crítico!</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Documentos Próximos -->
+    {% if deadlines_data.upcoming.count > 0 %}
+    <div class="dashboard-card">
+        <h3 class="text-warning">📅 Documentos Próximos do Vencimento ({{ deadlines_data.upcoming.count }})</h3>
+        <div class="row">
+            {% for doc in deadlines_data.upcoming %}
+            <div class="col-md-6">
+                <div class="deadline-item upcoming">
+                    <div class="d-flex align-items-center">
+                        <span class="status-indicator status-{{ doc.status|lower|cut:'_' }}"></span>
+                        <strong>{{ doc.assunto }}</strong>
+                        <span class="ml-auto badge badge-warning">
+                            {{ doc.prazo_resposta|timeuntil }}
+                        </span>
+                    </div>
+                    <div class="mt-2 text-muted">
+                        <span class="sector-badge">{{ doc.setor_destino }}</span>
+                        {% if doc.responsavel_atual %}
+                            <i class="fas fa-user"></i> {{ doc.responsavel_atual.username }}
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Atualizar automaticamente -->
+    <div class="text-center text-muted mt-4">
+        <small>
+            <i class="fas fa-sync-alt"></i> Última atualização: {{ current_time|date:"d/m/Y H:i" }}
+            | <a href="#" onclick="location.reload()">Atualizar página</a>
+        </small>
+    </div>
+</div>
+
+<script>
+// Auto-refresh a cada 30 segundos
+setTimeout(function() {
+    location.reload();
+}, 30000);
+
+// Atualizar contadores em tempo real
+function updateTimeCounters() {
+    document.querySelectorAll('.badge-warning').forEach(function(el) {
+        // Simplificado - em produção seria com JavaScript de data atual
+    });
+}
+
+// Executar atualização a cada minuto
+setInterval(updateTimeCounters, 60000);
+</script>
+{% endblock %}

@@ -148,6 +148,11 @@ const RecursosDashboard = React.lazy(() => import('./pages/recursos/RecursosDash
 const RecursosList = React.lazy(() => import('./pages/recursos/RecursosList'));
 const RecursoForm = React.lazy(() => import('./pages/recursos/RecursoForm'));
 
+// --- Módulo de Atendimento (Cópia do Pro Consumidor) ---
+const AtendimentoDashboard = lazyLoad(() => import('./pages/atendimento/AtendimentoDashboard'));
+const NovaReclamacao = lazyLoad(() => import('./pages/atendimento/NovaReclamacao'));
+const DetalhesReclamacao = lazyLoad(() => import('./pages/atendimento/DetalhesReclamacao'));
+
 // --- Módulo de Cobrança (Novo) ---
 const CobrancaDashboard = React.lazy(() => import('./pages/cobranca/CobrancaDashboard'));
 const BoletosList = React.lazy(() => import('./pages/cobranca/BoletosList'));
@@ -228,12 +233,7 @@ const PeticionamentoForm = React.lazy(() => import('./pages/peticionamento/Petic
 const PeticionamentoDetail = React.lazy(() => import('./pages/peticionamento/PeticionamentoDetail'));
 
 // --- Módulo de Caixa de Entrada por Setor (Novo) ---
-const CaixaDenuncias = React.lazy(() => import('./pages/caixa-entrada/CaixaDenuncias'));
-const CaixaFiscalizacao = React.lazy(() => import('./pages/caixa-entrada/CaixaFiscalizacao'));
-const CaixaJuridico = React.lazy(() => import('./pages/caixa-entrada/CaixaJuridico'));
-const CaixaFinanceiro = React.lazy(() => import('./pages/caixa-entrada/CaixaFinanceiro'));
-const CaixaDiretoria = React.lazy(() => import('./pages/caixa-entrada/CaixaDiretoria'));
-const CaixaEntradaRedirect = React.lazy(() => import('./pages/caixa-entrada/CaixaEntradaRedirect'));
+const CaixaEntrada = lazyLoad(() => import('./pages/caixa-entrada/CaixaEntrada'));
 
 // --- Módulo de Configurações (Novo) ---
 const ConfiguracoesDashboard = React.lazy(() => import('./pages/configuracoes/ConfiguracoesDashboard'));
@@ -444,15 +444,15 @@ function App() {
               <Route path="peticionamento/:id/editar" element={<PeticionamentoForm />} />
 
               {/* === MÓDULO DE CAIXA DE ENTRADA POR SETOR === */}
-                            <Route path="caixa-entrada" element={<CaixaEntradaRedirect />} />
-              <Route path="caixa-entrada/:setor" element={<CaixaEntradaRedirect />} />
-              <Route path="caixa-entrada/:setor/:categoria" element={<CaixaEntradaRedirect />} />
-              <Route path="caixa-denuncias" element={<CaixaDenuncias />} />
-              <Route path="caixa-fiscalizacao" element={<CaixaFiscalizacao />} />
-              <Route path="caixa-juridico-1" element={<CaixaJuridico variant="J1" />} />
-              <Route path="caixa-juridico-2" element={<CaixaJuridico variant="J2" />} />
-              <Route path="caixa-daf" element={<CaixaFinanceiro />} />
-              <Route path="caixa-diretoria" element={<CaixaDiretoria />} />
+                            <Route path="caixa-entrada" element={<CaixaEntrada />} />
+              <Route path="caixa-entrada/:setor" element={<Navigate to="/caixa-entrada" replace />} />
+              <Route path="caixa-entrada/:setor/:categoria" element={<Navigate to="/caixa-entrada" replace />} />
+              <Route path="caixa-denuncias" element={<Navigate to="/caixa-entrada" replace />} />
+              <Route path="caixa-fiscalizacao" element={<Navigate to="/caixa-entrada" replace />} />
+              <Route path="caixa-juridico-1" element={<Navigate to="/caixa-entrada" replace />} />
+              <Route path="caixa-juridico-2" element={<Navigate to="/caixa-entrada" replace />} />
+              <Route path="caixa-daf" element={<Navigate to="/caixa-entrada" replace />} />
+              <Route path="caixa-diretoria" element={<Navigate to="/caixa-entrada" replace />} />
 
               {/* === MÓDULO DE RECURSOS === */}
               <Route path="recursos" element={<Navigate to="/recursos/dashboard" replace />} />
@@ -460,6 +460,12 @@ function App() {
               <Route path="recursos/lista" element={<RecursosList />} />
               <Route path="recursos/novo" element={<RecursoForm />} />
               <Route path="recursos/:id/editar" element={<RecursoForm />} />
+
+              {/* === MÓDULO DE ATENDIMENTO (CÓPIA DO PRO CONSUMIDOR) === */}
+              <Route path="atendimento" element={<Navigate to="/atendimento/dashboard" replace />} />
+              <Route path="atendimento/dashboard" element={<AtendimentoDashboard />} />
+              <Route path="atendimento/reclamacoes/nova" element={<NovaReclamacao />} />
+              <Route path="atendimento/reclamacoes/:id" element={<DetalhesReclamacao />} />
 
               {/* === MÓDULO DE COBRANÇA === */}
               <Route path="cobranca" element={<CobrancaPage />} />
@@ -610,4 +616,6 @@ function App() {
 }
 
 export default App;
+
+
 

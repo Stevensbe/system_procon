@@ -14,6 +14,7 @@ import { ProconCard, ProconButton } from '../../components/ui';
 import DocumentoCard from '../../components/caixa-entrada/DocumentoCard';
 import FiltrosCaixa from '../../components/caixa-entrada/FiltrosCaixa';
 import caixaEntradaService from '../../services/caixaEntradaService';
+import { normalizeSetorFiltro } from '../../utils/setor';
 import EncaminharModal from '../../components/caixa-entrada/EncaminharModal';
 
 const CaixaDenuncias = () => {
@@ -101,7 +102,15 @@ const CaixaDenuncias = () => {
         ...filtros
       });
       const listaDocumentos = Array.isArray(docs) ? docs : docs?.results ?? docs?.documentos ?? [];
-      setDocumentos(listaDocumentos);
+      const setorAlvo = normalizeSetorFiltro('FISCALIZACAO_DENUNCIAS');
+      const documentosFiltrados = listaDocumentos.filter((doc) => {
+        const destinoNormalizado = normalizeSetorFiltro(doc?.setor_destino || doc?.setor);
+        if (!setorAlvo) {
+          return !destinoNormalizado;
+        }
+        return destinoNormalizado === setorAlvo;
+      });
+      setDocumentos(documentosFiltrados);
 
     } catch (error) {
       console.error('Erro ao carregar dados:', error);

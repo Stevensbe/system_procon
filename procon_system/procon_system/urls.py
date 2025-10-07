@@ -93,6 +93,9 @@ urlpatterns = [
     path('api/cobranca/', include(('cobranca.urls', 'cobranca'), namespace='api_cobranca')),
     path('api/notificacoes/', include(('notificacoes.urls', 'notificacoes'), namespace='api_notificacoes')),
     path('api/caixa-entrada/', include(('caixa_entrada.urls', 'caixa_entrada'), namespace='api_caixa_entrada')),
+    path('api/atendimento/', include(('atendimento.urls', 'atendimento'), namespace='api_atendimento')),
+    path('atendimento/', include(('atendimento.urls', 'atendimento'), namespace='atendimento')),
+    path('monitoring/', include(('monitoring.urls', 'monitoring'), namespace='monitoring')),
     path('', include('dashboard.urls')),  # URLs do dashboard
     
     # URLs de template dos novos módulos
@@ -111,3 +114,5 @@ urlpatterns = [
     path('protocolo/', include(('protocolo.urls', 'protocolo'), namespace='protocolo')),
     path('juridico/', include(('juridico.urls', 'juridico'), namespace='juridico'))
 ]
+
+

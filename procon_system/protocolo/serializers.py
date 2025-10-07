@@ -64,7 +64,7 @@ class ProtocoloDetailSerializer(serializers.ModelSerializer):
         return TramitacaoProtocoloListSerializer(obj.tramitacoes.all(), many=True).data
     
     def get_alertas(self, obj):
-        return AlertaProtocoloListSerializer(obj.alertas.filter(ativo=True), many=True).data
+        return AlertaProtocoloListSerializer(obj.alertas.filter(lido=False), many=True).data
 
 
 class ProtocoloCreateSerializer(serializers.ModelSerializer):
@@ -116,39 +116,40 @@ class DocumentoProtocoloCreateSerializer(serializers.ModelSerializer):
 
 class TramitacaoProtocoloListSerializer(serializers.ModelSerializer):
     """Serializer para listagem de tramitações"""
-    status_anterior = StatusProtocoloSerializer(read_only=True)
-    status_novo = StatusProtocoloSerializer(read_only=True)
+    protocolo = ProtocoloListSerializer(read_only=True)
     responsavel_anterior = UserSerializer(read_only=True)
     responsavel_novo = UserSerializer(read_only=True)
     tramitado_por = UserSerializer(read_only=True)
-    
+
     class Meta:
         model = TramitacaoProtocolo
         fields = [
-            'id', 'status_anterior', 'status_novo', 'responsavel_anterior',
-            'responsavel_novo', 'observacoes', 'data_tramitacao', 'tramitado_por'
+            'id',
+            'protocolo',
+            'responsavel_anterior',
+            'responsavel_novo',
+            'observacao',
+            'tramitado_por',
+            'data_tramitacao',
         ]
 
 
 class TramitacaoProtocoloCreateSerializer(serializers.ModelSerializer):
     """Serializer para criação de tramitação"""
+
     class Meta:
         model = TramitacaoProtocolo
-        fields = ['protocolo', 'status_novo', 'responsavel_novo', 'observacoes']
-    
+        fields = ['protocolo', 'responsavel_novo', 'observacao']
+
     def create(self, validated_data):
         protocolo = validated_data['protocolo']
-        validated_data['status_anterior'] = protocolo.status
         validated_data['responsavel_anterior'] = protocolo.responsavel_atual
         validated_data['tramitado_por'] = self.context['request'].user
-        
-        # Atualizar o protocolo
-        protocolo.status = validated_data['status_novo']
-        protocolo.responsavel_atual = validated_data['responsavel_novo']
-        protocolo.save()
-        
-        return super().create(validated_data)
+        instance = super().create(validated_data)
 
+        protocolo.responsavel_atual = validated_data['responsavel_novo']
+        protocolo.save(update_fields=['responsavel_atual'])
+        return instance
 
 class AlertaProtocoloListSerializer(serializers.ModelSerializer):
     """Serializer para listagem de alertas"""
@@ -157,8 +158,8 @@ class AlertaProtocoloListSerializer(serializers.ModelSerializer):
     class Meta:
         model = AlertaProtocolo
         fields = [
-            'id', 'tipo', 'titulo', 'nivel', 'data_criacao', 'data_leitura',
-            'lido_por', 'ativo'
+            'id', 'tipo', 'titulo', 'mensagem', 'lido', 'criado_em', 'data_leitura',
+            'lido_por'
         ]
 
 
@@ -176,7 +177,7 @@ class AlertaProtocoloCreateSerializer(serializers.ModelSerializer):
     """Serializer para criação de alerta"""
     class Meta:
         model = AlertaProtocolo
-        fields = ['protocolo', 'tipo', 'titulo', 'mensagem', 'nivel']
+        fields = ['protocolo', 'tipo', 'titulo', 'mensagem']
 
 
 # Serializers para dashboard e estatísticas
@@ -229,3 +230,11 @@ class ConcluirProtocoloSerializer(serializers.Serializer):
 class MarcarAlertaLidoSerializer(serializers.Serializer):
     """Serializer para marcar alerta como lido"""
     pass
+
+
+
+
+
+
+
+

@@ -32,6 +32,79 @@ class EmpresaViewSet(viewsets.ModelViewSet):
     ordering_fields = ['razao_social', 'nome_fantasia']
 
 class MultaViewSet(viewsets.ModelViewSet):
+    def create(self, request, *args, **kwargs):
+        data = request.data.copy()
+
+        if 'processo' in data and data['processo']:
+            return super().create(request, *args, **kwargs)
+
+        numero_processo = data.pop('numero_processo', '') or data.pop('processo_numero', '')
+        empresa_nome = data.pop('empresa', '') or data.pop('empresa_nome', '') or 'Empresa não informada'
+        cnpj = data.pop('cnpj', '') or data.pop('empresa_cnpj', '') or '00.000.000/0000-00'
+        endereco = data.pop('endereco', '') or 'Endereço não informado'
+        telefone = data.pop('telefone', '')
+        valor_informado = data.get('valor') or data.get('valor_multa') or data.pop('valor_multa', None) or data.pop('valor', None)
+        valor_decimal = Decimal(str(valor_informado)) if valor_informado not in (None, '',) else Decimal('0')
+        status_param = data.get('status') or 'pendente'
+        motivo = data.pop('motivo', '') or 'Multa registrada via API'
+
+        empresa, _ = Empresa.objects.get_or_create(
+            cnpj=cnpj,
+            defaults={
+                'razao_social': empresa_nome,
+                'nome_fantasia': empresa_nome,
+                'endereco': endereco,
+                'telefone': telefone,
+            }
+        )
+
+        if not empresa.endereco:
+            empresa.endereco = endereco
+            if telefone and not empresa.telefone:
+                empresa.telefone = telefone
+            empresa.save(update_fields=['endereco', 'telefone'])
+
+        try:
+            data_fiscalizacao = datetime.fromisoformat(data.pop('data_fiscalizacao', '')).date()
+        except (TypeError, ValueError):
+            data_fiscalizacao = timezone.now().date()
+
+        numero = numero_processo
+        if numero and AutoInfracao.objects.filter(numero=numero).exists():
+            numero = ''
+
+        auto = AutoInfracao.objects.create(
+            numero=numero,
+            data_fiscalizacao=data_fiscalizacao,
+            hora_fiscalizacao=timezone.now().time(),
+            razao_social=empresa_nome,
+            nome_fantasia=empresa_nome,
+            endereco=endereco,
+            cnpj=cnpj,
+            relatorio=motivo,
+            base_legal_cdc='Art. 55 do CDC',
+            valor_multa=valor_decimal,
+            responsavel_nome=data.pop('responsavel', 'Responsável automático'),
+            responsavel_cpf=data.pop('responsavel_cpf', '000.000.000-00'),
+            fiscal_nome=data.pop('fiscal', 'Fiscal API'),
+            status='autuado',
+        )
+
+        data['processo'] = auto.pk
+        data['empresa'] = empresa.pk
+        data['valor'] = str(valor_decimal)
+        if 'status' in data:
+            status_param = data['status']
+        if status_param not in dict(Multa.STATUS_CHOICES):
+            data['status'] = 'pendente'
+        if 'data_vencimento' not in data:
+            data['data_vencimento'] = None
+
+        serializer = self.get_serializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
     queryset = Multa.objects.select_related('processo', 'empresa').all()
     serializer_class = MultaSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -257,3 +330,7 @@ class ConfigSistemaViewSet(viewsets.ModelViewSet):
     serializer_class = ConfigSistemaSerializer
     filter_backends = [filters.SearchFilter]
     search_fields = ['chave']
+
+
+
+

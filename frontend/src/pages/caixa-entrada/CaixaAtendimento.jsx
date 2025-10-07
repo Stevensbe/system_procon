@@ -15,6 +15,7 @@ import { ProconCard, ProconButton, ProconInput, ProconSelect } from '../../compo
 import DocumentoCard from '../../components/caixa-entrada/DocumentoCard';
 import FiltrosCaixa from '../../components/caixa-entrada/FiltrosCaixa';
 import caixaEntradaService from '../../services/caixaEntradaService';
+import { normalizeSetorFiltro } from '../../utils/setor';
 
 const CaixaAtendimento = () => {
   const [documentos, setDocumentos] = useState([]);
@@ -101,7 +102,16 @@ const CaixaAtendimento = () => {
         setor: 'ATENDIMENTO',
         ...filtros
       });
-      setDocumentos(docs.results || docs);
+      const lista = Array.isArray(docs) ? docs : docs?.results ?? docs?.documentos ?? [];
+      const setorAlvo = normalizeSetorFiltro('ATENDIMENTO');
+      const filtrados = lista.filter((doc) => {
+        const destinoNormalizado = normalizeSetorFiltro(doc?.setor_destino || doc?.setor);
+        if (!setorAlvo) {
+          return !destinoNormalizado;
+        }
+        return destinoNormalizado === setorAlvo;
+      });
+      setDocumentos(filtrados);
 
     } catch (error) {
       console.error('Erro ao carregar dados:', error);

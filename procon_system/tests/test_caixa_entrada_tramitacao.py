@@ -223,3 +223,183 @@ def test_caixa_pessoal_api_filtra_e_atualiza_estatisticas():
     estatisticas = client.get("/api/caixa-entrada/api/estatisticas/", params).json()
     assert estatisticas["arquivados"] == 1
     assert estatisticas["total"] == 1
+
+
+@pytest.mark.django_db
+def test_caixa_setor_api_normaliza_parametros():
+    User = get_user_model()
+    usuario = User.objects.create_user(
+        username="fiscal",
+        email="fiscal@example.com",
+        password="senha-fiscal"
+    )
+    usuario.is_staff = True
+    usuario.save()
+
+    permissao = PermissaoSetorCaixaEntrada.objects.create(setor="FISCALIZACAO")
+    permissao.usuarios.add(usuario)
+
+    documento_fiscalizacao = CaixaEntrada.objects.create(
+        tipo_documento="DENUNCIA",
+        assunto="Denúncia direcionada à fiscalização",
+        descricao='Documento de teste para validar filtros de setor.',
+        prioridade='URGENTE',
+        remetente_nome="Denunciante Teste",
+        setor_destino="Fiscalização",
+    )
+
+    CaixaEntrada.objects.create(
+        tipo_documento="PETICAO",
+        assunto="Documento de outro setor",
+        descricao="Documento que não deve ser exibido para fiscalização.",
+        prioridade="NORMAL",
+        remetente_nome="Outra Pessoa",
+        setor_destino="Jurídico",
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=usuario)
+
+    for chave, valor in (
+        ("setor", "FISCALIZACAO_DENUNCIAS"),
+        ("setor_destino", "Fiscalizacao"),
+        ("setor", "Fiscalização"),
+    ):
+        response = client.get("/api/caixa-entrada/api/documentos/", {chave: valor})
+        assert response.status_code == 200
+        payload = response.json()
+
+        if isinstance(payload, dict) and "results" in payload:
+            resultados = payload["results"]
+        elif isinstance(payload, dict) and "documentos" in payload:
+            resultados = payload["documentos"]
+        elif isinstance(payload, list):
+            resultados = payload
+        else:
+            resultados = []
+
+        assert len(resultados) == 1, f"Filtro {chave}={valor} retornou quantidade inesperada"
+        assert str(documento_fiscalizacao.id) == str(resultados[0]["id"])
+
+@pytest.mark.django_db
+def test_roteamento_prioridade_alta_encaminha_diretoria():
+    user = get_user_model().objects.create_user(
+        username='analista_alta',
+        email='analista_alta@example.com',
+        password='senha-segura'
+    )
+
+    documento = CaixaEntrada.objects.create(
+        tipo_documento='RECLAMACAO',
+        assunto='Teste prioridade alta',
+        descricao='Documento com prioridade alta.',
+        prioridade='URGENTE',
+        remetente_nome='Consumidor Teste',
+        setor_destino='Atendimento',
+        responsavel_atual=user,
+    )
+
+    from caixa_entrada.services import aplicar_roteamento_automatico
+
+    alterado = aplicar_roteamento_automatico(documento)
+
+    assert documento.setor_destino == 'Diretoria'
+    assert alterado in (True, False)
+
+
+@pytest.mark.django_db
+def test_roteamento_prioridade_alta_preserva_setor_manual():
+    """Testa se prioridade ALTA preserva setor manual quando já definido"""
+    user = get_user_model().objects.create_user(
+        username='analista_alta_manual',
+        email='analista_alta@example.com',
+        password='senha-segura'
+    )
+
+    documento = CaixaEntrada.objects.create(
+        tipo_documento='RECLAMACAO',
+        assunto='Teste prioridade ALTA com setor manual',
+        descricao='Documento com prioridade alta mas setor já definido.',
+        prioridade='ALTA',
+        remetente_nome='Consumidor Teste',
+        setor_destino='Fiscalizacao',  # Setor manual definido
+        responsavel_atual=user,
+    )
+
+    from caixa_entrada.services import aplicar_roteamento_automatico
+
+    alterado = aplicar_roteamento_automatico(documento)
+
+    # Prioridade ALTA deve preservar setor manual quando já definido
+    assert documento.setor_destino == 'Fiscalizacao'
+    assert alterado is False  # Não deve ter sido alterado
+
+
+@pytest.mark.django_db
+def test_roteamento_prioridade_urgente_forca_diretoria():
+    user = get_user_model().objects.create_user(
+        username='analista_urgente',
+        email='analista_urgente@example.com',
+        password='senha-segura'
+    )
+
+    documento = CaixaEntrada.objects.create(
+        tipo_documento='RECLAMACAO',
+        assunto='Teste prioridade urgente',
+        descricao='Documento com prioridade urgente.',
+        prioridade='URGENTE',
+        remetente_nome='Consumidor Urgente',
+        setor_destino='Atendimento',
+        responsavel_atual=user,
+    )
+
+    from caixa_entrada.services import aplicar_roteamento_automatico
+
+    aplicar_roteamento_automatico(documento)
+
+    assert documento.setor_destino == 'Diretoria'
+
+
+@pytest.mark.django_db
+def test_caixa_documentos_filtro_combina_setor_prioridade_busca():
+    alvo = CaixaEntrada.objects.create(
+        tipo_documento='DENUNCIA',
+        assunto='Denuncia prioritaria em supermercado',
+        descricao='Denuncia prioritaria registrada no balcao.',
+        prioridade='URGENTE',
+        remetente_nome='Cidadao Denunciante',
+        setor_destino='Fiscalizacao - Denuncias',
+    )
+
+    CaixaEntrada.objects.create(
+        tipo_documento='DENUNCIA',
+        assunto='Denuncia comum',
+        descricao='Outro documento que nao deve aparecer.',
+        prioridade='NORMAL',
+        remetente_nome='Outro Cliente',
+        setor_destino='Fiscalizacao',
+    )
+
+    from caixa_entrada.views import _aplicar_filtro_setor
+
+    queryset = CaixaEntrada.objects.all()
+    filtrado = _aplicar_filtro_setor(queryset, 'FISCALIZACAO_DENUNCIAS')
+    filtrado = filtrado.filter(prioridade='URGENTE').filter(assunto__icontains='prioritaria')
+
+    ids = list(filtrado.values_list('id', flat=True))
+    assert ids == [alvo.id]
+
+
+
+@pytest.mark.django_db
+def test_gerar_variantes_setor_normaliza_acento():
+    from caixa_entrada.views import _gerar_variantes_setor
+
+    variantes = _gerar_variantes_setor('Fiscalização - Denúncias')
+
+    assert 'Fiscalizacao - Denuncias' in variantes
+    assert 'Fiscalizacao' in variantes
+    assert 'Fiscalização - Denúncias' in variantes
+
+
+

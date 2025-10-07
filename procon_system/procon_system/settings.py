@@ -68,6 +68,29 @@ INSTALLED_APPS = [
     'analise_juridica',
     'portal_cidadao.apps.PortalCidadaoConfig',
     'recursos_defesas',
+    'atendimento',
+    
+    # Sistema de monitoramento e observabilidade
+    'monitoring',
+    
+    # Fase 4 - Fluxo Completo do Atendimento
+    'cip_automatica',
+    'audiencia_calendario',
+    'resposta_empresa',
+    'fluxo_atendimento',
+    
+    # Fase 5 - Portal Externo & Integradores
+    'portal_consumidor',
+    'portal_empresa',
+    'apis_externas',
+    'exportacoes',
+    
+    # Fase 6 - Business Intelligence & Relatórios Avançados
+    'business_intelligence',
+    'predictive_analytics',
+    'government_integration',
+    'geospatial_analytics',
+    'automated_intelligence',
     
     # Novos módulos implementados
     'empresas',
@@ -180,6 +203,24 @@ USE_I18N = True
 USE_TZ = True
 
 # ===================================================================
+
+# ================================================================
+# INTEGRAÇÕES EXTERNAS
+# ================================================================
+
+# Configuração da API de consulta à Receita Federal (CNPJ)
+RECEITA_FEDERAL_CNPJ_URL = os.environ.get(
+    'RECEITA_FEDERAL_CNPJ_URL',
+    'https://receitaws.com.br/v1/cnpj/{cnpj}'
+)
+
+try:
+    RECEITA_FEDERAL_TIMEOUT = float(os.environ.get('RECEITA_FEDERAL_TIMEOUT', '10'))
+except ValueError:
+    RECEITA_FEDERAL_TIMEOUT = 10.0
+
+RECEITA_FEDERAL_API_KEY = os.environ.get('RECEITA_FEDERAL_API_KEY', '').strip() or None
+
 # CORS - CONFIGURAÇÃO SEGURA
 # ===================================================================
 

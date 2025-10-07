@@ -17,6 +17,8 @@ from rest_framework.pagination import PageNumberPagination
 from django_filters.rest_framework import DjangoFilterBackend
 from datetime import datetime, timedelta
 import json
+import re
+import unicodedata
 from .models import (
     CaixaEntrada, AnexoCaixaEntrada, HistoricoCaixaEntrada, ConfiguracaoCaixaEntrada,
     PermissaoSetorCaixaEntrada, AcessoEspecialCaixaEntrada
@@ -28,6 +30,85 @@ from .serializers import (
 from .mixins import AdminPermissionMixin
 from .services import sincronizar_protocolo_caixa
 from .constants import DESPACHO_PREDEFINIDOS
+
+
+SETOR_EQUIVALENCIAS = {
+    'FISCALIZACAO': {'Fiscalização'},
+    'FISCALIZACAO_DENUNCIAS': {'Fiscalização', 'Fiscalização - Denúncias'},
+    'FISCALIZACAO_PROPRIO': {'Fiscalização', 'Fiscalização - Setor Próprio'},
+    'ATENDIMENTO': {'Atendimento', 'Atendimento/Protocolo', 'Protocolo'},
+    'PROTOCOLO': {'Atendimento', 'Atendimento/Protocolo', 'Protocolo'},
+    'JURIDICO': {'Jurídico'},
+    'JURIDICO_1': {'Jurídico', 'Jurídico 1'},
+    'JURIDICO_2': {'Jurídico', 'Jurídico 2'},
+    'DAF': {'Diretoria Administrativa Financeira', 'Diretoria/Administração', 'Diretoria'},
+    'DIRETORIA': {'Diretoria/Administração', 'Diretoria'},
+    'FINANCEIRO': {'Financeiro'},
+    'COBRANCA': {'Cobrança'},
+    'ADMINISTRATIVO': {'Administrativo'},
+    'GERAL': {'Geral', 'Acesso Geral'},
+}
+
+
+def _remover_acentos(texto: str) -> str:
+    if not texto:
+        return ''
+    return unicodedata.normalize('NFKD', texto).encode('ascii', 'ignore').decode('ascii')
+
+
+def _normalizar_codigo_setor(valor: str) -> str:
+    if not valor:
+        return ''
+    ascii_valor = _remover_acentos(str(valor))
+    codigo = re.sub(r'[^A-Z0-9]+', '_', ascii_valor.upper()).strip('_')
+    # Padronizar códigos específicos
+    codigo = codigo.replace('DENUMCIAS', 'DENUNCIAS').replace('JURICO', 'JURIDICO')
+    return codigo
+
+
+def _gerar_variantes_setor(valor) -> set:
+    variantes = set()
+    if not valor:
+        return variantes
+
+    texto = str(valor).strip()
+    if not texto:
+        return variantes
+
+    variantes.add(texto)
+
+    ascii_texto = _remover_acentos(texto)
+    if ascii_texto:
+        variantes.add(ascii_texto)
+
+    codigo = _normalizar_codigo_setor(texto)
+    if codigo and codigo in SETOR_EQUIVALENCIAS:
+        for equivalente in SETOR_EQUIVALENCIAS[codigo]:
+            if equivalente:
+                variantes.add(equivalente)
+                ascii_equivalente = _remover_acentos(equivalente)
+                if ascii_equivalente:
+                    variantes.add(ascii_equivalente)
+
+    return {valor for valor in variantes if valor}
+
+
+def _aplicar_filtro_setor(queryset, valores):
+    if not valores:
+        return queryset
+
+    if isinstance(valores, str):
+        valores = [valores]
+
+    filtro_setor = Q()
+    for valor in valores:
+        for variante in _gerar_variantes_setor(valor):
+            filtro_setor |= Q(setor_destino__iexact=variante)
+
+    if not filtro_setor:
+        return queryset.none()
+
+    return queryset.filter(filtro_setor)
 
 
 def filtrar_documentos_por_usuario(queryset, request, apenas_pessoal=False):
@@ -46,8 +127,10 @@ def filtrar_documentos_por_usuario(queryset, request, apenas_pessoal=False):
     if grupos:
         setor_q = Q()
         for nome in grupos:
-            if nome:
-                setor_q |= Q(setor_destino__iexact=nome) | Q(setor_destino__icontains=nome)
+            if not nome:
+                continue
+            for variante in _gerar_variantes_setor(nome):
+                setor_q |= Q(setor_destino__iexact=variante)
         filtros_usuario |= setor_q
 
     permissoes = PermissaoSetorCaixaEntrada.objects.filter(
@@ -60,15 +143,21 @@ def filtrar_documentos_por_usuario(queryset, request, apenas_pessoal=False):
 
     setores_permitidos = set()
     for permissao in permissoes:
-        if permissao.setor:
-            setores_permitidos.add(permissao.setor)
+        for variante in _gerar_variantes_setor(permissao.setor):
+            setores_permitidos.add(variante)
+        for variante in _gerar_variantes_setor(permissao.get_setor_display()):
+            setores_permitidos.add(variante)
         for adicional in permissao.setores_permitidos or []:
-            setores_permitidos.add(adicional)
+            for variante in _gerar_variantes_setor(adicional):
+                setores_permitidos.add(variante)
         for tipo in permissao.tipos_documento_permitidos or []:
             filtros_usuario |= Q(tipo_documento=tipo)
 
     if setores_permitidos:
-        filtros_usuario |= Q(setor_destino__in=setores_permitidos)
+        setor_q = Q()
+        for variante in setores_permitidos:
+            setor_q |= Q(setor_destino__iexact=variante)
+        filtros_usuario |= setor_q
 
     acessos_especiais = AcessoEspecialCaixaEntrada.objects.filter(
         usuario=usuario,
@@ -153,7 +242,7 @@ def caixa_entrada_view(request):
     if prioridade_filter:
         documentos = documentos.filter(prioridade=prioridade_filter)
     if setor_filter:
-        documentos = documentos.filter(setor_destino__icontains=setor_filter)
+        documentos = _aplicar_filtro_setor(documentos, setor_filter)
     if busca:
         documentos = documentos.filter(
             Q(assunto__icontains=busca) |
@@ -310,13 +399,16 @@ def caixa_setor_view(request):
             break
         
         # Documentos do próprio setor
-        setor_display = permissao.get_setor_display()
-        documentos_setor = CaixaEntrada.objects.filter(setor_destino=setor_display)
-        
+        setores_base = set()
+        setores_base.update(_gerar_variantes_setor(permissao.setor))
+        setores_base.update(_gerar_variantes_setor(permissao.get_setor_display()))
+        documentos_setor = _aplicar_filtro_setor(CaixaEntrada.objects.all(), list(setores_base))
+
         # Documentos de setores permitidos
         for setor_permitido in permissao.setores_permitidos:
-            documentos_setor = documentos_setor | CaixaEntrada.objects.filter(
-                setor_destino=setor_permitido
+            documentos_setor = documentos_setor | _aplicar_filtro_setor(
+                CaixaEntrada.objects.all(),
+                list(_gerar_variantes_setor(setor_permitido))
             )
         
         # Documentos por tipo permitido
@@ -338,7 +430,7 @@ def caixa_setor_view(request):
     if prioridade_filter:
         documentos = documentos.filter(prioridade=prioridade_filter)
     if setor_filter:
-        documentos = documentos.filter(setor_destino__icontains=setor_filter)
+        documentos = _aplicar_filtro_setor(documentos, setor_filter)
     if busca:
         documentos = documentos.filter(
             Q(assunto__icontains=busca) |
@@ -652,7 +744,7 @@ class CaixaEntradaViewSet(viewsets.ModelViewSet):
     serializer_class = CaixaEntradaSerializer
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['status', 'tipo_documento', 'prioridade', 'setor_destino', 'responsavel_atual', 'notificado_dte']
+    filterset_fields = ['status', 'tipo_documento', 'prioridade', 'responsavel_atual', 'notificado_dte']
     search_fields = ['assunto', 'remetente_nome', 'numero_protocolo', 'empresa_nome']
     ordering_fields = ['data_entrada', 'prazo_resposta', 'prioridade']
     ordering = ['-data_entrada']
@@ -665,6 +757,15 @@ class CaixaEntradaViewSet(viewsets.ModelViewSet):
         queryset = super().get_queryset()
         apenas_pessoal = (self.request.query_params.get('apenas_pessoal') or '').lower() in {'1', 'true', 't', 'yes'}
         queryset = filtrar_documentos_por_usuario(queryset, self.request, apenas_pessoal=apenas_pessoal)
+
+        setores_param = list(self.request.query_params.getlist('setor_destino') or [])
+        setores_extra = self.request.query_params.getlist('setor')
+        if setores_extra:
+            for setor_valor in setores_extra:
+                if setor_valor not in setores_param:
+                    setores_param.append(setor_valor)
+        if setores_param:
+            queryset = _aplicar_filtro_setor(queryset, setores_param)
 
         destinatario_param = (self.request.query_params.get('destinatario_direto') or '').strip()
         if destinatario_param:
@@ -1157,8 +1258,12 @@ class EstatisticasAPIView(APIView):
             documentos = CaixaEntrada.objects.all()
             documentos = filtrar_documentos_por_usuario(documentos, request, apenas_pessoal)
 
+            setores_param = []
             if setor:
-                documentos = documentos.filter(setor_destino__icontains=setor)
+                setores_param.append(setor)
+            setores_param.extend(request.GET.getlist('setor_destino'))
+            if setores_param:
+                documentos = _aplicar_filtro_setor(documentos, setores_param)
             if tipo_documento:
                 documentos = documentos.filter(tipo_documento=tipo_documento)
             if status_param:

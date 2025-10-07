@@ -414,7 +414,7 @@ class TramitacaoProtocoloViewSet(viewsets.ModelViewSet):
     queryset = TramitacaoProtocolo.objects.all()
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['protocolo', 'status_novo', 'tramitado_por']
+    filterset_fields = ['protocolo', 'responsavel_novo', 'tramitado_por']
     search_fields = ['observacoes']
     ordering_fields = ['data_tramitacao']
     ordering = ['-data_tramitacao']
@@ -440,7 +440,7 @@ class AlertaProtocoloViewSet(viewsets.ModelViewSet):
     queryset = AlertaProtocolo.objects.all()
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['protocolo', 'tipo', 'nivel', 'ativo']
+    filterset_fields = ['protocolo', 'tipo', 'lido']
     search_fields = ['titulo', 'mensagem']
     ordering_fields = ['data_criacao', 'data_leitura']
     ordering = ['-data_criacao']
@@ -502,3 +502,5 @@ class DashboardProtocoloAPIView(APIView):
         
         serializer = DashboardProtocoloSerializer(data)
         return Response(serializer.data)
+
+

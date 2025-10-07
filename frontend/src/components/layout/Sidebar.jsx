@@ -12,16 +12,12 @@ const menuItems = [
   { path: '/processos', name: 'Processos', icon: '📋', type: 'main' },
   { path: '/multas', name: 'Multas', icon: '💰', type: 'main' },
   { path: '/financeiro', name: 'Financeiro', icon: '💰', type: 'main' },
+  { path: '/atendimento', name: 'Atendimento', icon: '👥', type: 'main' },
   { path: '/usuarios', name: 'Usuários', icon: '👥', type: 'main' },
   { path: '/relatorios', name: 'Relatórios', icon: '📊', type: 'main' },
   { path: '/configuracoes', name: 'Configurações', icon: '⚙️', type: 'main' },
   
-  // Caixas de entrada setoriais
-  { path: '/caixa-denuncias', name: 'Caixa Denuncias', icon: '[DEN]', type: 'caixas', description: 'Denuncias direcionadas para Fiscalizacao' },
-  { path: '/caixa-fiscalizacao', name: 'Caixa Fiscalizacao', icon: '[FIS]', type: 'caixas', description: 'Documentos internos do setor de Fiscalizacao' },
-  { path: '/caixa-juridico-1', name: 'Caixa Juridico 1', icon: '[J1]', type: 'caixas', description: 'Peticoes e analises da primeira instancia juridica' },
-  { path: '/caixa-juridico-2', name: 'Caixa Juridico 2', icon: '[J2]', type: 'caixas', description: 'Recursos e segunda instancia juridica' },
-  { path: '/caixa-daf', name: 'Caixa DAF', icon: '[DAF]', type: 'caixas', description: 'Demandas da diretoria administrativa financeira' },
+  // Caixas de entrada setoriais\n  { path: '/caixa-entrada', name: 'Caixa Integrada', icon: '[ALL]', type: 'caixas', description: 'Visão unificada da caixa pessoal e do setor' },\n
   
   // Itens do tipo 'juridico'
   { path: '/juridico/analises', name: 'Análises Jurídicas', icon: '📋', type: 'juridico' },
@@ -37,6 +33,11 @@ const menuItems = [
   // Itens do tipo 'financeiro'
   { path: '/cobranca', name: 'Cobrança', icon: '💳', type: 'financeiro' },
   { path: '/recursos', name: 'Recursos', icon: '📁', type: 'financeiro' },
+  
+  // Itens do tipo 'atendimento'
+  { path: '/atendimento/dashboard', name: 'Dashboard Atendimento', icon: '📊', type: 'atendimento' },
+  { path: '/atendimento/reclamacoes/nova', name: 'Nova Reclamação', icon: '➕', type: 'atendimento' },
+  { path: '/atendimento/reclamacoes', name: 'Lista de Reclamações', icon: '📋', type: 'atendimento' },
   
   // Itens do tipo 'protocolo'
   { path: '/protocolo/lista', name: 'Lista de Protocolos', icon: '📋', type: 'protocolo' },
@@ -327,4 +328,5 @@ function Sidebar() {
 }
 
 export default Sidebar;
+
 

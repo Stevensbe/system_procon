@@ -30,28 +30,29 @@ class UserSerializer(serializers.ModelSerializer):
 
 class AnexoPeticaoSerializer(serializers.ModelSerializer):
     """Serializer para AnexoPeticao"""
-    
-    uploaded_por = UserSerializer(read_only=True)
+
+    enviado_por = UserSerializer(read_only=True)
     tamanho_formatado = serializers.ReadOnlyField()
     
     class Meta:
         model = AnexoPeticao
         fields = [
-            'id', 'peticao', 'arquivo', 'nome_arquivo', 'tipo_anexo',
-            'tamanho_bytes', 'tamanho_formatado', 'uploaded_por', 'uploaded_em'
+            'id', 'peticao', 'arquivo', 'tipo', 'titulo', 'descricao',
+            'nome_original', 'tamanho_bytes', 'extensao', 'tamanho_formatado',
+            'enviado_por', 'data_upload'
         ]
-        read_only_fields = ['uploaded_por', 'uploaded_em', 'tamanho_bytes', 'tipo_anexo']
+        read_only_fields = ['enviado_por', 'data_upload', 'tamanho_bytes', 'nome_original', 'extensao']
 
 
 class AnexoPeticaoCreateSerializer(serializers.ModelSerializer):
     """Serializer para criação de anexos"""
-    
+
     class Meta:
         model = AnexoPeticao
-        fields = ['peticao', 'arquivo', 'tipo_anexo', 'descricao']
+        fields = ['peticao', 'arquivo', 'tipo', 'titulo', 'descricao']
     
     def create(self, validated_data):
-        validated_data['uploaded_por'] = self.context['request'].user
+        validated_data['enviado_por'] = self.context['request'].user
         return super().create(validated_data)
 
 
@@ -66,7 +67,7 @@ class InteracaoPeticaoSerializer(serializers.ModelSerializer):
             'id', 'peticao', 'tipo_interacao', 'titulo', 'descricao',
             'observacoes', 'status_anterior', 'status_novo', 'usuario',
             'nome_usuario', 'ip_origem', 'user_agent', 'arquivo_anexo',
-            'data_interacao', 'visivel_peticionario'
+            'data_interacao'
         ]
         read_only_fields = ['usuario', 'data_interacao']
 
@@ -78,8 +79,7 @@ class InteracaoPeticaoCreateSerializer(serializers.ModelSerializer):
         model = InteracaoPeticao
         fields = [
             'peticao', 'tipo_interacao', 'titulo', 'descricao',
-            'observacoes', 'status_anterior', 'status_novo', 'arquivo_anexo',
-            'visivel_peticionario'
+            'observacoes', 'status_anterior', 'status_novo', 'arquivo_anexo'
         ]
     
     def create(self, validated_data):
@@ -139,7 +139,7 @@ class PeticaoEletronicaListSerializer(serializers.ModelSerializer):
             'tipo_peticao', 'origem', 'assunto', 'status', 'prioridade',
             'peticionario_nome', 'peticionario_documento', 'peticionario_email',
             'empresa_nome', 'empresa_cnpj', 'valor_causa', 'data_fato',
-            'data_envio', 'data_recebimento', 'prazo_resposta', 'data_resposta',
+            'data_envio', 'prazo_resposta',
             'usuario_criacao', 'responsavel_atual', 'anonima', 'confidencial',
             'criado_em', 'atualizado_em', 'esta_no_prazo', 'dias_para_vencimento',
             'tempo_tramitacao'
@@ -170,7 +170,7 @@ class PeticaoEletronicaCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = PeticaoEletronica
         fields = [
-            'tipo_peticao', 'origem', 'assunto', 'descricao', 'observacoes',
+            'tipo_peticao', 'origem', 'assunto', 'descricao',
             'prioridade', 'peticionario_nome', 'peticionario_documento',
             'peticionario_email', 'peticionario_telefone', 'peticionario_endereco',
             'peticionario_cep', 'peticionario_cidade', 'peticionario_uf',
@@ -288,3 +288,11 @@ class ConfiguracaoPeticionamentoSerializer(serializers.ModelSerializer):
     class Meta:
         model = ConfiguracaoPeticionamento
         fields = '__all__'
+
+
+
+
+
+
+
+

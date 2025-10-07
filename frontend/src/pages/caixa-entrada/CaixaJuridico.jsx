@@ -16,6 +16,7 @@ import { ProconCard, ProconButton, ProconInput, ProconSelect } from '../../compo
 import DocumentoCard from '../../components/caixa-entrada/DocumentoCard';
 import FiltrosCaixa from '../../components/caixa-entrada/FiltrosCaixa';
 import caixaEntradaService from '../../services/caixaEntradaService';
+import { normalizeSetorFiltro } from '../../utils/setor';
 
 const VARIANTES_JURIDICO = {
   J1: {
@@ -128,7 +129,15 @@ const CaixaJuridico = ({ variant = 'J1' }) => {
       }
       const docs = await caixaEntradaService.getDocumentosSetor(filtrosDocumentos);
       const lista = Array.isArray(docs) ? docs : docs?.results ?? docs?.documentos ?? [];
-      setDocumentos(lista);
+      const setorAlvo = normalizeSetorFiltro(config.setor);
+      const filtrada = lista.filter((doc) => {
+        const destinoNormalizado = normalizeSetorFiltro(doc?.setor_destino || doc?.setor);
+        if (!setorAlvo) {
+          return !destinoNormalizado;
+        }
+        return destinoNormalizado === setorAlvo;
+      });
+      setDocumentos(filtrada);
 
     } catch (error) {
       console.error('Erro ao carregar dados:', error);

@@ -1,4 +1,5 @@
 import api from './api';
+import { normalizeSetorFiltro } from '../utils/setor';
 
 const normalizeParams = (params = {}) => {
   const normalizados = {};
@@ -12,7 +13,19 @@ const normalizeParams = (params = {}) => {
     }
 
     if (chave === 'setor') {
-      normalizados['setor_destino'] = valor;
+      const setorNormalizado = normalizeSetorFiltro(valor);
+      if (setorNormalizado) {
+        normalizados.setor = setorNormalizado;
+        normalizados.setor_destino = setorNormalizado;
+      }
+      return;
+    }
+
+    if (chave === 'setor_destino') {
+      const setorNormalizado = normalizeSetorFiltro(valor);
+      if (setorNormalizado) {
+        normalizados.setor_destino = setorNormalizado;
+      }
       return;
     }
 
@@ -147,7 +160,9 @@ class CaixaEntradaService {
   // Buscar anexos do documento
   async getAnexosDocumento(documentoId) {
     try {
-      const response = await api.get(`/caixa-entrada/documento/${documentoId}/anexos`);
+      const response = await api.get('/caixa-entrada/api/anexos/', {
+        params: { documento: documentoId }
+      });
       return response.data;
     } catch (error) {
       console.error('Erro ao buscar anexos do documento:', error);
@@ -158,9 +173,7 @@ class CaixaEntradaService {
   // Fazer download de anexo
   async downloadAnexo(anexoId) {
     try {
-      const response = await api.get(`/caixa-entrada/anexo/${anexoId}/download`, {
-        responseType: 'blob'
-      });
+      const response = await api.get(`/caixa-entrada/api/anexos/${anexoId}/`);
       return response.data;
     } catch (error) {
       console.error('Erro ao fazer download do anexo:', error);
@@ -273,4 +286,5 @@ class CaixaEntradaService {
   }
 }
 
+export { normalizeSetorFiltro };
 export default new CaixaEntradaService();

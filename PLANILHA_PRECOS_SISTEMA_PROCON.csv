@@ -1,0 +1,11 @@
+Categoria,Item,Descricao,Quantidade,Valor Unitario (R$),Subtotal (R$)
+Desenvolvimento Backend,Sprints Backend,Implementacao APIs DRF e modelos,8,35000,280000
+Desenvolvimento Frontend,Sprints Frontend,Interfaces React 19 + Tailwind,8,30000,240000
+Tech Lead / Arquitetura,Lideranca Tecnica,Arquitetura, revisao e coordenacao,5,32000,160000
+DevOps / Infraestrutura,CI/CD e Cloud,Pipeline Docker Nginx monitoramento,5,24000,120000
+QA e Testes Automatizados,Automacao de Testes,Pytest/Playwright cobertura e performance,5,18000,90000
+Seguranca e Compliance,Hardening e LGPD,Auditoria rate limit revisao JWT/CORS,5,12000,60000
+Documentacao e Treinamento,Docs e Capacitacao,Guias handover e treinamentos,5,7000,35000
+Suporte/Manutencao inicial,Suporte Pos-Go-live,Correcoes e estabilizacao inicial,1,15580,15580
+Licencas/Servicos (setup),Gratuito/OSS,Stack baseada em software livre,1,0,0
+TOTAL,,,,,1000580
