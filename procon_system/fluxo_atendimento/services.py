@@ -4,6 +4,7 @@ Sistema Procon - Fase 4 - Integração de todos os módulos
 """
 
 import json
+from decimal import Decimal
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any, Tuple
 from django.utils import timezone
@@ -11,7 +12,7 @@ from django.db import transaction
 from django.core.mail import send_mail
 from django.conf import settings
 
-from cip_automatica.models import CIPAutomatica, RespostaEmpresa
+from cip_automatica.models import CIPAutomatica, RespostaEmpresa, TipoCIP
 from audiencia_calendario.models import AgendamentoAudiencia, Mediador
 from caixa_entrada.models import CaixaEntrada
 from portal_cidadao.models import ReclamacaoDenuncia
@@ -20,27 +21,110 @@ from logging_config import logger_manager, LoggedOperation, log_execution_time
 
 class FluxoAtendimentoCompletoService:
     """Serviço integrador para fluxo completo de atendimento"""
+
+    CAMPOS_RECLAMACAO = {
+        'consumidor_nome', 'consumidor_cpf', 'consumidor_email', 'consumidor_telefone',
+        'consumidor_endereco', 'consumidor_cidade', 'consumidor_uf', 'consumidor_cep',
+        'empresa_razao_social', 'empresa_cnpj', 'empresa_endereco', 'empresa_cidade',
+        'empresa_email', 'empresa_telefone', 'descricao_fatos', 'tipo_reclamacao',
+        'modalidade', 'valor_prejuizo',
+    }
+    CAMPOS_AUDIENCIA = {
+        'solicita_audiencia', 'data_audiencia_desejada', 'duracao_audiencia',
+        'modalidade_audiencia', 'mediador_preferencial', 'participantes_consumidor',
+        'participantes_empresa',
+    }
+    PARTICIPANTE_KEYS = {'nome', 'email', 'telefone', 'documento', 'papel', 'representante'}
     
     def __init__(self):
         self.logger = logger_manager.get_logger('fluxo_atendimento_completo')
         
         # Importar serviços dos outros módulos
         from cip_automatica.services import cip_generation, cip_dispatch, cip_tracking
-        from audiencia_calendario.services import calendar_service, reagendamento_service
+        from audiencia_calendario.services import calendario_service, reagendamento_service
         from resposta_empresa.services import analise_service, relatorio_resposta_service
         
         self.cip_service = cip_generation
         self.cip_dispatch = cip_dispatch
         self.cip_tracking = cip_tracking
-        self.calendario_service = calendar_service
+        self.calendario_service = calendario_service
         self.reagendamento_service = reagendamento_service
         self.analise_service = analise_service
         self.relatorio_service = relatorio_resposta_service
+
+    def _sanitizar_dados_atendimento(self, dados_brutos: Dict[str, Any]) -> Dict[str, Any]:
+        """Remove campos desconhecidos e aplica defaults conhecidos."""
+        dados_sanitizados: Dict[str, Any] = {}
+
+        for campo in self.CAMPOS_RECLAMACAO:
+            if campo in dados_brutos:
+                dados_sanitizados[campo] = dados_brutos[campo]
+
+        # Campos específicos para audiências
+        for campo in self.CAMPOS_AUDIENCIA:
+            if campo in dados_brutos:
+                dados_sanitizados[campo] = dados_brutos[campo]
+
+        # Garantir coleções válidas
+        dados_sanitizados['documentos_anexados'] = self._sanitizar_documentos(
+            dados_brutos.get('documentos_anexados')
+        )
+        dados_sanitizados['participantes_consumidor'] = self._sanitizar_participantes(
+            dados_brutos.get('participantes_consumidor')
+        )
+        dados_sanitizados['participantes_empresa'] = self._sanitizar_participantes(
+            dados_brutos.get('participantes_empresa')
+        )
+
+        # Defaults seguros
+        dados_sanitizados.setdefault('modalidade', 'PRESENCIAL')
+        dados_sanitizados['solicita_audiencia'] = bool(dados_sanitizados.get('solicita_audiencia', False))
+
+        if 'consumidor_uf' in dados_sanitizados and isinstance(dados_sanitizados['consumidor_uf'], str):
+            dados_sanitizados['consumidor_uf'] = dados_sanitizados['consumidor_uf'].upper()
+        if 'valor_prejuizo' in dados_sanitizados and dados_sanitizados['valor_prejuizo'] is not None:
+            valor = dados_sanitizados['valor_prejuizo']
+            if isinstance(valor, Decimal):
+                dados_sanitizados['valor_prejuizo'] = float(valor)
+
+        if 'mediador_preferencial' in dados_sanitizados and dados_sanitizados['mediador_preferencial']:
+            dados_sanitizados['mediador_preferencial'] = str(dados_sanitizados['mediador_preferencial']).strip()
+
+        return dados_sanitizados
+
+    def _sanitizar_participantes(self, participantes: Optional[List[Dict[str, Any]]]) -> List[Dict[str, Any]]:
+        """Mantém apenas chaves conhecidas em cada participante."""
+        participantes_validos: List[Dict[str, Any]] = []
+        if not participantes:
+            return participantes_validos
+
+        for participante in participantes:
+            if not isinstance(participante, dict):
+                continue
+            dados_validos = {chave: participante[chave] for chave in self.PARTICIPANTE_KEYS if chave in participante}
+            if dados_validos:
+                participantes_validos.append(dados_validos)
+
+        return participantes_validos
+
+    def _sanitizar_documentos(self, documentos: Optional[List[Any]]) -> List[str]:
+        """Converte a lista de documentos em strings seguras."""
+        documentos_validos: List[str] = []
+        if not documentos:
+            return documentos_validos
+
+        for documento in documentos:
+            if isinstance(documento, str) and documento.strip():
+                documentos_validos.append(documento.strip())
+        return documentos_validos
     
     @log_execution_time('workflow_atendimento_completo')
     def iniciar_workflow_atendimento(self, dados_atendimento: Dict[str, Any], 
                                    usuario_atendente: Any) -> Dict[str, Any]:
         """Inicia workflow completo de atendimento"""
+
+        dados_atendimento = self._sanitizar_dados_atendimento(dados_atendimento)
+        dados_atendimento['usuario_atendente'] = usuario_atendente
         
         with LoggedOperation('iniciar_workflow_atendimento', {
             'modalidade': dados_atendimento.get('modalidade'),
@@ -64,8 +148,13 @@ class FluxoAtendimentoCompletoService:
                     resultado['etapas']['registro_reclamacao'] = etapa_registro
                     
                     # 2. Etapa: Análise de Elegibilidade
-                    etapa_analise = self._etapa_analise_elegibilidade(etapa_registro['reclamacao_id'])
-                    resultado['etapas']['analise_elegibilidade'] = etapa_analise
+                    etapa_analise = self._etapa_analise_elegibilidade(
+                        etapa_registro['reclamacao_id'],
+                        dados_atendimento,
+                    )
+                    etapa_analise_publico = dict(etapa_analise)
+                    etapa_analise_publico.pop('valor_recomendado_cip_decimal', None)
+                    resultado['etapas']['analise_elegibilidade'] = etapa_analise_publico
                     
                     # 3. Etapa: Geração Automática de CIP (se elegível)
                     if etapa_analise['elegivel_para_cip']:
@@ -78,7 +167,11 @@ class FluxoAtendimentoCompletoService:
                     
                     # 5. Etapa: Agendamento de Audiência (se necessário)
                     if dados_atendimento.get('solicita_audiencia'):
-                        etapa_audiencia = self._etapa_agendamento_audiencia(etapa_registro['reclamacao_id'], dados_atendimento)
+                        etapa_audiencia = self._etapa_agendamento_audiencia(
+                            etapa_registro['reclamacao_id'],
+                            dados_atendimento,
+                            usuario_atendente
+                        )
                         resultado['etapas']['agendamento_audiencia'] = etapa_audiencia
                     
                     # 6. Etapa: Monitoramento e Follow-up
@@ -113,6 +206,7 @@ class FluxoAtendimentoCompletoService:
         
         try:
             # Criar reclamação
+            data_ocorrencia = dados.get('data_ocorrencia') or timezone.now().date()
             reclamacao = ReclamacaoDenuncia.objects.create(
                 consumidor_nome=dados['consumidor_nome'],
                 consumidor_cpf=dados['consumidor_cpf'],
@@ -126,19 +220,20 @@ class FluxoAtendimentoCompletoService:
                 empresa_razao_social=dados['empresa_razao_social'],
                 empresa_cnpj=dados['empresa_cnpj'],
                 empresa_endereco=dados['empresa_endereco'],
-                empresa_cidade=dados.get('empresa_cidade', ''),
-                empresa_email=dados.get('empresa_email'),
-                empresa_telefone=dados.get('empresa_telefone'),
+                empresa_email=dados.get('empresa_email', ''),
+                empresa_telefone=dados.get('empresa_telefone', ''),
                 
                 descricao_fatos=dados['descricao_fatos'],
-                tipo_reclamacao=dados.get('tipo_reclamacao', 'GERAL'),
-                modalidade_atendimento=dados.get('modalidade', 'PRESENCIAL'),
-                
-                valor_prejuizo=dados.get('valor_prejuizo', 0),
-                documentos_anexados=dados.get('documentos_anexados', []),
-                
-                status='NOVA',
-                criado_por=usuario,
+                data_ocorrencia=data_ocorrencia,
+                valor_envolvido=dados.get('valor_prejuizo') or 0,
+                status='REGISTRADA',
+                assunto_classificado=dados.get('tipo_reclamacao', 'GERAL'),
+                observacoes_analise=(
+                    f"Modalidade de atendimento: {dados.get('modalidade')}"
+                    if dados.get('modalidade')
+                    else ""
+                ),
+                atendente_responsavel=usuario,
             )
             
             self.logger.info(f'Reclamação {reclamacao.id} registrada por {usuario.username}')
@@ -155,19 +250,34 @@ class FluxoAtendimentoCompletoService:
             raise Exception(f"Erro ao registrar reclamação: {str(e)}")
     
     @log_execution_time('etapa_analise_elegibilidade')
-    def _etapa_analise_elegibilidade(self, reclamacao_id: int) -> Dict[str, Any]:
+    def _etapa_analise_elegibilidade(self, reclamacao_id: int, dados_atendimento: Dict[str, Any]) -> Dict[str, Any]:
         """Etapa 2: Análise de elegibilidade para CIP"""
         
         reclamacao = ReclamacaoDenuncia.objects.get(id=reclamacao_id)
+
+        documentos_disponiveis = bool(dados_atendimento.get('documentos_anexados'))
+        if not documentos_disponiveis:
+            documentos_disponiveis = (
+                reclamacao.anexos.exists() if hasattr(reclamacao, 'anexos') else False
+            )
+        
+        valor_base = dados_atendimento.get('valor_prejuizo')
+        if valor_base is None:
+            valor_base = reclamacao.valor_envolvido or Decimal('0')
+        if not isinstance(valor_base, Decimal):
+            valor_base = Decimal(str(valor_base))
+
+        descricao_fatos = dados_atendimento.get('descricao_fatos') or (reclamacao.descricao_fatos or '')
+        tipo_reclamacao = dados_atendimento.get('tipo_reclamacao') or getattr(reclamacao, 'assunto_classificado', 'GERAL')
         
         criterios = {
-            'valor_minimo': reclamacao.valor_prejuizo >= 500,  # Mínimo R$ 500
-            'documentos_completos': len(reclamacao.documentos_anexados or []) >= 1,
+            'valor_minimo': valor_base >= Decimal('500'),  # Mínimo R$ 500
+            'documentos_completos': documentos_disponiveis,
             'empresa_valida': bool(reclamacao.empresa_cnpj),
-            'fatos_detalhados': len(reclamacao.descricao_fatos or '') >= 100,
+            'fatos_detalhados': len(descricao_fatos) >= 100,
             
             # Critérios específicos por tipo
-            'tipo_elegivel': reclamacao.tipo_reclamacao in [
+            'tipo_elegivel': tipo_reclamacao in [
                 'COMPRAS_VENDAS', 'PRESTACAO_SERVICOS', 
                 'CARTAO_PAGAMENTO', 'TELEFONIA_INTERNET'
             ],
@@ -176,14 +286,16 @@ class FluxoAtendimentoCompletoService:
         elegivel_para_cip = all(criterios.values())
         
         # Determinar tipo de CIP recomendado
-        tipo_cip_recomendado = self._determinar_tipo_cip_recomendado(reclamacao)
+        tipo_cip_recomendado = self._determinar_tipo_cip_recomendado(tipo_reclamacao)
+        valor_recomendado_decimal = max(valor_base * Decimal('1.5'), Decimal('1000'))
         
         analise = {
             'status': 'concluida',
             'elegivel_para_cip': elegivel_para_cip,
             'criterios': criterios,
             'tipo_cip_recomendado': tipo_cip_recomendado,
-            'valor_recomendado_cip': max(reclamacao.valor_prejuizo * 1.5, 1000),  # Valor sugerido
+            'valor_recomendado_cip': float(valor_recomendado_decimal),  # Valor sugerido
+            'valor_recomendado_cip_decimal': str(valor_recomendado_decimal),
         }
         
         if not elegivel_para_cip:
@@ -191,7 +303,7 @@ class FluxoAtendimentoCompletoService:
         
         return analise
     
-    def _determinar_tipo_cip_recomendado(self, reclamacao: ReclamacaoDenuncia) -> str:
+    def _determinar_tipo_cip_recomendado(self, tipo_reclamacao: str) -> str:
         """Determina tipo de CIP recomendado baseado na reclamação"""
         
         mapeamento_tipos = {
@@ -204,14 +316,14 @@ class FluxoAtendimentoCompletoService:
             'VEICULOS': 'VEICULOS_AUTOMOTIVOS',
         }
         
-        return mapeamento_tipos.get(reclamacao.tipo_reclamacao, 'GENERICO')
+        return mapeamento_tipos.get(tipo_reclamacao, 'GENERICO')
     
     def _sugerir_alternativas(self, reclamacao: ReclamacaoDenuncia) -> List[str]:
         """Sugere alternativas quando não elegível para CIP"""
         
         alternativas = []
         
-        if reclamacao.valor_prejuizo < 500:
+        if (reclamacao.valor_envolvido or 0) < 500:
             alternativas.append('Orientação jurídica geral (valor abaixo do mínimo)')
         
         if not reclamacao.empresa_cnpj:
@@ -242,7 +354,9 @@ class FluxoAtendimentoCompletoService:
             cip = self.cip_service.gerar_cip_automatica(
                 reclamacao_id=reclamacao_id,
                 tipo_cip_id=tipo_cip.id,
-                valor_indenizacao=analise['valor_recomendado_cip'],
+                valor_indenizacao=Decimal(
+                    str(analise.get('valor_recomendado_cip_decimal', analise['valor_recomendado_cip']))
+                ),
                 observacoes=f"CIP gerada automaticamente via workflow de atendimento"
             )
             
@@ -292,7 +406,7 @@ class FluxoAtendimentoCompletoService:
             return 'correios'
     
     @log_execution_time('etapa_agendamento_audiencia')
-    def _etapa_agendamento_audiencia(self, reclamacao_id: int, dados_atendimento: Dict[str, Any]) -> Dict[str, Any]:
+    def _etapa_agendamento_audiencia(self, reclamacao_id: int, dados_atendimento: Dict[str, Any], usuario_atendente: Any) -> Dict[str, Any]:
         """Etapa 5: Agendamento de audiência"""
         
         try:
@@ -317,14 +431,14 @@ class FluxoAtendimentoCompletoService:
             # Criar agendamento usando serviço
             agendamento = self.calendario_service.criar_agendamento(
                 dados_agendamento,
-                usuario_criador=dados_atendimento.get('usuario_atendente')
+                usuario_criador=usuario_atendente
             )
             
             return {
                 'status': 'sucesso',
                 'audiencia_id': agendamento.id,
                 'numero_protocolo': agendamento.numero_protocolo,
-                'data_agendada': agendamento.data_agendamento.isoformat_(),
+                'data_agendada': agendamento.data_agendamento.isoformat(),
                 'modalidade': agendamento.modalidade,
             }
             

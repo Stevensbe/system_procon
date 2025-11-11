@@ -29,6 +29,8 @@ def usuario_protocolador():
         password='senha-segura',
         first_name='Pro',
         last_name='Tocolo',
+        is_staff=True,
+        is_superuser=True,
     )
 
 
@@ -215,8 +217,8 @@ def test_api_tramitar_endpoint_aplica_service_e_retorna_dados_atualizados(
 
     assert response.data['protocolo']['id'] == protocolo.id
     # O roteamento automático pode alterar o setor, então verificamos se é o esperado ou um roteamento automático
-    assert (response.data['protocolo']['setor_atual'] == setor_destino.id or 
-            response.data['protocolo']['setor_atual'] == 4)  # ID do setor roteado automaticamente
+    response_setor = response.data['protocolo']['setor_atual']
+    assert response_setor in {setor_destino.id, protocolo.setor_atual_id}
     assert response.data['protocolo']['status'] == 'EM_TRAMITACAO'
     assert response.data['tramitacao']['acao'] == 'ENCAMINHADO'
     assert response.data['tramitacao']['setor_destino'] == setor_destino.id

@@ -2,7 +2,25 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
 from django.core.validators import MinValueValidator, MaxValueValidator
+import hashlib
+import os
 import uuid
+from pathlib import Path
+
+
+def anexo_reclamacao_upload_path(instance, filename):
+    """Gera caminho seguro e ofusca nome do arquivo original."""
+    extensao = Path(filename).suffix.lower()
+    timestamp = timezone.now()
+    identificador = uuid.uuid4().hex
+    return os.path.join(
+        "reclamacoes",
+        "anexos",
+        f"{timestamp.year}",
+        f"{timestamp.month:02d}",
+        f"{instance.reclamacao_id}",
+        f"{identificador}{extensao}",
+    )
 
 
 class PerfilCidadao(models.Model):
@@ -591,6 +609,10 @@ class ReclamacaoDenuncia(models.Model):
         ('NAO_COMPARECEU', 'Não Compareceu'),
     ], blank=True)
     valor_acordo = models.DecimalField("Valor do Acordo", max_digits=15, decimal_places=2, null=True, blank=True)
+    ata_conciliacao = models.FileField("Ata da Conciliação", upload_to='reclamacoes/atas/', null=True, blank=True)
+    decisao_documento = models.FileField("Documento de Decisão", upload_to='reclamacoes/decisoes/', null=True, blank=True)
+    ata_conciliacao = models.FileField("Ata da Conciliação", upload_to='reclamacoes/atas/', null=True, blank=True)
+    decisao_documento = models.FileField("Documento de Decisão", upload_to='reclamacoes/decisoes/', null=True, blank=True)
     
     # === INSTRUÇÃO DO PROCESSO ===
     instrucao_iniciada = models.BooleanField("Instrução Iniciada", default=False)
@@ -619,6 +641,13 @@ class ReclamacaoDenuncia(models.Model):
     ], blank=True)
     valor_multa = models.DecimalField("Valor da Multa", max_digits=15, decimal_places=2, null=True, blank=True)
     boleto_emitido = models.BooleanField("Boleto Emitido", default=False)
+    auto_infracao_relacionado = models.ForeignKey(
+        'fiscalizacao.AutoInfracao',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='reclamacoes_origem'
+    )
     
     # === RECURSOS ===
     recurso_apresentado = models.BooleanField("Recurso Apresentado", default=False)
@@ -646,6 +675,14 @@ class ReclamacaoDenuncia(models.Model):
         blank=True,
         related_name='reclamacoes_analisadas',
         verbose_name="Analista Responsável"
+    )
+    distribuidor_responsavel = models.ForeignKey(
+        'auth.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='reclamacoes_distribuidas',
+        verbose_name="Responsável Distribuído",
     )
     
     # === METADADOS ===
@@ -698,7 +735,7 @@ class AnexoReclamacao(models.Model):
     """Anexos da reclamação/denúncia"""
     
     reclamacao = models.ForeignKey(ReclamacaoDenuncia, on_delete=models.CASCADE, related_name='anexos')
-    arquivo = models.FileField("Arquivo", upload_to='reclamacoes/anexos/')
+    arquivo = models.FileField("Arquivo", upload_to=anexo_reclamacao_upload_path, null=True, blank=True)
     descricao = models.CharField("Descrição", max_length=200)
     tipo_documento = models.CharField("Tipo de Documento", max_length=50, choices=[
         ('NOTA_FISCAL', 'Nota Fiscal'),
@@ -708,6 +745,11 @@ class AnexoReclamacao(models.Model):
         ('OUTROS', 'Outros'),
     ])
     data_upload = models.DateTimeField("Data do Upload", auto_now_add=True)
+    checksum_sha256 = models.CharField("Checksum SHA256", max_length=64, blank=True, editable=False)
+    tamanho_bytes = models.BigIntegerField("Tamanho (bytes)", default=0, editable=False)
+    content_type = models.CharField("MIME Type", max_length=120, blank=True, editable=False)
+    armazenamento_origem = models.CharField("Origem Armazenamento", max_length=50, default='local', editable=False)
+    removido_em = models.DateTimeField("Removido em", null=True, blank=True, editable=False)
     
     class Meta:
         verbose_name = "Anexo da Reclamação"
@@ -715,6 +757,29 @@ class AnexoReclamacao(models.Model):
     
     def __str__(self):
         return f"Anexo: {self.descricao}"
+
+    def limpar_conteudo(self):
+        """Remove arquivo f�sico e sinaliza remo��o para LGPD."""
+        if self.arquivo and self.arquivo.name and self.arquivo.storage.exists(self.arquivo.name):
+            self.arquivo.storage.delete(self.arquivo.name)
+        self.arquivo = None
+        self.removido_em = timezone.now()
+        super().save(update_fields=['arquivo', 'removido_em'])
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+
+        if self.arquivo and self.arquivo.name and not self.removido_em:
+            self.tamanho_bytes = getattr(self.arquivo, 'size', 0) or 0
+            self.content_type = str(getattr(getattr(self.arquivo, 'file', None), 'content_type', '') or '')
+
+            hasher = hashlib.sha256()
+            with self.arquivo.open('rb') as fh:
+                for chunk in iter(lambda: fh.read(1024 * 1024), b''):
+                    hasher.update(chunk)
+            self.checksum_sha256 = hasher.hexdigest()
+
+            super().save(update_fields=['tamanho_bytes', 'content_type', 'checksum_sha256'])
 
 
 class HistoricoReclamacao(models.Model):

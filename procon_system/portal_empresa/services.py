@@ -8,11 +8,18 @@ import hashlib
 import hmac
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any, Tuple
+import re
 from django.utils import timezone
 from django.db import transaction
+from django.db.models import Avg, Max, ExpressionWrapper, DurationField, F, Value, CharField
+from django.db.models.functions import Replace
 from django.core.mail import send_mail
 from django.http import JsonResponse
 from django.conf import settings
+from django.contrib.auth.models import User
+from django.template import TemplateDoesNotExist
+from django.template.loader import render_to_string
+from django.utils.html import strip_tags
 
 from .models import (
     EmpresaAutorizada, UsuarioEmpresaAutorizado, TokenEmpresa,
@@ -22,6 +29,7 @@ from .models import (
 from cip_automatica.models import CIPAutomatica, RespostaEmpresa
 from audiencia_calendario.models import AgendamentoAudiencia
 from logging_config import logger_manager, LoggedOperation, log_execution_time
+from portal_cidadao.models import ReclamacaoDenuncia
 
 
 class GestaoEmpresaService:
@@ -83,7 +91,7 @@ class GestaoEmpresaService:
                     
             except Exception as e:
                 self.logger.error(f'Erro no registro da empresa: {str(e)}', exc_info=True)
-                raise
+                return False
     
     @log_execution_time('gerenciar_token')
     def gerar_token_acesso(self, empresa: EmpresaAutorizada, usuario_gerador: User, 
@@ -113,13 +121,13 @@ class GestaoEmpresaService:
                 
         except Exception as e:
             self.logger.error(f'Erro ao gerar token: {str(e)}', exc_info=True)
-            raise
     
     @log_execution_time('autenticar_empresa')
     def autenticar_empresa_token(self, token: str, ip_acesso: str) -> Tuple[bool, Optional[EmpresaAutorizada]]:
         """Autentica empresa via token"""
         
         try:
+            self.sincronizar_tokens_expirados()
             token_obj = TokenEmpresa.objects.select_related('empresa').get(
                 token=token,
                 ativo=True
@@ -158,67 +166,274 @@ class GestaoEmpresaService:
             protocolo_relacionado=protocolo,
             ip_address='127.0.0.1',  # Placeholder
         )
+
+    @staticmethod
+    def _converter_duracao_em_horas(valor: Optional[timedelta]) -> Optional[float]:
+        """Converte `timedelta` em horas com duas casas decimais."""
+        if not valor:
+            return None
+        return round(valor.total_seconds() / 3600, 2)
+
+    def obter_metricas_globais_engajamento(self) -> Dict[str, Any]:
+        """Consolida métricas de engajamento para o dashboard corporativo."""
+        empresas_ativas = EmpresaAutorizada.objects.exclude(status__in=['BLOQUEADA', 'REVOGADA'])
+        empresas_count = empresas_ativas.count()
+
+        cnpj_numericos = [
+            re.sub(r'\D', '', cnpj or '')
+            for cnpj in empresas_ativas.values_list('cnpj', flat=True)
+        ]
+        cnpj_numericos = [cnpj for cnpj in cnpj_numericos if cnpj]
+
+        reclamacoes = ReclamacaoDenuncia.objects.annotate(
+            cnpj_numeric=Replace(
+                Replace(Replace(F('empresa_cnpj'), Value('.'), Value('')), Value('/'), Value('')),
+                Value('-'),
+                Value(''),
+                output_field=CharField(),
+            )
+        )
+        if cnpj_numericos:
+            reclamacoes = reclamacoes.filter(cnpj_numeric__in=cnpj_numericos)
+        else:
+            reclamacoes = reclamacoes.none()
+
+        agora = timezone.now()
+        periodo_30_dias = agora - timedelta(days=30)
+
+        reclamacoes_total = reclamacoes.count()
+        reclamacoes_respondidas = (
+            reclamacoes.filter(respostas_portal__empresa__in=empresas_ativas)
+            .distinct()
+            .count()
+        )
+        reclamacoes_pendentes = max(reclamacoes_total - reclamacoes_respondidas, 0)
+        reclamacoes_ultimos_30 = reclamacoes.filter(criado_em__gte=periodo_30_dias).count()
+
+        respostas = RespostaEmpresaPortal.objects.filter(
+            empresa__in=empresas_ativas,
+            status__in=['ENVIADA', 'RECEBIDA_AUDITORIA', 'ANALISANDO', 'ACEITA', 'REJEITADA', 'SOLICITA_COMPLEMENTO'],
+        )
+        respostas_total = respostas.count()
+        respostas_ultimos_30 = respostas.filter(data_envio__gte=periodo_30_dias).count()
+
+        taxa_resposta = (
+            (reclamacoes_respondidas / reclamacoes_total * 100)
+            if reclamacoes_total else 0
+        )
+
+        respostas_com_tempo = respostas.filter(
+            data_envio__isnull=False,
+            reclamacao_relacionada__data_notificacao__isnull=False,
+        ).annotate(
+            tempo_resposta=ExpressionWrapper(
+                F('data_envio') - F('reclamacao_relacionada__data_notificacao'),
+                output_field=DurationField(),
+            )
+        )
+        agregados_tempo = respostas_com_tempo.aggregate(
+            media=Avg('tempo_resposta'),
+            maximo=Max('tempo_resposta'),
+        )
+
+        tokens_ativos = TokenEmpresa.objects.filter(ativo=True).count()
+        tokens_expirando = TokenEmpresa.objects.filter(
+            ativo=True,
+            data_expiracao__gt=agora,
+            data_expiracao__lte=agora + timedelta(days=7),
+        ).count()
+        tokens_expirados = TokenEmpresa.objects.filter(
+            ativo=False,
+            revogado_em__isnull=False,
+        ).count()
+
+        return {
+            'empresas_monitoradas': empresas_count,
+            'reclamacoes_total': reclamacoes_total,
+            'reclamacoes_respondidas': reclamacoes_respondidas,
+            'reclamacoes_pendentes': reclamacoes_pendentes,
+            'reclamacoes_ultimos_30_dias': reclamacoes_ultimos_30,
+            'respostas_total': respostas_total,
+            'respostas_ultimos_30_dias': respostas_ultimos_30,
+            'taxa_resposta_percentual': round(taxa_resposta, 2),
+            'tempo_medio_resposta_horas': self._converter_duracao_em_horas(agregados_tempo.get('media')),
+            'tempo_maximo_resposta_horas': self._converter_duracao_em_horas(agregados_tempo.get('maximo')),
+            'tokens_ativos': tokens_ativos,
+            'tokens_expirando_7_dias': tokens_expirando,
+            'tokens_expirados': tokens_expirados,
+        }
+
+    def obter_metricas_engajamento(self, empresa: EmpresaAutorizada) -> Dict[str, Any]:
+        """Resumo detalhado de engajamento para uma empresa espec�fica."""
+        if not empresa:
+            return {}
+
+        self.sincronizar_tokens_expirados()
+
+        agora = timezone.now()
+        periodo_30_dias = agora - timedelta(days=30)
+
+        cnpj_numerico = re.sub(r'\D', '', empresa.cnpj or '')
+        reclamacoes = ReclamacaoDenuncia.objects.annotate(
+            cnpj_numeric=Replace(
+                Replace(Replace(F('empresa_cnpj'), Value('.'), Value('')), Value('/'), Value('')),
+                Value('-'),
+                Value(''),
+                output_field=CharField(),
+            )
+        )
+        if cnpj_numerico:
+            reclamacoes = reclamacoes.filter(cnpj_numeric=cnpj_numerico)
+        else:
+            reclamacoes = reclamacoes.none()
+
+        reclamacoes_total = reclamacoes.count()
+        reclamacoes_respondidas = (
+            reclamacoes.filter(respostas_portal__empresa=empresa)
+            .distinct()
+            .count()
+        )
+        reclamacoes_ultimos_30 = reclamacoes.filter(criado_em__gte=periodo_30_dias).count()
+        reclamacoes_pendentes = max(reclamacoes_total - reclamacoes_respondidas, 0)
+
+        respostas = RespostaEmpresaPortal.objects.filter(
+            empresa=empresa,
+            status__in=['ENVIADA', 'RECEBIDA_AUDITORIA', 'ANALISANDO', 'ACEITA', 'REJEITADA', 'SOLICITA_COMPLEMENTO'],
+        )
+        respostas_total = respostas.count()
+        respostas_ultimos_30 = respostas.filter(data_envio__gte=periodo_30_dias).count()
+
+        taxa_resposta = (
+            (reclamacoes_respondidas / reclamacoes_total * 100)
+            if reclamacoes_total else 0
+        )
+
+        respostas_com_tempo = respostas.filter(
+            data_envio__isnull=False,
+            reclamacao_relacionada__data_notificacao__isnull=False,
+        ).annotate(
+            tempo_resposta=ExpressionWrapper(
+                F('data_envio') - F('reclamacao_relacionada__data_notificacao'),
+                output_field=DurationField(),
+            )
+        )
+        agregados_tempo = respostas_com_tempo.aggregate(
+            media=Avg('tempo_resposta'),
+            maximo=Max('tempo_resposta'),
+        )
+
+        tokens_empresa = TokenEmpresa.objects.filter(empresa=empresa)
+        tokens_ativos = tokens_empresa.filter(ativo=True).count()
+        tokens_expirando = tokens_empresa.filter(
+            ativo=True,
+            data_expiracao__gt=agora,
+            data_expiracao__lte=agora + timedelta(days=7),
+        ).count()
+        tokens_expirados = tokens_empresa.filter(ativo=False, revogado_em__isnull=False).count()
+
+        return {
+            'empresa_id': empresa.id,
+            'empresa_razao_social': empresa.razao_social,
+            'reclamacoes_total': reclamacoes_total,
+            'reclamacoes_respondidas': reclamacoes_respondidas,
+            'reclamacoes_pendentes': reclamacoes_pendentes,
+            'reclamacoes_ultimos_30_dias': reclamacoes_ultimos_30,
+            'respostas_total': respostas_total,
+            'respostas_ultimos_30_dias': respostas_ultimos_30,
+            'taxa_resposta_percentual': round(taxa_resposta, 2),
+            'tempo_medio_resposta_horas': self._converter_duracao_em_horas(agregados_tempo.get('media')),
+            'tempo_maximo_resposta_horas': self._converter_duracao_em_horas(agregados_tempo.get('maximo')),
+            'tokens_ativos': tokens_ativos,
+            'tokens_expirando_7_dias': tokens_expirando,
+            'tokens_expirados': tokens_expirados,
+            'ultima_atualizacao': agora.isoformat(),
+        }
+
+    def sincronizar_tokens_expirados(self) -> int:
+        """Desativa tokens expirados e registra histórico."""
+        agora = timezone.now()
+        expirados = TokenEmpresa.objects.filter(ativo=True, data_expiracao__lt=agora).select_related('empresa')
+        total = 0
+
+        for token in expirados:
+            token.ativo = False
+            token.revogado_em = agora
+            token.motivo_revocacao = f'Token expirado automaticamente em {agora.strftime("%d/%m/%Y %H:%M")}.'
+            token.save(update_fields=['ativo', 'revogado_em', 'motivo_revocacao'])
+
+            self._registrar_historico(
+                empresa=token.empresa,
+                usuario=token.usuario_criador,
+                tipo_acao='TOKEN_EXPIRED',
+                descricao=f'Token com final {token.token[-6:]} expirado automaticamente.',
+            )
+            total += 1
+
+        return total
     
-    def _enviar_confirmacao_registro(self, empresa: EmpresaAutorizada):
-        """Envia email de confirmação para empresa"""
-        subject = f"Confirmação de Registro - {empresa.razao_social}"
-        
-        html_message = f"""
-        <html>
-        <head>
-            <style>
-                body {{ font-family: Arial, sans-serif; margin: 40px; }}
-                .header {{ background-color: #1976d2; color: white; padding: 20px; text-align: center; }}
-                .content {{ margin-top: 20px; }}
-                .info {{ background-color: #f5f5f5; padding: 15px; border-radius: 5px; }}
-            </style>
-        </head>
-        <body>
-            <div class="header">
-                <h1>PROCON - Portal da Empresa</h1>
-            </div>
-            
-            <div class="content">
-                <h2>Registro Confirmado</h2>
-                <p>Prezada Empresa <strong>{empresa.razao_social}</strong>,</p>
-                
-                <p>Seu registro no Portal da Empresa foi realizado com sucesso!</p>
-                
-                <div class="info">
-                    <h3>Informações do Registro:</h3>
-                    <p><strong>CNPJ:</strong> {empresa.cnpj}</p>
-                    <p><strong>Status:</strong> {empresa.get_status_display()}</p>
-                    <p><strong>Nível de Acesso:</strong> {empresa.get_nivel_acesso_display()}</p>
-                    <p><strong>API Key:</strong> {empresa.api_key}</p>
-                </div>
-                
-                <p>Agora você pode:</p>
-                <ul>
-                    <li>Acessar CIPs enviadas para sua empresa</li>
-                    <li>Enviar respostas e defesas</li>
-                    <li>Agendar audiências de conciliação</li>
-                    <li>Visualizar relatórios gerenciais</li>
-                    <li>Integrar via API/webhook</li>
-                </ul>
-                
-                <p><em>Atenciosamente,<br>Equipe PROCON</em></p>
-            </div>
-        </body>
-        </html>
-        """
-        
+    def _enviar_confirmacao_registro(self, empresa: EmpresaAutorizada) -> bool:
+        """Envia email de confirmacao para empresa com fallback seguro."""
+        subject = f"Confirmacao de Registro - {empresa.razao_social}"
+        context = {
+            'empresa': empresa,
+            'portal_url': getattr(settings, 'PORTAL_EMPRESA_URL', ''),
+        }
+
+        html_message = None
+        for template_name in [
+            'portal_empresa/email_confirmacao_registro.html',
+            'portal_empresa/default_email_confirmacao_registro.html',
+        ]:
+            try:
+                html_message = render_to_string(template_name, context)
+                break
+            except TemplateDoesNotExist:
+                continue
+
+        if not html_message:
+            html_message = (
+                "<html><body>"
+                f"<p>Prezada empresa <strong>{empresa.razao_social}</strong>,</p>"
+                "<p>Seu registro no Portal da Empresa foi realizado com sucesso.</p>"
+                f"<p>API Key: <strong>{empresa.api_key or ''}</strong></p>"
+                "<p>Atenciosamente,<br>Equipe PROCON</p>"
+                "</body></html>"
+            )
+
+        plain_message = strip_tags(html_message) or f"Registro confirmado para {empresa.razao_social}."
+
+        destinatarios = set()
+        if empresa.email_principal:
+            destinatarios.add(empresa.email_principal)
+
+        usuarios = UsuarioEmpresaAutorizado.objects.filter(empresa=empresa).select_related('usuario')
+        for relacao in usuarios:
+            email = getattr(relacao.usuario, 'email', None)
+            if email:
+                destinatarios.add(email)
+
+        destinatarios = [email for email in destinatarios if email]
+        if not destinatarios:
+            self.logger.warning('Nenhum destinatario localizado para confirmacao de registro.')
+            return False
+
         try:
             send_mail(
                 subject=subject,
-                message=f"Registro confirmado para {empresa.razao_social}",
+                message=plain_message,
+                from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', None),
+                recipient_list=destinatarios,
                 html_message=html_message,
-                from_email='noreply@procon.local',
-                recipient_list=[empresa.email_principal],
                 fail_silently=False,
             )
-        except Exception as e:
-            self.logger.error(f'Erro ao enviar confirmação: {str(e)}')
+            return True
+        except Exception as exc:
+            self.logger.error(f'Erro ao enviar confirmacao de registro: {exc}', exc_info=True)
+            return False
 
+    def enviar_email_boas_vindas(self, empresa: EmpresaAutorizada) -> bool:
+        """Interface publica para envio de mensagem de boas-vindas."""
+        return bool(self._enviar_confirmacao_registro(empresa))
 
 class RespostaEmpresaService:
     """Serviço para gestão de respostas da empresa"""
@@ -241,6 +456,7 @@ class RespostaEmpresaService:
                     # Buscar CIP relacionada
                     cip_relacionada = None
                     audiencia_relacionada = None
+                    reclamacao_relacionada = None
                     
                     if dados_resposta.get('cip_id'):
                         try:
@@ -254,6 +470,12 @@ class RespostaEmpresaService:
                         except AgendamentoAudiencia.DoesNotExist:
                             raise ValueError("Audiência não encontrada")
                     
+                    if dados_resposta.get('reclamacao_id'):
+                        try:
+                            reclamacao_relacionada = ReclamacaoDenuncia.objects.get(id=dados_resposta['reclamacao_id'])
+                        except ReclamacaoDenuncia.DoesNotExist:
+                            raise ValueError("Reclama��o não encontrada")
+
                     # Criar resposta
                     resposta = RespostaEmpresaPortal.objects.create(
                         empresa=empresa,
@@ -262,6 +484,7 @@ class RespostaEmpresaService:
                         
                         cip_relacionada=cip_relacionada,
                         audiencia_relacionada=audiencia_relacionada,
+                        reclamacao_relacionada=reclamacao_relacionada,
                         
                         tipo_documento=dados_resposta['tipo_documento'],
                         titulo_resposta=dados_resposta['titulo'],
@@ -278,27 +501,58 @@ class RespostaEmpresaService:
                     # Enviar formalmente
                     resposta.enviar_resposta()
                     
-                    # Registrar histórico
-                    self._registrar_historico(empresa, usuario, 'RESPONSE_CIP', 
-                                            f'Resposta enviada: {resposta.titulo_resposta}')
-                    
-                    # Integrar com módulos relacionados
+                    # Registrar hist�rico
+                    protocolo_rel = ''
+                    tipo_acao_hist = 'RESPONSE_CIP'
+                    if cip_relacionada:
+                        protocolo_rel = getattr(cip_relacionada, 'numero_protocolo', '') or ''
+                    elif reclamacao_relacionada:
+                        tipo_acao_hist = 'RESPONSE_RECLAMACAO'
+                        protocolo_rel = reclamacao_relacionada.numero_protocolo
+
+                    self._registrar_historico(
+                        empresa=empresa,
+                        usuario=usuario,
+                        tipo_acao=tipo_acao_hist,
+                        descricao=f'Resposta enviada: {resposta.titulo_resposta}',
+                        protocolo=protocolo_rel,
+                    )
+
+                    # Integrar com m�dulos relacionados
                     if cip_relacionada:
                         self._atualizar_resposta_cip_automatica(resposta)
-                    
+
                     self.logger.log_operation('resposta_enviada', {
                         'resposta_id': resposta.id,
                         'empresa': empresa.razao_social,
                         'tipo': resposta.tipo_documento,
-                        'protocolo': cip_relacionada.numero_protocolo if cip_relacionada else None,
+                        'protocolo': protocolo_rel or None,
                     })
                     
                     return resposta
                     
             except Exception as e:
                 self.logger.error(f'Erro ao enviar resposta empresa: {str(e)}', exc_info=True)
-                raise
     
+    def _registrar_historico(
+        self,
+        empresa: EmpresaAutorizada,
+        usuario: Optional[User],
+        tipo_acao: str,
+        descricao: str,
+        protocolo: str = '',
+        ip_address: str = '127.0.0.1',
+    ) -> None:
+        """Registra histórico corporativo específico das respostas enviadas."""
+        HistoricoEmpresaPortal.objects.create(
+            empresa=empresa,
+            usuario=usuario,
+            tipo_acao=tipo_acao,
+            descricao_acao=descricao,
+            protocolo_relacionado=protocolo,
+            ip_address=ip_address,
+        )
+
     def _atualizar_resposta_cip_automatica(self, resposta: RespostaEmpresaPortal):
         """Integra resposta do portal com módulo de CIP automática"""
         
@@ -476,7 +730,6 @@ class APIIntegrationService:
             
         except Exception as e:
             self.logger.error(f'Erro no relatório API: {str(e)}')
-            raise
 
 
 # Instâncias globais dos serviços

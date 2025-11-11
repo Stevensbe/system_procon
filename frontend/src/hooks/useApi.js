@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useNotifications } from '../context/NotificationContext';
+import api from '../services/api';
 
 /**
  * Hook personalizado para gerenciar chamadas de API
@@ -59,11 +60,32 @@ export function useApi() {
     setError(null);
   }, []);
 
+  // Funções de conveniência para métodos HTTP
+  const get = useCallback((url, options = {}) => {
+    return execute(() => api.get(url), options);
+  }, [execute]);
+
+  const post = useCallback((url, data, options = {}) => {
+    return execute(() => api.post(url, data), options);
+  }, [execute]);
+
+  const put = useCallback((url, data, options = {}) => {
+    return execute(() => api.put(url, data), options);
+  }, [execute]);
+
+  const del = useCallback((url, options = {}) => {
+    return execute(() => api.delete(url), options);
+  }, [execute]);
+
   return {
     loading,
     error,
     execute,
-    clearError
+    clearError,
+    get,
+    post,
+    put,
+    delete: del
   };
 }
 

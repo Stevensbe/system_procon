@@ -50,6 +50,14 @@ class ProconLogger:
     
     def __init__(self, name: str):
         self.logger = logging.getLogger(f'procon.{name}')
+
+    @staticmethod
+    def _serialize_context(data: Dict[str, Any]) -> Dict[str, Any]:
+        """Garante que o contexto possa ser serializado em JSON."""
+        try:
+            return json.loads(json.dumps(data, default=str))
+        except (TypeError, ValueError):
+            return {'raw_context': str(data)}
         
     def log_operation(self, operation: str, context: Dict[str, Any], level: str = 'INFO'):
         """Log de operação específica com contexto"""
@@ -58,7 +66,10 @@ class ProconLogger:
             'context': context,
             'service': 'procon_system',
         }
-        self.logger.info(f'Operação: {operation}', extra={'context': extra_context})
+        self.logger.info(
+            f'Operação: {operation}',
+            extra={'context': self._serialize_context(extra_context)}
+        )
         
     def log_performance(self, operation: str, duration: float, context: Dict[str, Any] = None):
         """Log de performance de operações"""
@@ -68,7 +79,10 @@ class ProconLogger:
             'performance_tier': self._get_performance_tier(duration),
             **(context or {}),
         }
-        self.logger.info(f'Performance: {operation} ({duration:.3f}s)', extra={'context': perf_context})
+        self.logger.info(
+            f'Performance: {operation} ({duration:.3f}s)',
+            extra={'context': self._serialize_context(perf_context)}
+        )
         
     def log_user_action(self, user_id: int, action: str, context: Dict[str, Any] = None):
         """Log de ações do usuário"""
@@ -78,7 +92,10 @@ class ProconLogger:
             'user_action': True,
             **(context or {}),
         }
-        self.logger.info(f'Ações do usuário: {action}', extra={'context': user_context})
+        self.logger.info(
+            f'Ações do usuário: {action}',
+            extra={'context': self._serialize_context(user_context)}
+        )
         
     def log_system_health(self, metric: str, value: float, threshold: float = None):
         """Log de saúde do sistema"""
@@ -90,8 +107,21 @@ class ProconLogger:
             'health_check': True,
         }
         level = 'WARNING' if threshold and value >= threshold else 'INFO'
-        self.logger.log(getattr(logging, level), f'Métrica do sistema: {metric} = {value}', extra={'context': health_context})
+        self.logger.log(
+            getattr(logging, level),
+            f'Métrica do sistema: {metric} = {value}',
+            extra={'context': self._serialize_context(health_context)}
+        )
         
+    def info(self, message: str, **extra):
+        self.logger.info(message, **extra)
+
+    def error(self, message: str, **extra):
+        self.logger.error(message, **extra)
+
+    def warning(self, message: str, **extra):
+        self.logger.warning(message, **extra)
+
     def _get_performance_tier(self, duration: float) -> str:
         """Classifica performance em tiers"""
         if duration < 0.1:

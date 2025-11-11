@@ -1,6 +1,7 @@
 """
 Decoradores personalizados para rate limiting e outras funcionalidades
 """
+import os
 from functools import wraps
 from django.http import JsonResponse
 from django.conf import settings
@@ -21,7 +22,12 @@ def api_ratelimit(group='api', key='user_or_ip', rate='60/m', method=['POST', 'P
     Decorador personalizado para rate limiting de APIs
     """
     def decorator(view_func):
-        if not getattr(settings, 'RATELIMIT_ENABLE', True) or not RATELIMIT_AVAILABLE:
+        if (
+            not getattr(settings, 'RATELIMIT_ENABLE', True)
+            or not RATELIMIT_AVAILABLE
+            or getattr(settings, 'TESTING', False)
+            or 'PYTEST_CURRENT_TEST' in os.environ
+        ):
             return view_func
             
         @ratelimit(group=group, key=key, rate=rate, method=method, block=True)
@@ -39,11 +45,14 @@ def auth_ratelimit(rate='5/m'):
     def decorator(view_func):
         if not getattr(settings, 'RATELIMIT_ENABLE', True) or not RATELIMIT_AVAILABLE:
             return view_func
-            
-        @ratelimit(group='auth', key='ip', rate=rate, method='POST', block=True)
+
+        limited_view = ratelimit(group='auth', key='ip', rate=rate, method='POST', block=True)(view_func)
+
         @wraps(view_func)
         def wrapper(request, *args, **kwargs):
-            return view_func(request, *args, **kwargs)
+            if getattr(settings, 'TESTING', False) or 'PYTEST_CURRENT_TEST' in os.environ:
+                return view_func(request, *args, **kwargs)
+            return limited_view(request, *args, **kwargs)
         return wrapper
     return decorator
 

@@ -14,8 +14,12 @@ from django.utils.text import slugify
 from django.template.loader import render_to_string
 
 from .models import (
-    SessaoConsulta, HistoricoConsulta, DocumentosPortal,
-    NotificacaoConsumidor, FeedbackConsumidor
+    SessaoConsulta,
+    HistoricoConsulta,
+    DocumentosPortal,
+    NotificacaoConsumidor,
+    FeedbackConsumidor,
+    TicketSuporteConsumidor,
 )
 from caixa_entrada.models import CaixaEntrada
 from cip_automatica.models import CIPAutomatica, RespostaEmpresa
@@ -633,8 +637,96 @@ class FeedbackService:
             # Criar NotificacaoConsumidor para responsáveis pelo protocolo
 
 
+class TicketSuporteService:
+    """Serviço para operações de tickets de suporte do consumidor."""
+
+    def __init__(self, notificacao_service: Optional[NotificacaoConsumidorService] = None):
+        self.logger = logger_manager.get_logger('ticket_suporte_consumidor')
+        self.notificacao_service = notificacao_service or NotificacaoConsumidorService()
+
+    def enviar_confirmacao_abertura(self, ticket: TicketSuporteConsumidor) -> Optional[NotificacaoConsumidor]:
+        """Confirma ao consumidor que o ticket foi registrado."""
+        if not ticket.consumidor_email:
+            return None
+
+        titulo = "Recebemos seu ticket de suporte"
+        mensagem = (
+            f"Olá {ticket.consumidor_nome or 'Consumidor'}, recebemos seu ticket de suporte "
+            f"com o assunto \"{ticket.assunto}\". O status atual é {ticket.get_status_display().lower()}."
+        )
+        if ticket.protocolo_relacionado:
+            mensagem += f"\n\nTicket relacionado ao protocolo {ticket.protocolo_relacionado}."
+
+        mensagem += (
+            "\n\nNossa equipe do PROCON irá analisar a solicitação e retornará em breve. "
+            "Você pode responder a esta mensagem caso tenha novas informações."
+        )
+
+        notificacao = self.notificacao_service.enviar_notificacao_consumidor(
+            consumidor_email=ticket.consumidor_email,
+            titulo=titulo,
+            mensagem=mensagem,
+            protocolo=ticket.protocolo_relacionado,
+        )
+
+        self._registrar_evento(ticket, 'confirmacao_enviada', {'notificacao_id': str(notificacao.id)})
+        return notificacao
+
+    def enviar_resposta_consumidor(self, ticket: TicketSuporteConsumidor) -> Optional[NotificacaoConsumidor]:
+        """Envia a resposta da equipe ao consumidor."""
+        if not ticket.consumidor_email or not ticket.resposta:
+            return None
+
+        titulo = "Resposta ao seu ticket de suporte"
+        mensagem = (
+            f"Olá {ticket.consumidor_nome or 'Consumidor'},\n\n"
+            f"Nossa equipe analisou o ticket \"{ticket.assunto}\" e registrou a seguinte resposta:\n\n"
+            f"{ticket.resposta}\n\n"
+            f"Status atual do ticket: {ticket.get_status_display()}."
+        )
+        if ticket.status == TicketSuporteConsumidor.Status.FECHADO:
+            mensagem += "\n\nEste atendimento foi encerrado. Caso precise de nova ajuda, abra um novo ticket pelo portal."
+        else:
+            mensagem += "\n\nSe precisar complementar a solicitação, basta responder a esta mensagem."
+
+        notificacao = self.notificacao_service.enviar_notificacao_consumidor(
+            consumidor_email=ticket.consumidor_email,
+            titulo=titulo,
+            mensagem=mensagem,
+            protocolo=ticket.protocolo_relacionado,
+        )
+
+        self._registrar_evento(ticket, 'resposta_enviada', {'notificacao_id': str(notificacao.id)})
+        return notificacao
+
+    def processar_atualizacao(self, ticket: TicketSuporteConsumidor, status_anterior: str, resposta_anterior: str) -> Optional[NotificacaoConsumidor]:
+        """Avalia alterações e dispara notificações conforme mudanças."""
+        if not ticket.consumidor_email:
+            return None
+
+        resposta_alterada = (ticket.resposta or '').strip() and ticket.resposta != (resposta_anterior or '')
+        status_alterado = ticket.status != status_anterior
+
+        if resposta_alterada or (status_alterado and ticket.status in {TicketSuporteConsumidor.Status.RESPONDIDO, TicketSuporteConsumidor.Status.FECHADO}):
+            return self.enviar_resposta_consumidor(ticket)
+        return None
+
+    def _registrar_evento(self, ticket: TicketSuporteConsumidor, evento: str, detalhes: Optional[Dict[str, Any]] = None) -> None:
+        """Armazena um pequeno histórico de eventos no campo metadados."""
+        metadados = ticket.metadados or {}
+        historico = metadados.get('historico', [])
+        historico.append({
+            'evento': evento,
+            'detalhes': detalhes or {},
+            'registrado_em': timezone.now().isoformat(),
+        })
+        metadados['historico'] = historico
+        TicketSuporteConsumidor.objects.filter(pk=ticket.pk).update(metadados=metadados)
+
+
 # Instâncias globais dos serviços
 consulta_service = ConsultaPortalService()
 documento_service = DocumentoPortalService()
 notificacao_service = NotificacaoConsumidorService()
 feedback_service = FeedbackService()
+ticket_service = TicketSuporteService(notificacao_service=notificacao_service)

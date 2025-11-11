@@ -198,3 +198,24 @@ class ArquivarDocumentoSerializer(serializers.Serializer):
     motivo = serializers.CharField(max_length=500, required=False)
     observacoes = serializers.CharField(max_length=1000, required=False)
 
+
+
+class DistribuicaoStatusSerializer(serializers.Serializer):
+    status = serializers.CharField(allow_null=True)
+    total = serializers.IntegerField()
+
+
+class DistribuicaoTipoSerializer(serializers.Serializer):
+    tipo_documento = serializers.CharField(allow_null=True)
+    total = serializers.IntegerField()
+
+
+class CaixaEntradaDashboardSerializer(serializers.Serializer):
+    total = serializers.IntegerField()
+    nao_lidos = serializers.IntegerField()
+    atrasados = serializers.IntegerField()
+    urgentes = serializers.IntegerField()
+    distribuicao_status = DistribuicaoStatusSerializer(many=True)
+    distribuicao_tipo = DistribuicaoTipoSerializer(many=True)
+    recentes = CaixaEntradaSerializer(many=True)
+

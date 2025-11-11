@@ -25,6 +25,7 @@ const AtendimentoDashboard = () => {
     statusReclamacoes: []
   });
   const [reclamacoesRecentes, setReclamacoesRecentes] = useState([]);
+  const [alertasPrazo, setAlertasPrazo] = useState([]);
 
   const { showError } = useNotification();
 
@@ -61,12 +62,26 @@ const AtendimentoDashboard = () => {
         status: item.status,
         data: item.criado_em,
       })));
+
+      setAlertasPrazo(data.alertas_prazo || []);
     } catch (error) {
       const mensagem = error?.response?.data?.detail || error?.message || 'Erro ao carregar dados do dashboard';
       showError(mensagem);
     } finally {
       setLoading(false);
     }
+  };
+
+  const getAlertaLabel = (tipo, situacao) => {
+    const tipoTexto = {
+      resposta: 'Prazo de Resposta',
+      conciliacao: 'Conciliação',
+      decisao: 'Decisão',
+    }[tipo] || tipo;
+
+    const situacaoTexto = situacao === 'vencido' ? 'Vencido' : 'Próximo do Vencimento';
+
+    return `${tipoTexto} · ${situacaoTexto}`;
   };
 
   const getStatusColor = (status) => {
@@ -91,6 +106,19 @@ const AtendimentoDashboard = () => {
       'FINALIZADA': 'Finalizada'
     };
     return texts[status] || status;
+  };
+
+  const getAlertStyles = (situacao) => {
+    if (situacao === 'vencido') {
+      return {
+        badge: 'bg-red-100 text-red-700',
+        icon: <XCircleIcon className="h-5 w-5 text-red-600" />,
+      };
+    }
+    return {
+      badge: 'bg-amber-100 text-amber-700',
+      icon: <ClockIcon className="h-5 w-5 text-amber-600" />,
+    };
   };
 
   if (loading) {
@@ -122,6 +150,48 @@ const AtendimentoDashboard = () => {
           </div>
         </div>
       </div>
+
+      {alertasPrazo.length > 0 && (
+        <div className="bg-white rounded-lg shadow-sm border border-amber-200">
+          <div className="px-6 py-4 border-b border-amber-100 flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-amber-800">Alertas de Prazos</h2>
+              <p className="text-sm text-amber-600">
+                Reclamações com prazos próximos ou vencidos. Verifique os encaminhamentos.
+              </p>
+            </div>
+            <span className="inline-flex items-center px-3 py-1 rounded-full bg-amber-100 text-amber-700 text-xs font-semibold">
+              {alertasPrazo.length} alerta(s)
+            </span>
+          </div>
+          <div className="divide-y divide-amber-100">
+            {alertasPrazo.map((alerta, index) => {
+              const styles = getAlertStyles(alerta.situacao);
+              return (
+                <div key={`${alerta.numero_protocolo}-${index}`} className="px-6 py-4 flex items-start justify-between">
+                  <div className="flex items-start">
+                    <div className="mt-1">{styles.icon}</div>
+                    <div className="ml-3">
+                      <p className="text-sm font-semibold text-gray-900">
+                        {alerta.numero_protocolo}
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        {getAlertaLabel(alerta.tipo_alerta, alerta.situacao)}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Prazo limite: {new Date(alerta.prazo).toLocaleString('pt-BR')}
+                      </p>
+                    </div>
+                  </div>
+                  <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${styles.badge}`}>
+                    {alerta.situacao === 'vencido' ? 'Ação imediata' : 'Planejar ação'}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Estatísticas */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

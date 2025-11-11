@@ -4,6 +4,14 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.views import APIView
+from .serializers import (
+    DashboardStatsSerializer,
+    DashboardGraficosSerializer,
+    DashboardAlertaSerializer,
+    DashboardAtividadeSerializer,
+    DashboardPayloadSerializer,
+)
+
 import logging
 
 logger = logging.getLogger(__name__)
@@ -161,7 +169,10 @@ class DashboardStatsAPIView(APIView):
     def get(self, request):
         try:
             periodo = request.GET.get('periodo', 'mes')
-            return Response(_build_stats(periodo))
+            data = _build_stats(periodo)
+            serializer = DashboardStatsSerializer(data=data)
+            serializer.is_valid(raise_exception=True)
+            return Response(serializer.data)
         except Exception as exc:
             logger.exception('Erro ao carregar estatisticas do dashboard', exc_info=exc)
             return Response({'error': 'Erro interno do servidor'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -173,7 +184,10 @@ class DashboardGraficosAPIView(APIView):
     def get(self, request):
         try:
             periodo = request.GET.get('periodo', 'mes')
-            return Response(_build_chart_data(periodo))
+            data = _build_chart_data(periodo)
+            serializer = DashboardGraficosSerializer(data=data)
+            serializer.is_valid(raise_exception=True)
+            return Response(serializer.data)
         except Exception as exc:
             logger.exception('Erro ao carregar dados dos graficos', exc_info=exc)
             return Response({'error': 'Erro interno do servidor'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -184,7 +198,10 @@ class DashboardAlertasAPIView(APIView):
 
     def get(self, request):
         try:
-            return Response(_build_alertas())
+            alertas = _build_alertas()
+            serializer = DashboardAlertaSerializer(alertas, many=True)
+            serializer.is_valid(raise_exception=True)
+            return Response(serializer.data)
         except Exception as exc:
             logger.exception('Erro ao carregar alertas do dashboard', exc_info=exc)
             return Response({'error': 'Erro interno do servidor'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -196,7 +213,10 @@ class DashboardAtividadesAPIView(APIView):
     def get(self, request):
         try:
             limite = max(int(request.GET.get('limite', 10)), 1)
-            return Response(_build_atividades(limite))
+            atividades = _build_atividades(limite)
+            serializer = DashboardAtividadeSerializer(atividades, many=True)
+            serializer.is_valid(raise_exception=True)
+            return Response(serializer.data)
         except Exception as exc:
             logger.exception('Erro ao carregar atividades do dashboard', exc_info=exc)
             return Response({'error': 'Erro interno do servidor'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -207,7 +227,10 @@ class DashboardAtividadesAPIView(APIView):
 def dashboard_cached_view(request):
     try:
         periodo = request.GET.get('periodo', 'mes')
-        return Response(_build_cached_payload(periodo))
+        payload = _build_cached_payload(periodo)
+        serializer = DashboardPayloadSerializer(data=payload)
+        serializer.is_valid(raise_exception=True)
+        return Response(serializer.validated_data)
     except Exception as exc:
         logger.exception('Erro ao carregar dashboard completo', exc_info=exc)
         return Response({'error': 'Erro interno do servidor'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

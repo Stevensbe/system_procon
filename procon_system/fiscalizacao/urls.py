@@ -50,6 +50,7 @@ from .views import (
     
     # Utils Views
     buscar_autos,
+    autos_constatacao_disponiveis,
     validar_cnpj,
     proximos_numeros,
     upload_anexo,
@@ -64,6 +65,18 @@ from .views import (
     NotaFiscalPostoListAPIView,
     CupomFiscalPostoListAPIView,
     AnexoAutoListAPIView,
+)
+
+from .api_mobile import (
+    BootstrapView,
+    SyncPushView,
+    AutoConstatacaoCreateView,
+    AutoInfracaoCreateView,
+    PedidoNotificacaoCreateView,
+    AgendamentosListView,
+    AgendamentoCheckinView,
+    MobileUploadView,
+    MobileNumeracaoTesteView,
 )
 
 from .views_apreensao import AutoApreensaoInutilizacaoViewSet, ItemApreensaoInutilizacaoViewSet
@@ -112,6 +125,7 @@ urlpatterns = [
     path('dashboard-stats/', dashboard_stats, name='dashboard_stats'),
     path('estatisticas-gerais/', estatisticas_gerais, name='estatisticas_gerais'),
     path('buscar-autos/', buscar_autos, name='buscar_autos'),
+    path('fiscalizacao/autos-constatacao/', autos_constatacao_disponiveis, name='autos_constatacao_disponiveis'),
     path('validar-cnpj/', validar_cnpj, name='validar_cnpj'),
     path('proximos-numeros/', proximos_numeros, name='proximos_numeros'),
     path('upload-anexo/', upload_anexo, name='upload_anexo'),
@@ -157,17 +171,17 @@ urlpatterns = [
     path('processos/<int:processo_id>/documentos/', DocumentoProcessoListCreateAPIView.as_view(), name='documentos_processo'),
     
     # === ENDPOINTS PARA AUTO DE APREENSÃO/INUTILIZAÇÃO ===
-    path('apreensao-inutilizacao/', AutoApreensaoInutilizacaoViewSet.as_view({'get': 'list', 'post': 'create'}), name='apreensao_inutilizacao_list'),
-    path('apreensao-inutilizacao/<int:pk>/', AutoApreensaoInutilizacaoViewSet.as_view({'get': 'retrieve', 'put': 'update', 'patch': 'partial_update', 'delete': 'destroy'}), name='apreensao_inutilizacao_detail'),
-    path('apreensao-inutilizacao/<int:pk>/adicionar-item/', AutoApreensaoInutilizacaoViewSet.as_view({'post': 'adicionar_item'}), name='apreensao_inutilizacao_adicionar_item'),
-    path('apreensao-inutilizacao/<int:pk>/gerar-pdf/', AutoApreensaoInutilizacaoViewSet.as_view({'get': 'gerar_pdf'}), name='apreensao_inutilizacao_gerar_pdf'),
-    path('apreensao-inutilizacao/estatisticas/', AutoApreensaoInutilizacaoViewSet.as_view({'get': 'estatisticas'}), name='apreensao_inutilizacao_estatisticas'),
-    path('apreensao-inutilizacao/autos_supermercado_disponiveis/', AutoApreensaoInutilizacaoViewSet.as_view({'get': 'autos_supermercado_disponiveis'}), name='apreensao_inutilizacao_autos_supermercado_disponiveis'),
-    path('apreensao-inutilizacao/proximo_numero/', AutoApreensaoInutilizacaoViewSet.as_view({'get': 'proximo_numero'}), name='apreensao_inutilizacao_proximo_numero'),
+    path('fiscalizacao/apreensao-inutilizacao/', AutoApreensaoInutilizacaoViewSet.as_view({'get': 'list', 'post': 'create'}), name='apreensao_inutilizacao_list'),
+    path('fiscalizacao/apreensao-inutilizacao/<int:pk>/', AutoApreensaoInutilizacaoViewSet.as_view({'get': 'retrieve', 'put': 'update', 'patch': 'partial_update', 'delete': 'destroy'}), name='apreensao_inutilizacao_detail'),
+    path('fiscalizacao/apreensao-inutilizacao/<int:pk>/adicionar-item/', AutoApreensaoInutilizacaoViewSet.as_view({'post': 'adicionar_item'}), name='apreensao_inutilizacao_adicionar_item'),
+    path('fiscalizacao/apreensao-inutilizacao/<int:pk>/gerar-pdf/', AutoApreensaoInutilizacaoViewSet.as_view({'get': 'gerar_pdf'}), name='apreensao_inutilizacao_gerar_pdf'),
+    path('fiscalizacao/apreensao-inutilizacao/estatisticas/', AutoApreensaoInutilizacaoViewSet.as_view({'get': 'estatisticas'}), name='apreensao_inutilizacao_estatisticas'),
+    path('fiscalizacao/apreensao-inutilizacao/autos_supermercado_disponiveis/', AutoApreensaoInutilizacaoViewSet.as_view({'get': 'autos_supermercado_disponiveis'}), name='apreensao_inutilizacao_autos_supermercado_disponiveis'),
+    path('fiscalizacao/apreensao-inutilizacao/proximo_numero/', AutoApreensaoInutilizacaoViewSet.as_view({'get': 'proximo_numero'}), name='apreensao_inutilizacao_proximo_numero'),
     
     # === ENDPOINTS PARA ITENS DE APREENSÃO/INUTILIZAÇÃO ===
-    path('itens-apreensao/', ItemApreensaoInutilizacaoViewSet.as_view({'get': 'list', 'post': 'create'}), name='itens_apreensao_list'),
-    path('itens-apreensao/<int:pk>/', ItemApreensaoInutilizacaoViewSet.as_view({'get': 'retrieve', 'put': 'update', 'patch': 'partial_update', 'delete': 'destroy'}), name='itens_apreensao_detail'),
+    path('fiscalizacao/itens-apreensao/', ItemApreensaoInutilizacaoViewSet.as_view({'get': 'list', 'post': 'create'}), name='itens_apreensao_list'),
+    path('fiscalizacao/itens-apreensao/<int:pk>/', ItemApreensaoInutilizacaoViewSet.as_view({'get': 'retrieve', 'put': 'update', 'patch': 'partial_update', 'delete': 'destroy'}), name='itens_apreensao_detail'),
     
     # Upload de documentos
     path('processos/<int:processo_id>/documentos/upload/', upload_documento_processo, name='upload_documento_processo'),
@@ -184,6 +198,17 @@ urlpatterns = [
     # 🧪 TESTE E DEBUG
     path('teste-performance/<int:processo_id>/', teste_performance_busca, name='teste_performance'),
     
+    # === ENDPOINTS PARA API MOBILE ===
+    path('mobile/sync/bootstrap/', BootstrapView.as_view(), name='mobile_sync_bootstrap'),
+    path('mobile/sync/push/', SyncPushView.as_view(), name='mobile_sync_push'),
+    path('mobile/autos/constatacao/', AutoConstatacaoCreateView.as_view(), name='mobile_auto_constatacao'),
+    path('mobile/autos/infracao/', AutoInfracaoCreateView.as_view(), name='mobile_auto_infracao'),
+    path('mobile/notificacoes/pedidos/', PedidoNotificacaoCreateView.as_view(), name='mobile_pedido_notificacao'),
+    path('mobile/agendamentos/', AgendamentosListView.as_view(), name='mobile_agendamentos'),
+    path('mobile/agendamentos/<int:agendamento_id>/checkin/', AgendamentoCheckinView.as_view(), name='mobile_agendamento_checkin'),
+    path('mobile/uploads/', MobileUploadView.as_view(), name='mobile_uploads'),
+    path('mobile/numeracao/teste/', MobileNumeracaoTesteView.as_view(), name='mobile_numeracao_teste'),
+
     # === ENDPOINTS PARA FUNCIONALIDADES AVANÇADAS ===
     
     # Evidências Fotográficas

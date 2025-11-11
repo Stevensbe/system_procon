@@ -293,7 +293,7 @@ class NotificacaoConsumidor(models.Model):
 
 class FeedbackConsumidor(models.Model):
     """Sistema de feedback dos consumidores sobre o portal"""
-    
+
     tipo_feedback_choices = [
         ('USABILIDADE', 'Usabilidade do Portal'),
         ('PROCESSO_TRAMATACAO', 'Processo de Tramitação'),
@@ -368,3 +368,62 @@ def dict_blank():
 
 def list_blank():
     return []
+
+
+class TicketSuporteConsumidor(models.Model):
+    """Tickets de suporte abertos pelos consumidores via portal."""
+
+    class Status(models.TextChoices):
+        ABERTO = "ABERTO", "Aberto"
+        EM_ANALISE = "EM_ANALISE", "Em análise"
+        RESPONDIDO = "RESPONDIDO", "Respondido"
+        FECHADO = "FECHADO", "Fechado"
+
+    class Prioridade(models.TextChoices):
+        BAIXA = "BAIXA", "Baixa"
+        MEDIA = "MEDIA", "Média"
+        ALTA = "ALTA", "Alta"
+        URGENTE = "URGENTE", "Urgente"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
+    consumidor_email = models.EmailField(blank=True)
+    consumidor_nome = models.CharField(max_length=150, blank=True)
+    consumidor_cpf = models.CharField(max_length=15, blank=True)
+
+    protocolo_relacionado = models.CharField(max_length=50, blank=True)
+    assunto = models.CharField(max_length=200)
+    categoria = models.CharField(max_length=60, blank=True)
+    descricao = models.TextField()
+
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.ABERTO)
+    prioridade = models.CharField(max_length=15, choices=Prioridade.choices, default=Prioridade.MEDIA)
+
+    resposta = models.TextField(blank=True)
+    respondido_por = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="tickets_respondidos",
+    )
+    data_resposta = models.DateTimeField(null=True, blank=True)
+
+    tags = models.JSONField(default=list_blank, blank=True)
+    metadados = models.JSONField(default=dict_blank, blank=True)
+
+    data_criacao = models.DateTimeField(auto_now_add=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Ticket de Suporte do Consumidor"
+        verbose_name_plural = "Tickets de Suporte dos Consumidores"
+        ordering = ["-data_criacao"]
+        indexes = [
+            models.Index(fields=["consumidor_email"]),
+            models.Index(fields=["status"]),
+            models.Index(fields=["prioridade"]),
+        ]
+
+    def __str__(self):
+        return f"Ticket {self.id} - {self.assunto}"

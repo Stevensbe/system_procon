@@ -17,6 +17,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # ===================================================================
 
 DEBUG = os.environ.get('DEBUG', 'True').lower() in ('true', '1', 'yes')
+# Indica execução dentro da suíte de testes (utilizado para desativar sinais pesados)
+TESTING = os.environ.get('PYTEST_CURRENT_TEST') is not None
 
 # Configuração segura de SECRET_KEY - SEMPRE usar variável de ambiente
 SECRET_KEY = os.environ.get('SECRET_KEY')
@@ -46,6 +48,7 @@ INSTALLED_APPS = [
     'colorfield',  # Necessário para admin_interface
     'corsheaders',
     'rest_framework',
+    'django_filters',
     'rest_framework_simplejwt.token_blacklist',
     'drf_spectacular',
     'django.contrib.admin',
@@ -85,6 +88,9 @@ INSTALLED_APPS = [
     'apis_externas',
     'exportacoes',
     
+    # Módulo TI - Gestão de Usuários e Permissões
+    'ti',
+    
     # Fase 6 - Business Intelligence & Relatórios Avançados
     'business_intelligence',
     'predictive_analytics',
@@ -93,6 +99,7 @@ INSTALLED_APPS = [
     'automated_intelligence',
     
     # Novos módulos implementados
+    'ppa.apps.PpaConfig',  # PPA - Procedimento Preliminar Administrativo
     'empresas',
     'notificacoes',
     'relatorios',
@@ -104,6 +111,7 @@ INSTALLED_APPS = [
     'health',
     'cobranca',
     'caixa_entrada',
+    'triagem.apps.TriagemConfig',
 ]
 
 # ===================================================================
@@ -194,7 +202,43 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 # ===================================================================
-# INTERNACIONALIZAÇÃO
+# CONFIGURAÇÕES DE EMAIL
+# ===================================================================
+
+# Configurações de Email para Notificações
+EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', 'django.core.mail.backends.smtp.EmailBackend')
+EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')
+EMAIL_PORT = int(os.environ.get('EMAIL_PORT', '587'))
+EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'True').lower() == 'true'
+EMAIL_USE_SSL = os.environ.get('EMAIL_USE_SSL', 'False').lower() == 'true'
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'Sistema PROCON-AM <noreply@procon.am.gov.br>')
+SERVER_EMAIL = os.environ.get('SERVER_EMAIL', DEFAULT_FROM_EMAIL)
+
+
+def _get_int_env(name: str) -> int | None:
+    value = os.environ.get(name)
+    if not value:
+        return None
+    try:
+        return int(value)
+    except ValueError:
+        return None
+
+
+TRIAGEM_ANALISTA_PADRAO_ID = _get_int_env('TRIAGEM_ANALISTA_PADRAO_ID')
+TRIAGEM_ANALISTA_PADRAO_USERNAME = os.environ.get('TRIAGEM_ANALISTA_PADRAO_USERNAME')
+
+# Configurações de Email para Desenvolvimento (Console)
+if DEBUG and not EMAIL_HOST_USER:
+    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+    print("EMAIL: Modo desenvolvimento - emails serao exibidos no console")
+
+# Configurações de Email para Teste (Arquivo)
+# EMAIL_BACKEND = 'django.core.mail.backends.filebased.EmailBackend'
+# EMAIL_FILE_PATH = os.path.join(BASE_DIR, 'emails_enviados')
+
 # ===================================================================
 
 LANGUAGE_CODE = 'pt-br'
@@ -288,6 +332,11 @@ REST_FRAMEWORK = {
     ),
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 10,
+    'DEFAULT_FILTER_BACKENDS': [
+        'django_filters.rest_framework.DjangoFilterBackend',
+        'rest_framework.filters.SearchFilter',
+        'rest_framework.filters.OrderingFilter',
+    ],
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
     ] if not DEBUG else [

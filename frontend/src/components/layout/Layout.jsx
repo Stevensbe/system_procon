@@ -1,15 +1,18 @@
 import React, { useEffect, useState } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useNavigate } from 'react-router-dom';
 import ModernSidebar from './ModernSidebar';
 import SidebarOverlay from './SidebarOverlay';
 import AlertasPrazos from '../processos/AlertasPrazos';
 import ThemeToggle from '../ui/ThemeToggle';
+import { useAuth } from '../../context/AuthContext';
 import { initSidebar } from '../../utils/sidebar';
 import '../../styles/modern-sidebar.css';
 import '../../styles/admin-white.css';
 
 function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const navigate = useNavigate();
+  const { logout, user } = useAuth();
 
   useEffect(() => {
     // Inicializar o sidebar moderno
@@ -22,6 +25,17 @@ function Layout() {
 
   const handleSidebarClose = () => {
     setSidebarOpen(false);
+  };
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+      navigate('/login');
+    } catch (error) {
+      console.error('Erro ao fazer logout:', error);
+      // Mesmo com erro, redireciona para login
+      navigate('/login');
+    }
   };
 
   return (
@@ -45,6 +59,21 @@ function Layout() {
             <div className="flex items-center space-x-4">
               <AlertasPrazos showOnlyCount={true} />
               <ThemeToggle />
+              <div className="flex items-center space-x-2">
+                <span className="text-sm text-gray-600">
+                  {user?.first_name && user?.last_name 
+                    ? `${user.first_name} ${user.last_name}` 
+                    : user?.username || 'Usuário'}
+                </span>
+                <button
+                  onClick={handleLogout}
+                  className="px-3 py-1 text-sm bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors duration-200"
+                  title="Fazer logout"
+                >
+                  <i className="fa fa-sign-out mr-1"></i>
+                  Sair
+                </button>
+              </div>
               <div className="text-sm text-gray-600">
                 {new Date().toLocaleDateString('pt-BR', { 
                   weekday: 'long', 

@@ -14,16 +14,20 @@ import {
 } from '@heroicons/react/24/outline';
 import { useNotification } from '../../hooks/useNotifications';
 import api from '../../services/api';
+import atendimentoService from '../../services/atendimentoService';
 
 const DetalhesReclamacao = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { showError } = useNotification();
+  const { showError, showSuccess } = useNotification();
   
   const [loading, setLoading] = useState(true);
   const [reclamacao, setReclamacao] = useState(null);
   const [historico, setHistorico] = useState([]);
   const [anexos, setAnexos] = useState([]);
+  const [atendimento, setAtendimento] = useState(null);
+  const [documentosConciliacao, setDocumentosConciliacao] = useState({ ata: null, decisao: null });
+  const [remocaoLoading, setRemocaoLoading] = useState(false);
 
   useEffect(() => {
     carregarDados();
@@ -38,6 +42,11 @@ const DetalhesReclamacao = () => {
       setReclamacao(data);
       setHistorico(data.historico || []);
       setAnexos(data.anexos || []);
+      setAtendimento(data.atendimento || null);
+      setDocumentosConciliacao({
+        ata: data.ata_conciliacao_url || null,
+        decisao: data.decisao_documento_url || null,
+      });
     } catch (error) {
       const mensagem = error?.response?.data?.detail || error?.message || 'Erro ao carregar dados da reclamação';
       showError(mensagem);
@@ -46,6 +55,66 @@ const DetalhesReclamacao = () => {
     }
   };
 
+  const solicitarRemocaoDados = async () => {
+    if (!atendimento) {
+      return;
+    }
+
+    const observacoes = window.prompt('Informe o motivo da solicitação de remoção (opcional):', '');
+    if (observacoes === null) {
+      return;
+    }
+
+    try {
+      setRemocaoLoading(true);
+      await atendimentoService.solicitarRemocaoDados(atendimento.id, observacoes || '');
+      showSuccess('Solicitação de remoção registrada.');
+      await carregarDados();
+    } catch (error) {
+      const mensagem = error?.response?.data?.erro || error?.response?.data?.detail || error.message || 'Falha ao solicitar remoção.';
+      showError(mensagem);
+    } finally {
+      setRemocaoLoading(false);
+    }
+  };
+
+  const confirmarRemocaoDados = async () => {
+    if (!atendimento) {
+      return;
+    }
+
+    if (!atendimento.dados_remocao_solicitada_em) {
+      showError('É necessário registrar a solicitação de remoção antes de confirmar.');
+      return;
+    }
+
+    const confirmado = window.confirm('Confirmar a anonimização definitiva dos dados e anexos deste atendimento? Esta ação não poderá ser revertida.');
+    if (!confirmado) {
+      return;
+    }
+
+    try {
+      setRemocaoLoading(true);
+      await atendimentoService.confirmarRemocaoDados(atendimento.id);
+      showSuccess('Dados removidos/anonimizados com sucesso.');
+      await carregarDados();
+    } catch (error) {
+      const mensagem = error?.response?.data?.erro || error?.response?.data?.detail || error.message || 'Falha ao remover dados.';
+      showError(mensagem);
+    } finally {
+      setRemocaoLoading(false);
+    }
+  };
+  const formatDateTime = (value) => {
+    if (!value) {
+      return null;
+    }
+    const data = new Date(value);
+    if (Number.isNaN(data.getTime())) {
+      return null;
+    }
+    return data.toLocaleString('pt-BR');
+  };
   const getStatusColor = (status) => {
     const colors = {
       'REGISTRADA': 'bg-blue-100 text-blue-800',
@@ -94,6 +163,13 @@ const DetalhesReclamacao = () => {
     return parsed.toFixed(2);
   };
 
+  const consentimentoRegistradoEm = formatDateTime(atendimento?.consentimento_registrado_em);
+  const remocaoSolicitadaEm = formatDateTime(atendimento?.dados_remocao_solicitada_em);
+  const remocaoConcluidaEm = formatDateTime(atendimento?.dados_removidos_em);
+  const origemConsentimento = atendimento?.consentimento_origem || '-';
+  const podeSolicitarRemocao = Boolean(atendimento && !atendimento.dados_removidos_em);
+  const podeConfirmarRemocao = Boolean(atendimento && atendimento.dados_remocao_solicitada_em && !atendimento.dados_removidos_em);
+  const possuiDocumentosConciliacao = Boolean(documentosConciliacao.ata || documentosConciliacao.decisao);
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -257,31 +333,98 @@ const DetalhesReclamacao = () => {
               </div>
               
               <div className="space-y-3">
-                {anexos.map((anexo) => (
-                  <div key={anexo.id} className="flex items-center justify-between bg-gray-50 rounded-lg p-3">
-                    <div className="flex items-center">
-                      <PaperClipIcon className="h-4 w-4 text-gray-400 mr-3" />
-                      <div>
-                        <p className="text-sm font-medium text-gray-900">{anexo.descricao}</p>
-                        <p className="text-xs text-gray-500">
-                          {getTipoDocumentoText(anexo.tipo_documento)} • 
-                          {new Date(anexo.data_upload).toLocaleDateString('pt-BR')}
-                        </p>
+                {anexos.map((anexo) => {
+                  const dataUploadFormatada = formatDateTime(anexo.data_upload);
+                  const dataRemocaoFormatada = formatDateTime(anexo.removido_em);
+                  const tamanhoMB = typeof anexo.tamanho_bytes === 'number'
+                    ? (anexo.tamanho_bytes / 1024 / 1024).toFixed(2)
+                    : null;
+                  return (
+                    <div key={anexo.id} className="flex items-center justify-between bg-gray-50 rounded-lg p-3">
+                      <div className="flex items-center">
+                        <PaperClipIcon className="h-4 w-4 text-gray-400 mr-3" />
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">{anexo.descricao}</p>
+                          <p className="text-xs text-gray-500">
+                            {getTipoDocumentoText(anexo.tipo_documento)} - {dataUploadFormatada || 'Data indisponivel'}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {tamanhoMB ? `${tamanhoMB} MB` : 'Tamanho indisponivel'}
+                            {anexo.content_type ? ` • ${anexo.content_type}` : ''}
+                          </p>
+                          {anexo.checksum_sha256 && (
+                            <p className="text-[11px] text-gray-400 break-all">
+                              Checksum: {anexo.checksum_sha256}
+                            </p>
+                          )}
+                          {anexo.removido_em && (
+                            <p className="mt-1 text-xs text-red-600">
+                              Removido em {dataRemocaoFormatada || 'Registro indisponivel'}
+                            </p>
+                          )}
+                        </div>
                       </div>
+                      <button
+                        type="button"
+                        onClick={() => anexo.arquivo_url && window.open(anexo.arquivo_url, '_blank')}
+                        disabled={!anexo.arquivo_url}
+                        className="text-blue-600 hover:text-blue-800 text-sm font-medium disabled:text-gray-400 disabled:cursor-not-allowed"
+                      >
+                        {anexo.arquivo_url ? 'Baixar' : 'Arquivo removido'}
+                      </button>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => anexo.arquivo_url && window.open(anexo.arquivo_url, '_blank')}
-                      disabled={!anexo.arquivo_url}
-                      className="text-blue-600 hover:text-blue-800 text-sm font-medium disabled:text-gray-400 disabled:cursor-not-allowed"
-                    >
-                      Baixar
-                    </button>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
+
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center mb-4">
+              <DocumentTextIcon className="h-6 w-6 text-blue-600 mr-3" />
+              <h2 className="text-xl font-semibold text-gray-900">Documentos da Conciliação</h2>
+            </div>
+
+            <div className="space-y-3">
+              {documentosConciliacao.ata && (
+                <div className="flex items-center justify-between bg-gray-50 rounded-lg p-3">
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">Ata de conciliação</p>
+                    <p className="text-xs text-gray-500">Registro oficial da sessão de audiência.</p>
+                  </div>
+                  <a
+                    href={documentosConciliacao.ata}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                  >
+                    Visualizar
+                  </a>
+                </div>
+              )}
+
+              {documentosConciliacao.decisao && (
+                <div className="flex items-center justify-between bg-gray-50 rounded-lg p-3">
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">Documento da decisão</p>
+                    <p className="text-xs text-gray-500">Despacho ou decisão administrativa publicada.</p>
+                  </div>
+                  <a
+                    href={documentosConciliacao.decisao}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                  >
+                    Visualizar
+                  </a>
+                </div>
+              )}
+
+              {!possuiDocumentosConciliacao && (
+                <p className="text-sm text-gray-500">Nenhuma ata ou documento de decisão anexado até o momento.</p>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Sidebar */}
@@ -331,6 +474,58 @@ const DetalhesReclamacao = () => {
             </div>
           </div>
 
+          {atendimento && (
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">LGPD e Consentimento</h3>
+              <dl className="space-y-3 text-sm text-gray-700">
+                <div className="flex items-center justify-between">
+                  <dt>Consentimento registrado</dt>
+                  <dd className="font-medium text-gray-900">
+                    {atendimento.consentimento_lgpd ? 'Sim' : 'Nao'}
+                  </dd>
+                </div>
+                <div className="flex items-center justify-between">
+                  <dt>Origem</dt>
+                  <dd className="font-medium text-gray-900">{origemConsentimento}</dd>
+                </div>
+                <div className="flex items-center justify-between">
+                  <dt>Registrado em</dt>
+                  <dd className="text-gray-900">{consentimentoRegistradoEm || '-'}</dd>
+                </div>
+                <div className="flex items-center justify-between">
+                  <dt>Remocao solicitada</dt>
+                  <dd className="text-gray-900">{remocaoSolicitadaEm || '-'}</dd>
+                </div>
+                <div className="flex items-center justify-between">
+                  <dt>Remocao concluida</dt>
+                  <dd className="text-gray-900">{remocaoConcluidaEm || '-'}</dd>
+                </div>
+              </dl>
+              {atendimento.dados_remocao_observacoes && (
+                <p className="mt-3 text-xs text-gray-600">
+                  Observacoes: {atendimento.dados_remocao_observacoes}
+                </p>
+              )}
+              <div className="mt-4 space-y-2">
+                <button
+                  type="button"
+                  onClick={solicitarRemocaoDados}
+                  disabled={!podeSolicitarRemocao || remocaoLoading}
+                  className="w-full text-left px-3 py-2 text-sm font-medium rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Solicitar remocao LGPD
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmarRemocaoDados}
+                  disabled={!podeConfirmarRemocao || remocaoLoading}
+                  className="w-full text-left px-3 py-2 text-sm font-medium rounded-lg border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Confirmar remocao
+                </button>
+              </div>
+            </div>
+          )}
           {/* Histórico */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Histórico</h3>
@@ -359,3 +554,15 @@ const DetalhesReclamacao = () => {
 };
 
 export default DetalhesReclamacao;
+
+
+
+
+
+
+
+
+
+
+
+

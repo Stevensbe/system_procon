@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="utf-8">
+    <title>Totem de Autoatendimento</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        :root {
+            font-family: Arial, sans-serif;
+            background: #0d2235;
+            color: #f5f7fa;
+        }
+        body {
+            margin: 0;
+            padding: 0 2rem 3rem;
+        }
+        header {
+            text-align: center;
+            padding: 2rem 0 1rem;
+        }
+        header h1 {
+            margin: 0;
+            font-size: 2.4rem;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+        }
+        header p {
+            margin: 0.5rem 0 0;
+            font-size: 1.1rem;
+            color: #a8c2dd;
+        }
+        .balcao-grid {
+            display: grid;
+            gap: 1.5rem;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            margin-top: 2rem;
+        }
+        .balcao-card {
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 18px;
+            padding: 1.5rem;
+            box-shadow: 0 18px 32px rgba(0, 0, 0, 0.35);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            min-height: 260px;
+        }
+        .balcao-card h2 {
+            margin: 0;
+            font-size: 1.8rem;
+        }
+        .balcao-meta {
+            color: #87b4da;
+            font-size: 0.95rem;
+            margin-top: 0.35rem;
+        }
+        .balcao-status {
+            margin: 1.5rem 0;
+        }
+        .balcao-status strong {
+            font-size: 2.5rem;
+            display: block;
+            margin-bottom: 0.4rem;
+        }
+        .alerta {
+            color: #f7c331;
+            font-size: 1rem;
+        }
+        .acoes {
+            display: grid;
+            gap: 0.75rem;
+        }
+        button {
+            border: none;
+            border-radius: 14px;
+            padding: 0.95rem 1.5rem;
+            font-size: 1.1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .btn-normal {
+            background: linear-gradient(135deg, #3fa1ff, #3076ff);
+            color: #fff;
+        }
+        .btn-prioritaria {
+            background: linear-gradient(135deg, #ff9a3f, #ff6f3f);
+            color: #fff;
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 22px rgba(0, 0, 0, 0.25);
+        }
+        .resultado {
+            margin-top: 1.5rem;
+            background: rgba(19, 45, 68, 0.7);
+            border-radius: 14px;
+            padding: 1rem 1.2rem;
+            min-height: 54px;
+            display: none;
+        }
+        .resultado.mostrar {
+            display: block;
+        }
+        .resultado strong {
+            display: block;
+            font-size: 1.4rem;
+        }
+        footer {
+            margin-top: 3rem;
+            text-align: center;
+            font-size: 0.9rem;
+            color: #7793ac;
+        }
+        @media (max-width: 640px) {
+            header h1 { font-size: 2rem; }
+            .balcao-card { min-height: 220px; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Retire sua senha</h1>
+        <p>Escolha um guichê e toque em <strong>Retirar senha</strong>. O painel será atualizado automaticamente.</p>
+    </header>
+
+    <main class="balcao-grid" id="balcao-grid">
+        {% for balcao in balcoes %}
+        <section class="balcao-card" data-balcao-id="{{ balcao.id }}">
+            <div>
+                <h2>{{ balcao.nome }}</h2>
+                <p class="balcao-meta">Código {{ balcao.codigo }} · {{ balcao.localizacao|default:"Localização não informada" }}</p>
+                <div class="balcao-status">
+                    <strong id="fila-qtd-{{ balcao.id }}">--</strong>
+                    <span>senhas em espera</span>
+                    <p class="alerta" id="alerta-{{ balcao.id }}">Atualizando...</p>
+                </div>
+            </div>
+            <div class="acoes">
+                <button class="btn-normal btn-retirar" data-balcao-id="{{ balcao.id }}" data-prioridade="NORMAL">
+                    Retirar senha normal
+                </button>
+                <button class="btn-prioritaria btn-retirar" data-balcao-id="{{ balcao.id }}" data-prioridade="PRIORITARIA">
+                    Prioridade / Preferencial
+                </button>
+            </div>
+        </section>
+        {% empty %}
+        <section class="balcao-card">
+            <h2>Nenhum guichê ativo</h2>
+            <p class="balcao-meta">Ative um guichê para iniciar o autoatendimento.</p>
+        </section>
+        {% endfor %}
+    </main>
+
+    <div class="resultado" id="resultado">
+        <strong id="resultado-senha"></strong>
+        <span id="resultado-detalhes"></span>
+    </div>
+
+    <footer>
+        Atualização automática a cada <span id="intervalo">{{ refresh_interval }}</span> segundos · LGPD assegurada (consentimento presencial)
+    </footer>
+
+    <script>
+        const REFRESH_INTERVAL = {{ refresh_interval|default:10 }};
+        const RESULTADO = document.getElementById('resultado');
+        const RESULTADO_SENHA = document.getElementById('resultado-senha');
+        const RESULTADO_DETALHES = document.getElementById('resultado-detalhes');
+
+        function getCookie(name) {
+            const value = `; ${document.cookie}`;
+            const parts = value.split(`; ${name}=`);
+            if (parts.length === 2) return parts.pop().split(';').shift();
+            return null;
+        }
+
+        async function atualizarBalcoes() {
+            try {
+                const resposta = await fetch("{% url 'atendimento:autoatendimento-list' %}");
+                if (!resposta.ok) {
+                    throw new Error('Falha ao consultar fila.');
+                }
+                const dados = await resposta.json();
+                dados.forEach(info => {
+                    const qtdEl = document.getElementById(`fila-qtd-${info.id}`);
+                    const alertaEl = document.getElementById(`alerta-${info.id}`);
+                    if (qtdEl) {
+                        qtdEl.textContent = info.senhas_em_espera;
+                    }
+                    if (alertaEl) {
+                        alertaEl.textContent = info.alerta_fila_vazia
+                            ? 'Fila vazia. Aguarde chamado na tela.'
+                            : `Próxima senha: ${info.proxima_senha || 'em processamento'}`;
+                    }
+                });
+            } catch (erro) {
+                console.error(erro);
+            }
+        }
+
+        async function retirarSenha(balcaoId, prioridade) {
+            try {
+                const resposta = await fetch(`/atendimento/autoatendimento/${balcaoId}/retirar/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken') || ''
+                    },
+                    body: JSON.stringify({ prioridade })
+                });
+
+                if (!resposta.ok) {
+                    const erro = await resposta.json().catch(() => ({}));
+                    throw new Error(erro.detail || erro.erro || 'Não foi possível gerar a senha.');
+                }
+                const payload = await resposta.json();
+                RESULTADO_SENHA.textContent = `Senha ${payload.senha.identificador}`;
+                RESULTADO_DETALHES.textContent = `Posição aproximada ${payload.senha.posicao} · Tempo estimado ${payload.senha.tempo_estimado_minutos} min`;
+                RESULTADO.classList.add('mostrar');
+                atualizarBalcoes();
+            } catch (erro) {
+                RESULTADO_SENHA.textContent = 'Não foi possível emitir a senha.';
+                RESULTADO_DETALHES.textContent = erro.message;
+                RESULTADO.classList.add('mostrar');
+            }
+        }
+
+        document.querySelectorAll('.btn-retirar').forEach(btn => {
+            btn.addEventListener('click', () => {
+                retirarSenha(btn.dataset.balcaoId, btn.dataset.prioridade);
+            });
+        });
+
+        atualizarBalcoes();
+        setInterval(atualizarBalcoes, REFRESH_INTERVAL * 1000);
+    </script>
+</body>
+</html>

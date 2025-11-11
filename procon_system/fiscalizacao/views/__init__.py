@@ -65,6 +65,7 @@ __all__ = [
     
     # Utils Views
     'buscar_autos',
+    'autos_constatacao_disponiveis',
     'validar_cnpj',
     'proximos_numeros',
     'upload_anexo',

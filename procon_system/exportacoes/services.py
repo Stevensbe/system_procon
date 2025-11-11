@@ -21,6 +21,7 @@ from django.core.files.base import ContentFile
 from django.core.mail import EmailMessage
 from django.conf import settings
 from django.template.loader import render_to_string
+from django.contrib.auth.models import User
 
 from .models import (
     TipoExportacao, AgendamentoExportacao, ExecucaoExportacao,

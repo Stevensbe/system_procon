@@ -79,7 +79,7 @@ class AutoApreensaoInutilizacaoViewSet(viewsets.ModelViewSet):
         """Retorna autos de supermercado disponíveis para vincular"""
         # Busca autos de supermercado que não têm auto de apreensão vinculado
         autos_supermercado = AutoSupermercado.objects.filter(
-            auto_apreensao_inutilizacao__isnull=True
+            autos_apreensao_inutilizacao__isnull=True
         ).order_by('-data_fiscalizacao')
         
         serializer = AutoSupermercadoListSerializer(autos_supermercado, many=True)

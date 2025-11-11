@@ -105,7 +105,8 @@ class BoletoMultaViewSet(viewsets.ModelViewSet):
             'variacao_taxa': 0  # Implementar cálculo se necessário
         }
         
-        serializer = DashboardSerializer(data)
+        serializer = DashboardSerializer(data=data)
+        serializer.is_valid(raise_exception=True)
         return Response(serializer.data)
 
     @action(detail=False, methods=['get'])
@@ -126,7 +127,8 @@ class BoletoMultaViewSet(viewsets.ModelViewSet):
                 'percentual': round(percentual, 2)
             })
         
-        serializer = BoletosPorStatusSerializer(data, many=True)
+        serializer = BoletosPorStatusSerializer(data=data, many=True)
+        serializer.is_valid(raise_exception=True)
         return Response(serializer.data)
 
     @action(detail=False, methods=['get'])
@@ -254,7 +256,8 @@ class PagamentoMultaViewSet(viewsets.ModelViewSet):
             quantidade=Count('id')
         ).order_by('-mes')[:12]
         
-        serializer = PagamentosPorMesSerializer(pagamentos, many=True)
+        serializer = PagamentosPorMesSerializer(data=pagamentos, many=True)
+        serializer.is_valid(raise_exception=True)
         return Response(serializer.data)
 
 
@@ -303,7 +306,8 @@ class CobrancaMultaViewSet(viewsets.ModelViewSet):
                 'percentual': round(percentual, 2)
             })
         
-        serializer = CobrancasPorStatusSerializer(data, many=True)
+        serializer = CobrancasPorStatusSerializer(data=data, many=True)
+        serializer.is_valid(raise_exception=True)
         return Response(serializer.data)
 
     @action(detail=True, methods=['post'])
@@ -455,7 +459,8 @@ class RemessaViewSet(viewsets.ModelViewSet):
                 'percentual': round(percentual, 2)
             })
         
-        serializer = RemessasPorStatusSerializer(data, many=True)
+        serializer = RemessasPorStatusSerializer(data=data, many=True)
+        serializer.is_valid(raise_exception=True)
         return Response(serializer.data)
 
     @action(detail=True, methods=['post'])

@@ -1,1 +1,1 @@
-# Módulo de Atendimento - Cópia do Pro Consumidor
+default_app_config = 'atendimento.apps.AtendimentoConfig'

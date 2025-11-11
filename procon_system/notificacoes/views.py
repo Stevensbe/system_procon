@@ -461,7 +461,9 @@ class NotificacaoViewSet(viewsets.ModelViewSet):
             'falhadas': queryset.filter(status='falhada').count(),
         }
         
-        return Response(contadores)
+        serializer = NotificacaoContadorSerializer(data=contadores)
+        serializer.is_valid(raise_exception=True)
+        return Response(serializer.data)
 
 class PreferenciaNotificacaoViewSet(viewsets.ModelViewSet):
     """ViewSet para preferências de notificação"""
@@ -550,7 +552,8 @@ class NotificacaoDashboardViewSet(viewsets.ViewSet):
             'notificacoes_recentes': NotificacaoSerializer(notificacoes_recentes, many=True).data
         }
         
-        serializer = DashboardNotificacoesSerializer(dados)
+        serializer = DashboardNotificacoesSerializer(data=dados)
+        serializer.is_valid(raise_exception=True)
         return Response(serializer.data)
 
     @action(detail=False, methods=['get'])
@@ -572,7 +575,9 @@ class NotificacaoDashboardViewSet(viewsets.ViewSet):
             'mes_passado': queryset.filter(criado_em__date__gte=mes_passado).count(),
         }
         
-        return Response(estatisticas)
+        serializer = NotificacaoEstatisticasSerializer(data=estatisticas)
+        serializer.is_valid(raise_exception=True)
+        return Response(serializer.data)
 
     @action(detail=False, methods=['get'])
     def notificacoes_vencidas(self, request):

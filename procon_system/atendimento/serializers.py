@@ -1,5 +1,12 @@
 from rest_framework import serializers
 from portal_cidadao.models import ReclamacaoDenuncia, HistoricoReclamacao, AnexoReclamacao
+from .models import (
+    BalcaoAtendimento,
+    SenhaAtendimento,
+    FilaAtendimento,
+    ConfiguracaoAtendimento,
+    RegraDistribuicaoAtendimento,
+)
 
 
 class HistoricoReclamacaoSerializer(serializers.ModelSerializer):
@@ -32,16 +39,21 @@ class AnexoReclamacaoSerializer(serializers.ModelSerializer):
             'descricao',
             'tipo_documento',
             'data_upload',
+            'tamanho_bytes',
+            'content_type',
+            'checksum_sha256',
+            'armazenamento_origem',
+            'removido_em',
             'arquivo_url',
         ]
 
     def get_arquivo_url(self, obj):
+        if obj.removido_em or not obj.arquivo:
+            return None
         request = self.context.get('request')
-        if obj.arquivo:
-            if request:
-                return request.build_absolute_uri(obj.arquivo.url)
-            return obj.arquivo.url
-        return None
+        if request:
+            return request.build_absolute_uri(obj.arquivo.url)
+        return obj.arquivo.url
 
 
 class ReclamacaoDenunciaListSerializer(serializers.ModelSerializer):
@@ -79,6 +91,9 @@ class ReclamacaoDenunciaDetailSerializer(serializers.ModelSerializer):
     anexos = AnexoReclamacaoSerializer(many=True, read_only=True)
     atendente_responsavel_nome = serializers.SerializerMethodField()
     analista_responsavel_nome = serializers.SerializerMethodField()
+    atendimento = serializers.SerializerMethodField()
+    ata_conciliacao_url = serializers.SerializerMethodField()
+    decisao_documento_url = serializers.SerializerMethodField()
 
     class Meta:
         model = ReclamacaoDenuncia
@@ -138,6 +153,7 @@ class ReclamacaoDenunciaDetailSerializer(serializers.ModelSerializer):
             'tipo_penalidade_display',
             'valor_multa',
             'boleto_emitido',
+            'auto_infracao_relacionado',
             'recurso_apresentado',
             'data_recurso',
             'tipo_recurso',
@@ -150,6 +166,9 @@ class ReclamacaoDenunciaDetailSerializer(serializers.ModelSerializer):
             'atualizado_em',
             'historico',
             'anexos',
+            'atendimento',
+            'ata_conciliacao_url',
+            'decisao_documento_url',
         ]
 
     def get_atendente_responsavel_nome(self, obj):
@@ -162,6 +181,35 @@ class ReclamacaoDenunciaDetailSerializer(serializers.ModelSerializer):
             return obj.analista_responsavel.get_full_name() or obj.analista_responsavel.get_username()
         return None
 
+    def get_atendimento(self, obj):
+        atendimento = getattr(obj, 'atendimento', None)
+        if not atendimento:
+            return None
+
+        return {
+            'id': atendimento.id,
+            'consentimento_lgpd': atendimento.consentimento_lgpd,
+            'consentimento_origem': atendimento.consentimento_origem,
+            'consentimento_registrado_em': atendimento.consentimento_registrado_em,
+            'dados_remocao_solicitada_em': atendimento.dados_remocao_solicitada_em,
+            'dados_removidos_em': atendimento.dados_removidos_em,
+            'dados_remocao_observacoes': atendimento.dados_remocao_observacoes,
+        }
+
+    def get_ata_conciliacao_url(self, obj):
+        if not obj.ata_conciliacao:
+            return None
+        request = self.context.get('request')
+        url = obj.ata_conciliacao.url
+        return request.build_absolute_uri(url) if request else url
+
+    def get_decisao_documento_url(self, obj):
+        if not obj.decisao_documento:
+            return None
+        request = self.context.get('request')
+        url = obj.decisao_documento.url
+        return request.build_absolute_uri(url) if request else url
+
     def to_representation(self, instance):
         """Inclui contexto para gerar URLs absolutas dos anexos"""
         representation = super().to_representation(instance)
@@ -172,3 +220,105 @@ class ReclamacaoDenunciaDetailSerializer(serializers.ModelSerializer):
         )
         representation['anexos'] = anexos_serializer.data
         return representation
+
+
+class ConfiguracaoAtendimentoSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ConfiguracaoAtendimento
+        fields = [
+            'prazo_resposta_dias',
+            'prazo_conciliacao_dias',
+            'prazo_decisao_dias',
+        ]
+
+    @staticmethod
+    def _validate_positive(name, value):
+        if value is None:
+            return value
+        if value < 0:
+            raise serializers.ValidationError(f'{name} deve ser um valor positivo.')
+        return value
+
+    def validate_prazo_resposta_dias(self, value):
+        return self._validate_positive('Prazo de resposta', value)
+
+    def validate_prazo_conciliacao_dias(self, value):
+        return self._validate_positive('Prazo de conciliação', value)
+
+    def validate_prazo_decisao_dias(self, value):
+        return self._validate_positive('Prazo de decisão', value)
+
+
+class RegraDistribuicaoSerializer(serializers.ModelSerializer):
+    responsavel_nome = serializers.SerializerMethodField()
+
+    class Meta:
+        model = RegraDistribuicaoAtendimento
+        fields = [
+            'id',
+            'nome',
+            'prioridade',
+            'ativo',
+            'gravidade',
+            'assunto',
+            'tipo_classificacao',
+            'responsavel',
+            'responsavel_nome',
+            'criado_em',
+            'atualizado_em',
+        ]
+        read_only_fields = ['criado_em', 'atualizado_em']
+
+    def get_responsavel_nome(self, obj):
+        return obj.responsavel.get_full_name() or obj.responsavel.get_username()
+
+
+class BalcaoAtendimentoSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BalcaoAtendimento
+        fields = [
+            'id', 'nome', 'codigo', 'descricao', 'localizacao', 'ativo',
+            'ordem_prioridade', 'capacidade_simultanea', 'ultima_chamada_em',
+            'criado_em', 'atualizado_em'
+        ]
+        read_only_fields = ['ultima_chamada_em', 'criado_em', 'atualizado_em']
+
+
+class SenhaAtendimentoSerializer(serializers.ModelSerializer):
+    balcao_codigo = serializers.CharField(source='balcao.codigo', read_only=True)
+    balcao_nome = serializers.CharField(source='balcao.nome', read_only=True)
+
+    class Meta:
+        model = SenhaAtendimento
+        fields = [
+            'id', 'balcao', 'balcao_codigo', 'balcao_nome', 'sequencia_diaria',
+            'identificador', 'prioridade', 'status', 'emitido_em', 'chamado_em',
+            'iniciado_em', 'finalizado_em', 'cancelado_em', 'atendente_responsavel',
+            'observacoes'
+        ]
+        read_only_fields = [
+            'sequencia_diaria', 'identificador', 'status', 'emitido_em',
+            'chamado_em', 'iniciado_em', 'finalizado_em', 'cancelado_em',
+            'atendente_responsavel'
+        ]
+
+
+class FilaAtendimentoSerializer(serializers.ModelSerializer):
+    balcao = BalcaoAtendimentoSerializer(read_only=True)
+
+    class Meta:
+        model = FilaAtendimento
+        fields = [
+            'id',
+            'balcao',
+            'data_referencia',
+            'status',
+            'quantidade_emitidas',
+            'quantidade_chamadas',
+            'quantidade_finalizadas',
+            'ultima_senha_emitida',
+            'ultima_senha_chamada',
+            'criado_em',
+            'atualizado_em',
+        ]
+

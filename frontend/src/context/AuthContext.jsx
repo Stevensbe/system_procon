@@ -3,7 +3,7 @@ import { getToken, setToken, removeToken, isTokenValid } from '../utils/token';
 import authService from '../services/authService';
 
 // Estados da autenticação
-const AuthState = {
+export const AuthState = {
   IDLE: 'idle',
   LOADING: 'loading',
   AUTHENTICATED: 'authenticated',
@@ -24,6 +24,7 @@ const AuthActions = {
 const initialState = {
   user: null,
   token: null,
+  role: null,
   status: AuthState.IDLE,
   error: null,
   isLoading: false
@@ -44,6 +45,7 @@ function authReducer(state, action) {
         ...state,
         user: action.payload.user,
         token: action.payload.token,
+        role: action.payload.role,
         status: AuthState.AUTHENTICATED,
         error: null,
         isLoading: false
@@ -62,6 +64,7 @@ function authReducer(state, action) {
         ...state,
         user: null,
         token: null,
+        role: null,
         status: AuthState.UNAUTHENTICATED,
         error: null,
         isLoading: false
@@ -94,6 +97,45 @@ export function useAuth() {
 export function AuthProvider({ children }) {
   const [state, dispatch] = useReducer(authReducer, initialState);
 
+  const deriveUserRole = (user) => {
+    if (!user) return 'guest';
+    if (user.role) return user.role;
+
+    if (Array.isArray(user.roles) && user.roles.length) {
+      return user.roles[0];
+    }
+
+    if (user.is_superuser) return 'admin';
+    if (user.is_staff) return 'staff';
+    if (Array.isArray(user.empresas) && user.empresas.length) return 'empresa';
+    if (user.has_portal_consumidor || user.perfil_cidadao) return 'consumer';
+
+    return 'guest';
+  };
+
+  const getRedirectPath = (roleOrUser) => {
+    if (roleOrUser && typeof roleOrUser === 'object') {
+      if (roleOrUser.redirect_to) {
+        return roleOrUser.redirect_to;
+      }
+      return getRedirectPath(deriveUserRole(roleOrUser));
+    }
+
+    const role = roleOrUser || 'guest';
+
+    switch (role) {
+      case 'admin':
+      case 'staff':
+        return '/dashboard'; // Admin pode acessar qualquer lugar
+      case 'empresa':
+        return '/portal-empresa';
+      case 'consumer':
+        return '/portal-consumidor';
+      default:
+        return '/dashboard';
+    }
+  };
+
   // Verificar token na inicialização
   useEffect(() => {
     const initializeAuth = async () => {
@@ -104,11 +146,12 @@ export function AuthProvider({ children }) {
           dispatch({ type: AuthActions.SET_LOADING, payload: true });
           
           // Buscar dados do usuário
-          const userData = await authService.getProfile();
-          
+          let userData = await authService.getProfile();
+          const role = deriveUserRole(userData);
+
           dispatch({
             type: AuthActions.SET_USER,
-            payload: { user: userData, token }
+            payload: { user: userData, token, role }
           });
         } catch (error) {
           console.error('Erro ao verificar autenticação:', error);
@@ -130,19 +173,27 @@ export function AuthProvider({ children }) {
       dispatch({ type: AuthActions.CLEAR_ERROR });
 
       const response = await authService.login(credentials);
-      const { access, refresh, user } = response;
+      const { access, refresh, user, role: explicitRole, redirectTo } = response;
 
-      // Salvar tokens
-      setToken(access, refresh);
+      if (access && refresh) {
+        setToken({ access, refresh });
+      }
+
+      const role = explicitRole || deriveUserRole(user);
 
       dispatch({
         type: AuthActions.SET_USER,
-        payload: { user, token: access }
+        payload: { user, token: access || getToken(), role }
       });
 
-      return { success: true };
+      return {
+        success: true,
+        user,
+        role,
+        redirectTo: redirectTo || getRedirectPath(user || role),
+      };
     } catch (error) {
-      const errorMessage = error.response?.data?.detail || 'Erro no login';
+      const errorMessage = error.message || error.response?.data?.detail || 'Erro no login';
       dispatch({ type: AuthActions.SET_ERROR, payload: errorMessage });
       return { success: false, error: errorMessage };
     }
@@ -158,6 +209,11 @@ export function AuthProvider({ children }) {
     } finally {
       // Limpar tokens locais
       removeToken();
+      try {
+        localStorage.removeItem('procon-auth-user');
+      } catch (storageError) {
+        console.warn('[Auth] Falha ao limpar dados locais do usuário:', storageError);
+      }
       dispatch({ type: AuthActions.LOGOUT });
     }
   };
@@ -169,19 +225,9 @@ export function AuthProvider({ children }) {
       dispatch({ type: AuthActions.CLEAR_ERROR });
 
       const response = await authService.register(userData);
-      const { access, refresh, user } = response;
-
-      // Salvar tokens
-      setToken(access, refresh);
-
-      dispatch({
-        type: AuthActions.SET_USER,
-        payload: { user, token: access }
-      });
-
-      return { success: true };
+      return { success: true, data: response };
     } catch (error) {
-      const errorMessage = error.response?.data?.detail || 'Erro no registro';
+      const errorMessage = error.message || error.response?.data?.detail || 'Erro no registro';
       dispatch({ type: AuthActions.SET_ERROR, payload: errorMessage });
       return { success: false, error: errorMessage };
     }
@@ -197,7 +243,7 @@ export function AuthProvider({ children }) {
 
       dispatch({
         type: AuthActions.SET_USER,
-        payload: { user: updatedUser, token: state.token }
+        payload: { user: updatedUser, token: state.token, role: deriveUserRole(updatedUser) }
       });
 
       return { success: true };
@@ -219,7 +265,7 @@ export function AuthProvider({ children }) {
       dispatch({ type: AuthActions.SET_LOADING, payload: false });
       return { success: true };
     } catch (error) {
-      const errorMessage = error.response?.data?.detail || 'Erro ao alterar senha';
+      const errorMessage = error.message || error.response?.data?.detail || 'Erro ao alterar senha';
       dispatch({ type: AuthActions.SET_ERROR, payload: errorMessage });
       return { success: false, error: errorMessage };
     }
@@ -254,6 +300,7 @@ export function AuthProvider({ children }) {
     // Estado
     user: state.user,
     token: state.token,
+    role: state.role,
     status: state.status,
     error: state.error,
     isLoading: state.isLoading,
@@ -271,6 +318,7 @@ export function AuthProvider({ children }) {
     isAdmin,
     isStaff,
     hasPermission,
+    getRedirectPath,
     
     // Estados
     AuthState

@@ -26,8 +26,9 @@ from ..models import (
 )
 
 from ..serializers import (
-    DashboardResponseSerializer,
-    EstatisticasResponseSerializer,
+    FiscalizacaoDashboardStatsSerializer,
+    FiscalizacaoEstatisticasResponseSerializer,
+    ProcessosDashboardSerializer,
 )
 
 
@@ -156,11 +157,9 @@ def dashboard_stats(request):
         }
         
         # Validar com serializer
-        serializer = DashboardResponseSerializer(data=stats)
-        if serializer.is_valid():
-            return Response(serializer.data)
-        else:
-            return Response(stats)  # Retorna dados brutos se serializer falhar
+        serializer = FiscalizacaoDashboardStatsSerializer(data=stats)
+        serializer.is_valid(raise_exception=True)
+        return Response(serializer.data)  # Retorna dados brutos se serializer falhar
             
     except Exception as e:
         return Response({
@@ -270,11 +269,9 @@ def estatisticas_gerais(request):
         }
         
         # Validar com serializer
-        serializer = EstatisticasResponseSerializer(data=stats)
-        if serializer.is_valid():
-            return Response(serializer.data)
-        else:
-            return Response(stats)
+        serializer = FiscalizacaoEstatisticasResponseSerializer(data=stats)
+        serializer.is_valid(raise_exception=True)
+        return Response(serializer.data)
             
     except Exception as e:
         return Response({
@@ -294,12 +291,12 @@ def processos_dashboard_cached(request):
     Dashboard de processos com cache para melhor performance.
     """
     cache_key = 'processos_dashboard_stats'
-    stats = cache.get(cache_key)
+    cached = cache.get(cache_key)
     
-    if not stats:
+    if cached is None:
         try:
             hoje = timezone.now().date()
-            
+
             stats = {
                 'resumo': {
                     'total': Processo.objects.count(),
@@ -337,16 +334,21 @@ def processos_dashboard_cached(request):
                     data_finalizacao__isnull=False
                 ).aggregate(
                     tempo_medio=Avg('data_finalizacao') - Avg('criado_em')
-                ),
+                ) or {},
             }
-            
-            # Cache por 15 minutos
-            cache.set(cache_key, stats, 60 * 15)
-            
+
+            serializer = ProcessosDashboardSerializer(data=stats)
+            serializer.is_valid(raise_exception=True)
+            data = serializer.data
+            cache.set(cache_key, data, 60 * 15)
+            return Response(data)
+
         except Exception as e:
             return Response({
                 'error': str(e),
                 'message': 'Erro ao carregar dashboard de processos'
             }, status=500)
-    
-    return Response(stats)
+
+    serializer = ProcessosDashboardSerializer(data=cached)
+    serializer.is_valid(raise_exception=True)
+    return Response(serializer.data)

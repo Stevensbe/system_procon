@@ -4,6 +4,7 @@ Sistema Procon - Fase 4 - Fluxo Completo do Atendimento
 """
 
 import json
+from decimal import Decimal
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 from django.utils import timezone
@@ -44,6 +45,10 @@ class CIPGenerationService:
                 
                 # Criar CIP
                 with transaction.atomic():
+                    agora = timezone.now()
+                    prazo_resposta = agora + timedelta(days=tipo_cip.prazo_resposta)
+                    prazo_acordo = agora + timedelta(days=tipo_cip.prazo_acordo)
+
                     cip = CIPAutomatica.objects.create(
                         tipo_cip=tipo_cip,
                         assunto=f"CIP - {reclamacao.descricao_fatos[:100]}",
@@ -69,12 +74,15 @@ class CIPGenerationService:
                         
                         # Dados do caso
                         descricao_fatos=reclamacao.descricao_fatos,
-                        valor_indenizicao=valor_indenizacao,
-                        valor_multa=self._calcular_multa(valor_indenizicao),
+                        valor_indenizacao=valor_indenizacao,
+                        valor_multa=self._calcular_multa(valor_indenizacao),
+                        
+                        # Prazos calculados
+                        prazo_resposta_empresa=prazo_resposta,
+                        prazo_acordo_pagamento=prazo_acordo,
                         
                         # Controle
-                        observacoes=observacoes,
-                        setor_responsavel=tipo_cip.setor_responsavel,
+                        observacoes=observacoes
                     )
                     
                     # Vincular documento origem se existir
@@ -100,7 +108,7 @@ class CIPGenerationService:
                     return cip
                     
             except Exception as e:
-                self.logger.error(f'Erro na geração de CIP: {str(e)}', exc_info=True)
+                self.logger.logger.error(f'Erro na geração de CIP: {str(e)}', exc_info=True)
                 raise
     
     @log_execution_time('cip_validation')
@@ -125,19 +133,19 @@ class CIPGenerationService:
             raise ValueError("Já existe CIP para esta reclamação")
         
         # Log da validação
-        self.logger.info(f'Validação de elegibilidade passou para CIP {tipo_cip.nome}')
+        self.logger.logger.info(f'Validação de elegibilidade passou para CIP {tipo_cip.nome}')
     
-    def _calcular_multa(self, valor_indenizacao: float) -> float:
+    def _calcular_multa(self, valor_indenizacao) -> Decimal:
         """Calcula multa baseada no valor da indenização"""
-        # Lógica de cálculo de multa (pode ser configurável)
-        if valor_indenizacao <= 1000:
-            multa = valor_indenizacao * 0.1  # 10%
-        elif valor_indenizacao <= 5000:
-            multa = valor_indenizacao * 0.08  # 8%
+        valor = Decimal(valor_indenizacao)
+        if valor <= Decimal('1000'):
+            multa = valor * Decimal('0.10')
+        elif valor <= Decimal('5000'):
+            multa = valor * Decimal('0.08')
         else:
-            multa = valor_indenizacao * 0.05  # 5%
-        
-        return max(multa, 100)  # Mínimo de R$ 100,00
+            multa = valor * Decimal('0.05')
+
+        return max(multa, Decimal('100.00'))
 
 
 class CIPDocumentService:
@@ -222,7 +230,7 @@ class CIPDocumentService:
                 return documento_path
                 
             except Exception as e:
-                self.logger.error(f'Erro na geração de documento: {str(e)}', exc_info=True)
+                self.logger.logger.error(f'Erro na geração de documento: {str(e)}', exc_info=True)
                 raise
 
 
@@ -265,7 +273,7 @@ class CIPDispatchService:
                 return resultados_envio
                 
             except Exception as e:
-                self.logger.error(f'Erro no envio da CIP: {str(e)}', exc_info=True)
+                self.logger.logger.error(f'Erro no envio da CIP: {str(e)}', exc_info=True)
                 raise
     
     def _enviar_email_empressor(self, cip: CIPAutomatica) -> Dict[str, str]:
@@ -287,7 +295,7 @@ class CIPDispatchService:
             """
             
             # Em produção, enviaria email real
-            self.logger.info(f'Email enviado para {cip.empresa_email}: {assunto}')
+            self.logger.logger.info(f'Email enviado para {cip.empresa_email}: {assunto}')
             
             return {
                 'status': 'enviado',
@@ -389,7 +397,7 @@ class CIPTrackingService:
             'por_status': {'status': 'GERADA', 'count': cips_periodo.filter(status='GERADA').count()},
             'por_tipo': {},  # Implementar agregação por tipo
             'valores_totais': {
-                'soma_indenizacao': cips_periodo.aggregate(soma=models.Sum('valor_indenizicao'))['soma'] or 0,
+                'soma_indenizacao': cips_periodo.aggregate(soma=models.Sum('valor_indenizacao'))['soma'] or 0,
                 'soma_multas': cips_periodo.aggregate(soma=models.Sum('valor_multa'))['soma'] or 0,
                 'soma_total': cips_periodo.aggregate(soma=models.Sum('valor_total'))['soma'] or 0,
             }

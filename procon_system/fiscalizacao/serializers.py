@@ -465,6 +465,51 @@ class DashboardSerializer(serializers.Serializer):
     incluir_anexos = serializers.BooleanField(default=False)
 
 # === SERIALIZERS DE RESPOSTA PARA DASHBOARDS ===
+class AutosResumoSerializer(serializers.Serializer):
+    total_bancos = serializers.IntegerField()
+    total_postos = serializers.IntegerField()
+    total_supermercados = serializers.IntegerField()
+    total_diversos = serializers.IntegerField()
+
+
+class InfracoesResumoSerializer(serializers.Serializer):
+    total_infracoes = serializers.IntegerField()
+    infracoes_mes = serializers.IntegerField()
+    infracoes_pendentes = serializers.IntegerField()
+    por_gravidade = serializers.DictField(child=serializers.IntegerField())
+
+
+class ProcessosResumoSerializer(serializers.Serializer):
+    total_processos = serializers.IntegerField()
+    processos_pendentes = serializers.IntegerField()
+    processos_finalizados = serializers.IntegerField()
+    por_status = serializers.DictField(child=serializers.IntegerField())
+
+
+class FiscalizacaoDashboardStatsSerializer(serializers.Serializer):
+    autos = AutosResumoSerializer()
+    infracoes = InfracoesResumoSerializer()
+    processos = ProcessosResumoSerializer()
+    tendencias = serializers.DictField(child=serializers.DictField(child=serializers.IntegerField()))
+    resumo = serializers.DictField(child=serializers.IntegerField())
+
+
+class FiscalizacaoEstatisticasResponseSerializer(serializers.Serializer):
+    periodo = serializers.DictField(child=serializers.CharField(allow_null=True))
+    totais = serializers.DictField(child=serializers.IntegerField())
+    por_origem = serializers.DictField(child=serializers.IntegerField())
+    irregularidades = serializers.DictField(child=serializers.IntegerField())
+    infracoes_por_gravidade = serializers.DictField(child=serializers.IntegerField())
+    infracoes_por_tipo = serializers.DictField(child=serializers.IntegerField())
+
+
+class ProcessosDashboardSerializer(serializers.Serializer):
+    resumo = serializers.DictField(child=serializers.IntegerField())
+    por_status = serializers.DictField(child=serializers.IntegerField())
+    por_prioridade = serializers.DictField(child=serializers.IntegerField())
+    valores = serializers.DictField()
+    tempo_medio_tramitacao = serializers.DictField()
+
 class DashboardResponseSerializer(serializers.Serializer):
     """Serializer para resposta do dashboard"""
     total_autos = serializers.IntegerField()

@@ -1,3 +1,5 @@
+import uuid
+
 from django.db import models
 from django.utils import timezone
 from django.contrib.contenttypes.fields import GenericForeignKey
@@ -25,6 +27,8 @@ PORTE_CHOICES = [
 # --- CLASSE BASE ABSTRATA COM CAMPOS COMUNS E ASSINATURAS ---
 class AutoConstatacaoBase(AutoNumeracaoMixin, TimestampMixin):
     numero = models.CharField("Número do Auto", max_length=20, unique=True, blank=True)
+    uuid_local = models.UUIDField("UUID local", unique=True, null=True, blank=True,
+                                  help_text="Identificador gerado no mobile para conciliacao offline")
     razao_social = models.CharField("Razão Social", max_length=255)
     nome_fantasia = models.CharField("Nome Fantasia", max_length=255, blank=True)
     atividade = models.CharField("Atividade", max_length=255)
@@ -36,6 +40,7 @@ class AutoConstatacaoBase(AutoNumeracaoMixin, TimestampMixin):
     telefone = models.CharField("Telefone", max_length=20, blank=True)
     data_fiscalizacao = models.DateField("Data da Fiscalização")
     hora_fiscalizacao = models.TimeField("Hora da Fiscalização")
+    emitido_em = models.DateTimeField("Emitido em", null=True, blank=True)
     origem = models.CharField("Origem", max_length=20, choices=ORIGEM_CHOICES, default='acao')
     origem_outros = models.CharField("Outras Origens", max_length=255, blank=True)
 
@@ -49,6 +54,22 @@ class AutoConstatacaoBase(AutoNumeracaoMixin, TimestampMixin):
     assinatura_fiscal_1 = models.ImageField("Assinatura Fiscal 1", upload_to='assinaturas/', blank=True, null=True)
     assinatura_fiscal_2 = models.ImageField("Assinatura Fiscal 2", upload_to='assinaturas/', blank=True, null=True)
     assinatura_representante = models.ImageField("Assinatura Representante", upload_to='assinaturas/', blank=True, null=True)
+    criado_no_mobile = models.BooleanField("Criado pelo mobile", default=False,
+                                           help_text="Indica se o auto foi originado no aplicativo mobile")
+    device_id = models.CharField("ID do dispositivo", max_length=100, blank=True, null=True,
+                                 help_text="Identificador enviado via cabecalho X-Device-Id")
+    offline_em = models.DateTimeField("Registrado offline em", blank=True, null=True,
+                                      help_text="Timestamp local informado pelo app")
+    sincronizado_em = models.DateTimeField("Primeira sincronizacao", blank=True, null=True,
+                                           help_text="Momento em que os dados chegaram ao backend")
+
+    def save(self, *args, **kwargs):
+        if not self.emitido_em:
+            self.emitido_em = timezone.now()
+        if self.criado_no_mobile and not self.sincronizado_em:
+            self.sincronizado_em = timezone.now()
+        super().save(*args, **kwargs)
+
 
     class Meta:
         abstract = True
@@ -60,6 +81,8 @@ class AutoConstatacaoBase(AutoNumeracaoMixin, TimestampMixin):
             models.Index(fields=['razao_social']),
             models.Index(fields=['municipio']),
             models.Index(fields=['origem']),
+            models.Index(fields=['uuid_local']),
+            models.Index(fields=['criado_no_mobile']),
         ]
 
     def __str__(self):
@@ -572,8 +595,11 @@ class AutoInfracao(models.Model):
     
     # === DADOS BÁSICOS DO AUTO ===
     numero = models.CharField("Número da Infração", max_length=20, unique=True, blank=True)
+    uuid_local = models.UUIDField("UUID local", unique=True, null=True, blank=True,
+                                  help_text="Identificador gerado no mobile para conciliacao offline")
     data_fiscalizacao = models.DateField("Data da Fiscalização")
     hora_fiscalizacao = models.TimeField("Hora da Fiscalização")
+    emitido_em = models.DateTimeField("Emitido em", null=True, blank=True)
     municipio = models.CharField("Município", max_length=100, default="MANAUS")
     estado = models.CharField("Estado", max_length=2, default="AMAZONAS")
     
@@ -666,14 +692,29 @@ class AutoInfracao(models.Model):
     # === ANEXOS ===
     possui_anexo = models.BooleanField("Possui Anexo?", default=False)
     descricao_anexo = models.TextField("Descrição dos Anexos", blank=True)
-    
+
     # === ASSINATURAS ===
-    assinatura_fiscal = models.ImageField("Assinatura do Fiscal", 
-                                        upload_to='assinaturas/infrações/', 
-                                        blank=True, null=True)
-    assinatura_responsavel = models.ImageField("Assinatura do Responsável", 
-                                             upload_to='assinaturas/infrações/', 
-                                             blank=True, null=True)
+    assinatura_fiscal = models.ImageField(
+        "Assinatura do Fiscal",
+        upload_to='assinaturas/infracoes/',
+        blank=True,
+        null=True,
+    )
+    assinatura_responsavel = models.ImageField(
+        "Assinatura do Responsavel",
+        upload_to='assinaturas/infracoes/',
+        blank=True,
+        null=True,
+    )
+    criado_no_mobile = models.BooleanField("Criado pelo mobile", default=False,
+                                           help_text="Indica se o registro veio do aplicativo mobile")
+    device_id = models.CharField("ID do dispositivo", max_length=100, blank=True, null=True,
+                                 help_text="Identificador enviado via cabecalho X-Device-Id")
+    offline_em = models.DateTimeField("Registrado offline em", blank=True, null=True,
+                                      help_text="Timestamp informado pelo app quando sem conexao")
+    sincronizado_em = models.DateTimeField("Primeira sincronizacao", blank=True, null=True,
+                                           help_text="Momento em que o backend recebeu o registro")
+
     
     # === METADADOS ===
     criado_em = models.DateTimeField(auto_now_add=True)
@@ -685,6 +726,8 @@ class AutoInfracao(models.Model):
         ordering = ['-data_fiscalizacao', '-numero']
         indexes = [
             models.Index(fields=['numero']),
+            models.Index(fields=['uuid_local']),
+            models.Index(fields=['criado_no_mobile']),
             models.Index(fields=['data_fiscalizacao']),
             models.Index(fields=['razao_social']),
             models.Index(fields=['cnpj']),
@@ -698,6 +741,10 @@ class AutoInfracao(models.Model):
 
     def save(self, *args, **kwargs):
         """Gera número automático no formato 001/2025"""
+        if not self.emitido_em:
+            self.emitido_em = timezone.now()
+        if self.criado_no_mobile and not self.sincronizado_em:
+            self.sincronizado_em = timezone.now()
         if not self.numero:
             ano = timezone.now().year
             
@@ -1613,120 +1660,8 @@ class TemplateAutoInfracao(models.Model):
         super().save(*args, **kwargs)
 
 
-class NotificacaoEletronica(models.Model):
-    """Sistema de notificações eletrônicas"""
-    TIPO_CHOICES = [
-        ('EMAIL', 'Email'),
-        ('SMS', 'SMS'),
-        ('PUSH', 'Push Notification'),
-        ('WHATSAPP', 'WhatsApp'),
-    ]
-    
-    STATUS_CHOICES = [
-        ('PENDENTE', 'Pendente'),
-        ('ENVIADA', 'Enviada'),
-        ('ENTREGUE', 'Entregue'),
-        ('ERRO', 'Erro'),
-        ('CANCELADA', 'Cancelada'),
-    ]
-    
-    auto_infracao = models.ForeignKey(AutoInfracao, on_delete=models.CASCADE, related_name='notificacoes')
-    tipo = models.CharField("Tipo", max_length=20, choices=TIPO_CHOICES)
-    destinatario = models.CharField("Destinatário", max_length=255)
-    assunto = models.CharField("Assunto", max_length=200)
-    mensagem = models.TextField("Mensagem")
-    status = models.CharField("Status", max_length=20, choices=STATUS_CHOICES, default='PENDENTE')
-    
-    # === METADADOS ===
-    protocolo = models.CharField("Protocolo", max_length=100, blank=True)
-    data_envio = models.DateTimeField("Data de Envio", null=True, blank=True)
-    data_entrega = models.DateTimeField("Data de Entrega", null=True, blank=True)
-    tentativas = models.IntegerField("Tentativas", default=0)
-    erro_mensagem = models.TextField("Mensagem de Erro", blank=True)
-    
-    # === RESPONSÁVEL ===
-    enviado_por = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, related_name='notificacoes_fiscalizacao_enviadas')
-    data_criacao = models.DateTimeField("Data de Criação", auto_now_add=True)
-    
-    class Meta:
-        verbose_name = "Notificação Eletrônica"
-        verbose_name_plural = "Notificações Eletrônicas"
-        ordering = ['-data_criacao']
-    
-    def __str__(self):
-        return f"{self.tipo} - {self.destinatario} - {self.auto_infracao.numero}"
-    
-    def gerar_protocolo(self):
-        """Gera protocolo único para a notificação"""
-        from datetime import datetime
-        import random
-        timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
-        random_num = random.randint(1000, 9999)
-        self.protocolo = f"NOT{timestamp}{random_num}"
-        self.save()
-    
-    def marcar_enviada(self):
-        """Marca a notificação como enviada"""
-        from django.utils import timezone
-        self.status = 'ENVIADA'
-        self.data_envio = timezone.now()
-        self.save()
-    
-    def marcar_entregue(self):
-        """Marca a notificação como entregue"""
-        from django.utils import timezone
-        self.status = 'ENTREGUE'
-        self.data_entrega = timezone.now()
-        self.save()
-    
-    def registrar_erro(self, erro):
-        """Registra erro na notificação"""
-        self.status = 'ERRO'
-        self.erro_mensagem = str(erro)
-        self.tentativas += 1
-        self.save()
 
 
-class ConfiguracaoFiscalizacao(models.Model):
-    """Configurações do sistema de fiscalização"""
-    # === CONFIGURAÇÕES GERAIS ===
-    max_evidencias_por_auto = models.IntegerField("Máximo de Evidências por Auto", default=10)
-    max_tamanho_arquivo = models.IntegerField("Máximo Tamanho de Arquivo (MB)", default=50)
-    tipos_arquivo_permitidos = models.JSONField("Tipos de Arquivo Permitidos", default=list)
-    
-    # === CONFIGURAÇÕES DE NOTIFICAÇÃO ===
-    notificar_prazos = models.BooleanField("Notificar Prazos", default=True)
-    dias_antecedencia_prazo = models.IntegerField("Dias de Antecedência para Prazo", default=5)
-    notificar_atrasos = models.BooleanField("Notificar Atrasos", default=True)
-    
-    # === CONFIGURAÇÕES DE ASSINATURA ===
-    assinatura_digital_obrigatoria = models.BooleanField("Assinatura Digital Obrigatória", default=False)
-    certificado_padrao = models.CharField("Certificado Padrão", max_length=255, blank=True)
-    
-    # === CONFIGURAÇÕES DE WORKFLOW ===
-    workflow_automatico = models.BooleanField("Workflow Automático", default=True)
-    aprovacao_obrigatoria = models.BooleanField("Aprovação Obrigatória", default=True)
-    
-    # === METADADOS ===
-    configurado_por = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, related_name='configuracoes_fiscalizacao')
-    data_configuracao = models.DateTimeField("Data de Configuração", auto_now=True)
-    
-    class Meta:
-        verbose_name = "Configuração de Fiscalização"
-        verbose_name_plural = "Configurações de Fiscalização"
-    
-    def __str__(self):
-        return f"Configuração de Fiscalização - {self.data_configuracao}"
-    
-    @classmethod
-    def get_configuracao(cls):
-        """Retorna a configuração atual ou cria uma nova"""
-        config, created = cls.objects.get_or_create(
-            defaults={
-                'tipos_arquivo_permitidos': ['jpg', 'jpeg', 'png', 'pdf', 'doc', 'docx', 'mp4', 'avi'],
-            }
-        )
-        return config
 
 class AutoApreensaoInutilizacao(models.Model):
     """
@@ -1751,6 +1686,8 @@ class AutoApreensaoInutilizacao(models.Model):
     # Identificação do documento
     tipo_documento = models.CharField(max_length=20, choices=TIPO_CHOICES, default='apreensao')
     numero_documento = models.CharField(max_length=20, blank=True)
+    uuid_local = models.UUIDField("UUID local", unique=True, null=True, blank=True,
+                                  help_text="Identificador gerado no mobile para conciliacao offline")
     ano_documento = models.IntegerField(default=datetime.now().year)
     
     # Estabelecimento fiscalizado
@@ -1780,6 +1717,7 @@ class AutoApreensaoInutilizacao(models.Model):
     data_fiscalizacao = models.DateField(verbose_name="Data")
     hora_inicio = models.TimeField(verbose_name="Hora do Início")
     hora_termino = models.TimeField(verbose_name="Hora do Término")
+    emitido_em = models.DateTimeField("Emitido em", null=True, blank=True)
     
     # Assinaturas
     fiscal_1 = models.CharField(max_length=100, verbose_name="Fiscal 1")
@@ -1788,6 +1726,15 @@ class AutoApreensaoInutilizacao(models.Model):
     cpf_responsavel = models.CharField(max_length=14, verbose_name="CPF do Responsável")
     
     # Metadados
+    criado_no_mobile = models.BooleanField("Criado pelo mobile", default=False,
+                                           help_text="Indica se o registro veio do aplicativo mobile")
+    device_id = models.CharField("ID do dispositivo", max_length=100, blank=True, null=True,
+                                 help_text="Identificador enviado via cabecalho X-Device-Id")
+    offline_em = models.DateTimeField("Registrado offline em", blank=True, null=True,
+                                      help_text="Timestamp informado pelo app quando sem conexao")
+    sincronizado_em = models.DateTimeField("Primeira sincronizacao", blank=True, null=True,
+                                           help_text="Momento em que o backend recebeu o registro")
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     created_by = models.ForeignKey(get_user_model(), on_delete=models.CASCADE)
@@ -1796,6 +1743,12 @@ class AutoApreensaoInutilizacao(models.Model):
         verbose_name = "Auto de Apreensão/Inutilização"
         verbose_name_plural = "Autos de Apreensão/Inutilização"
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['numero_documento']),
+            models.Index(fields=['uuid_local']),
+            models.Index(fields=['criado_no_mobile']),
+            models.Index(fields=['data_fiscalizacao']),
+        ]
     
     def __str__(self):
         return f"{self.get_tipo_documento_display()} Nº {self.numero_documento}/{self.ano_documento} - {self.nome_fantasia}"
@@ -1810,6 +1763,10 @@ class AutoApreensaoInutilizacao(models.Model):
     
     def save(self, *args, **kwargs):
         """Gera número automaticamente e preenche dados do auto de constatação"""
+        if not self.emitido_em:
+            self.emitido_em = timezone.now()
+        if self.criado_no_mobile and not self.sincronizado_em:
+            self.sincronizado_em = timezone.now()
         # Gerar número do documento se não existir
         if not self.numero_documento:
             from .utils import gerar_proximo_numero_auto_apreensao
@@ -2130,3 +2087,136 @@ class ConfiguracaoFiscalizacao(models.Model):
             config.tipos_arquivo_permitidos = ['jpg', 'jpeg', 'png', 'pdf', 'doc', 'docx']
             config.save()
         return config
+
+
+class PedidoNotificacaoMobile(TimestampMixin):
+    STATUS_EM_ANALISE = 'EM_ANALISE'
+    STATUS_EMITIDA = 'EMITIDA'
+    STATUS_CANCELADA = 'CANCELADA'
+    STATUS_CHOICES = [
+        (STATUS_EM_ANALISE, 'Em analise'),
+        (STATUS_EMITIDA, 'Emitida'),
+        (STATUS_CANCELADA, 'Cancelada'),
+    ]
+
+    uuid_local = models.UUIDField('UUID local', unique=True, null=True, blank=True,
+                                  default=uuid.uuid4,
+                                  help_text='Identificador gerado pelo mobile para conciliacao offline')
+    criado_no_mobile = models.BooleanField('Criado pelo mobile', default=False,
+                                           help_text='Indica se o pedido se originou no aplicativo mobile')
+    device_id = models.CharField('ID do dispositivo', max_length=100, blank=True, null=True,
+                                 help_text='Identificador enviado via cabecalho X-Device-Id')
+    offline_em = models.DateTimeField('Registrado offline em', blank=True, null=True,
+                                      help_text='Timestamp informado pelo app quando sem conexao')
+    sincronizado_em = models.DateTimeField('Primeira sincronizacao', blank=True, null=True,
+                                           help_text='Momento em que o backend recebeu o registro')
+
+    solicitado_por = models.ForeignKey(get_user_model(), on_delete=models.CASCADE,
+                                       related_name='pedidos_notificacao_mobile')
+    auto_infracao = models.ForeignKey('AutoInfracao', on_delete=models.SET_NULL,
+                                      related_name='pedidos_notificacao_mobile',
+                                      null=True, blank=True)
+    auto_constatacao = models.ForeignKey('AutoSupermercado', on_delete=models.SET_NULL,
+                                         related_name='pedidos_notificacao_mobile',
+                                         null=True, blank=True)
+    tipo = models.CharField('Tipo de notificacao', max_length=50)
+    canal_preferencial = models.CharField('Canal preferencial', max_length=50)
+    observacoes = models.TextField('Observacoes', blank=True)
+    anexos = models.JSONField('Anexos', default=list, blank=True,
+                              help_text='Lista de tokens de upload enviados pelo mobile')
+    status = models.CharField('Status', max_length=20, choices=STATUS_CHOICES,
+                              default=STATUS_EM_ANALISE)
+    notificacao_numero = models.CharField('Numero da notificacao', max_length=50, blank=True)
+    atualizado_por = models.ForeignKey(get_user_model(), on_delete=models.SET_NULL,
+                                       related_name='pedidos_notificacao_mobile_atualizados',
+                                       null=True, blank=True)
+    atualizado_em = models.DateTimeField('Atualizado em', auto_now=True)
+
+    class Meta:
+        verbose_name = 'Pedido de Notificacao Mobile'
+        verbose_name_plural = 'Pedidos de Notificacao Mobile'
+        ordering = ['-criado_em']
+        indexes = [
+            models.Index(fields=['status']),
+            models.Index(fields=['uuid_local']),
+            models.Index(fields=['criado_no_mobile']),
+        ]
+
+    def marcar_emitida(self, numero_notificacao: str, usuario=None):
+        """Atualiza o status para emitida e registra o numero gerado"""
+        self.status = self.STATUS_EMITIDA
+        self.notificacao_numero = numero_notificacao
+        if usuario is not None:
+            self.atualizado_por = usuario
+        self.save(update_fields=['status', 'notificacao_numero', 'atualizado_por', 'atualizado_em'])
+
+    def cancelar(self, justificativa: str = '', usuario=None):
+        """Cancela o pedido e registra justificativa"""
+        self.status = self.STATUS_CANCELADA
+        if justificativa:
+            if self.observacoes:
+                self.observacoes += f"\nCancelado: {justificativa}"
+            else:
+                self.observacoes = f"Cancelado: {justificativa}"
+        if usuario is not None:
+            self.atualizado_por = usuario
+
+        self.save(update_fields=['status', 'observacoes', 'atualizado_por', 'atualizado_em'])
+
+    def __str__(self):
+        destino = self.auto_infracao or self.auto_constatacao
+        return f"Pedido {self.tipo} - {destino}" if destino else f"Pedido {self.tipo}"
+
+
+class MobileDeviceToken(TimestampMixin):
+    PLATAFORMA_CHOICES = [
+        ('android', 'Android'),
+        ('ios', 'iOS'),
+        ('web', 'Web'),
+    ]
+
+    usuario = models.ForeignKey(get_user_model(), on_delete=models.CASCADE,
+                                related_name='mobile_device_tokens')
+    device_id = models.CharField('ID do dispositivo', max_length=100)
+    expo_token = models.CharField('Token de push', max_length=255, unique=True)
+    plataforma = models.CharField('Plataforma', max_length=20, choices=PLATAFORMA_CHOICES)
+    ativo = models.BooleanField('Ativo', default=True)
+    ultimo_registro = models.DateTimeField('ltimo registro', auto_now=True)
+
+    class Meta:
+        verbose_name = 'Token de Dispositivo Mobile'
+        verbose_name_plural = 'Tokens de Dispositivo Mobile'
+        unique_together = ('usuario', 'device_id')
+        indexes = [
+            models.Index(fields=['usuario', 'ativo']),
+            models.Index(fields=['device_id']),
+        ]
+
+    def desativar(self):
+        self.ativo = False
+        self.save(update_fields=['ativo', 'ultimo_registro'])
+
+    def __str__(self):
+        return f"{self.usuario} - {self.device_id}"
+
+
+class MobileUpload(TimestampMixin):
+    token = models.UUIDField('Token', default=uuid.uuid4, unique=True, editable=False)
+    usuario = models.ForeignKey(get_user_model(), on_delete=models.CASCADE,
+                                related_name='mobile_uploads')
+    arquivo = models.FileField('Arquivo', upload_to='mobile_uploads/%Y/%m/%d')
+    mime_type = models.CharField('MIME type', max_length=100)
+    tamanho = models.PositiveIntegerField('Tamanho (bytes)')
+    device_id = models.CharField('ID do dispositivo', max_length=100, blank=True, null=True)
+
+    class Meta:
+        verbose_name = 'Upload Mobile'
+        verbose_name_plural = 'Uploads Mobile'
+        ordering = ['-criado_em']
+        indexes = [
+            models.Index(fields=['usuario']),
+            models.Index(fields=['token']),
+        ]
+
+    def __str__(self):
+        return f"Upload {self.token} ({self.mime_type})"

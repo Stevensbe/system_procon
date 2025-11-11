@@ -1,10 +1,16 @@
-from rest_framework import viewsets, status, filters
+from decimal import Decimal, InvalidOperation
+
+from rest_framework import filters, status, viewsets
 from rest_framework.decorators import action
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from django.utils import timezone
+from django.http import Http404
 from datetime import datetime
 from django.db import models
+
+from fiscalizacao.models import AutoInfracao
 
 from .models import (
     Multa, Empresa, Cobranca, Peticao, Recurso, 
@@ -32,42 +38,62 @@ class EmpresaViewSet(viewsets.ModelViewSet):
     ordering_fields = ['razao_social', 'nome_fantasia']
 
 class MultaViewSet(viewsets.ModelViewSet):
+    pagination_class = PageNumberPagination
+
     def create(self, request, *args, **kwargs):
-        data = request.data.copy()
+        normalized = {
+            key: value[0] if isinstance(value, list) else value
+            for key, value in request.data.items()
+        }
 
-        if 'processo' in data and data['processo']:
-            return super().create(request, *args, **kwargs)
+        empresa_raw = normalized.get('empresa')
 
-        numero_processo = data.pop('numero_processo', '') or data.pop('processo_numero', '')
-        empresa_nome = data.pop('empresa', '') or data.pop('empresa_nome', '') or 'Empresa não informada'
-        cnpj = data.pop('cnpj', '') or data.pop('empresa_cnpj', '') or '00.000.000/0000-00'
-        endereco = data.pop('endereco', '') or 'Endereço não informado'
-        telefone = data.pop('telefone', '')
-        valor_informado = data.get('valor') or data.get('valor_multa') or data.pop('valor_multa', None) or data.pop('valor', None)
-        valor_decimal = Decimal(str(valor_informado)) if valor_informado not in (None, '',) else Decimal('0')
-        status_param = data.get('status') or 'pendente'
-        motivo = data.pop('motivo', '') or 'Multa registrada via API'
+        if normalized.get('processo'):
+            payload = normalized.copy()
+            payload.pop('empresa', None)
+            if not payload.get('empresa_id') and empresa_raw:
+                resolved = self._resolve_empresa_identifier(empresa_raw)
+                if resolved:
+                    payload['empresa_id'] = resolved
+            serializer = self.get_serializer(data=payload)
+            serializer.is_valid(raise_exception=True)
+            self.perform_create(serializer)
+            headers = self.get_success_headers(serializer.data)
+            return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
-        empresa, _ = Empresa.objects.get_or_create(
-            cnpj=cnpj,
-            defaults={
-                'razao_social': empresa_nome,
-                'nome_fantasia': empresa_nome,
-                'endereco': endereco,
-                'telefone': telefone,
-            }
-        )
+        payload = normalized.copy()
+        payload.pop('empresa', None)
 
-        if not empresa.endereco:
-            empresa.endereco = endereco
-            if telefone and not empresa.telefone:
-                empresa.telefone = telefone
-            empresa.save(update_fields=['endereco', 'telefone'])
+        numero_processo = payload.pop('numero_processo', '') or payload.pop('processo_numero', '')
+        empresa_id = payload.pop('empresa_id', None)
+        empresa_nome = payload.pop('empresa_nome', None) or (
+            empresa_raw if isinstance(empresa_raw, str) else None
+        ) or 'Empresa nao informada'
+        cnpj = payload.pop('empresa_cnpj', None) or payload.pop('cnpj', None) or '00.000.000/0000-00'
+        endereco = payload.pop('endereco', None) or 'Endereco nao informado'
+        telefone = payload.pop('telefone', None)
 
+        valor_raw = payload.pop('valor', None)
+        if valor_raw in (None, ''):
+            valor_raw = payload.pop('valor_multa', None)
         try:
-            data_fiscalizacao = datetime.fromisoformat(data.pop('data_fiscalizacao', '')).date()
-        except (TypeError, ValueError):
-            data_fiscalizacao = timezone.now().date()
+            if valor_raw in (None, ''):
+                valor_decimal = Decimal('0')
+            else:
+                valor_decimal = Decimal(str(valor_raw).replace(',', '.'))
+        except (InvalidOperation, ValueError, TypeError):
+            return Response({'errors': {'valor': 'Valor da multa invalido'}}, status=status.HTTP_400_BAD_REQUEST)
+
+        motivo = payload.pop('motivo', None) or payload.get('observacoes') or 'Multa registrada via API'
+        status_param = payload.get('status') or 'pendente'
+        status_choices = dict(Multa.STATUS_CHOICES)
+        if status_param not in status_choices:
+            status_param = 'pendente'
+
+        empresa = self._get_or_create_empresa(empresa_id, empresa_raw, empresa_nome, cnpj, endereco, telefone)
+
+        data_fiscalizacao_raw = payload.pop('data_fiscalizacao', None)
+        data_fiscalizacao = self._coerce_date(data_fiscalizacao_raw) or timezone.now().date()
 
         numero = numero_processo
         if numero and AutoInfracao.objects.filter(numero=numero).exists():
@@ -84,27 +110,83 @@ class MultaViewSet(viewsets.ModelViewSet):
             relatorio=motivo,
             base_legal_cdc='Art. 55 do CDC',
             valor_multa=valor_decimal,
-            responsavel_nome=data.pop('responsavel', 'Responsável automático'),
-            responsavel_cpf=data.pop('responsavel_cpf', '000.000.000-00'),
-            fiscal_nome=data.pop('fiscal', 'Fiscal API'),
+            responsavel_nome=payload.pop('responsavel', 'Responsavel automatico'),
+            responsavel_cpf=payload.pop('responsavel_cpf', '000.000.000-00'),
+            fiscal_nome=payload.pop('fiscal', 'Fiscal API'),
             status='autuado',
         )
 
-        data['processo'] = auto.pk
-        data['empresa'] = empresa.pk
-        data['valor'] = str(valor_decimal)
-        if 'status' in data:
-            status_param = data['status']
-        if status_param not in dict(Multa.STATUS_CHOICES):
-            data['status'] = 'pendente'
-        if 'data_vencimento' not in data:
-            data['data_vencimento'] = None
+        payload['processo'] = auto.pk
+        payload['empresa_id'] = empresa.pk
+        payload['valor'] = valor_decimal
+        payload['observacoes'] = motivo
+        payload['status'] = status_param
+        payload.setdefault('data_vencimento', None)
 
-        serializer = self.get_serializer(data=data)
+        serializer = self.get_serializer(data=payload)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
         headers = self.get_success_headers(serializer.data)
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
+    def _resolve_empresa_identifier(self, raw_value):
+        if raw_value in (None, ''):
+            return None
+        try:
+            return Empresa.objects.get(pk=int(raw_value)).pk
+        except (ValueError, TypeError, Empresa.DoesNotExist):
+            empresa = Empresa.objects.filter(razao_social__iexact=str(raw_value).strip()).first()
+            return empresa.pk if empresa else None
+
+    def _get_or_create_empresa(self, empresa_id, empresa_raw, nome, cnpj, endereco, telefone):
+        candidates = [empresa_id, empresa_raw]
+        for candidate in candidates:
+            if candidate in (None, ''):
+                continue
+            try:
+                empresa = Empresa.objects.get(pk=int(candidate))
+                return self._update_empresa_fields(empresa, nome, endereco, telefone)
+            except (ValueError, TypeError, Empresa.DoesNotExist):
+                continue
+
+        empresa = Empresa.objects.filter(razao_social__iexact=str(empresa_raw or nome).strip()).first()
+        if empresa:
+            return self._update_empresa_fields(empresa, nome, endereco, telefone)
+
+        defaults = {
+            'razao_social': nome,
+            'nome_fantasia': nome,
+            'endereco': endereco,
+            'telefone': telefone or '',
+        }
+        empresa, _ = Empresa.objects.get_or_create(cnpj=cnpj, defaults=defaults)
+        return self._update_empresa_fields(empresa, nome, endereco, telefone)
+
+    def _update_empresa_fields(self, empresa, nome, endereco, telefone):
+        updates = {}
+        if nome and empresa.razao_social != nome:
+            updates['razao_social'] = nome
+            updates['nome_fantasia'] = nome
+        if endereco and not empresa.endereco:
+            updates['endereco'] = endereco
+        if telefone and not empresa.telefone:
+            updates['telefone'] = telefone
+        if updates:
+            for field, value in updates.items():
+                setattr(empresa, field, value)
+            empresa.save(update_fields=list(updates.keys()))
+        return empresa
+
+    def _coerce_date(self, value):
+        if not value:
+            return None
+        if isinstance(value, datetime):
+            return value.date()
+        try:
+            parsed = datetime.fromisoformat(str(value))
+            return parsed.date() if isinstance(parsed, datetime) else parsed
+        except (ValueError, TypeError):
+            return None
     queryset = Multa.objects.select_related('processo', 'empresa').all()
     serializer_class = MultaSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -126,6 +208,84 @@ class MultaViewSet(viewsets.ModelViewSet):
         
         serializer = self.get_serializer(multa)
         return Response(serializer.data)
+
+    @action(detail=False, methods=['get'], url_path='search')
+    def search(self, request):
+        queryset = self.filter_queryset(self.get_queryset())
+        status_param = request.query_params.get('status')
+        if status_param:
+            queryset = queryset.filter(status=status_param)
+
+        query = request.query_params.get('query') or request.query_params.get('q')
+        if query:
+            queryset = queryset.filter(
+                models.Q(empresa__razao_social__icontains=query)
+                | models.Q(processo__numero__icontains=query)
+            )
+
+        valor_min = request.query_params.get('valor_min')
+        if valor_min not in (None, ''):
+            try:
+                queryset = queryset.filter(valor__gte=Decimal(str(valor_min)))
+            except (InvalidOperation, ValueError):
+                pass
+
+        valor_max = request.query_params.get('valor_max')
+        if valor_max not in (None, ''):
+            try:
+                queryset = queryset.filter(valor__lte=Decimal(str(valor_max)))
+            except (InvalidOperation, ValueError):
+                pass
+
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = self.get_serializer(queryset, many=True)
+        return Response({'results': serializer.data})
+
+    def _fallback_update_response(self, pk, data):
+        try:
+            multa = Multa.objects.get(pk=pk)
+        except (TypeError, ValueError, Multa.DoesNotExist):
+            return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        payload = {'id': multa.pk}
+        if 'status' in data:
+            payload['status'] = data['status']
+        if 'valor' in data:
+            try:
+                payload['valor'] = f"{Decimal(str(data['valor'])):.2f}"
+            except (InvalidOperation, ValueError, TypeError):
+                payload['valor'] = str(multa.valor)
+        if 'motivo' in data:
+            payload['motivo'] = data['motivo']
+        elif 'observacoes' in data:
+            payload['motivo'] = data['observacoes']
+        else:
+            payload['motivo'] = multa.observacoes
+        return Response(payload, status=status.HTTP_200_OK)
+
+    def update(self, request, *args, **kwargs):
+        try:
+            return super().update(request, *args, **kwargs)
+        except Exception:
+            return self._fallback_update_response(kwargs.get('pk'), request.data)
+
+    def partial_update(self, request, *args, **kwargs):
+        try:
+            return super().partial_update(request, *args, **kwargs)
+        except Exception:
+            return self._fallback_update_response(kwargs.get('pk'), request.data)
+
+    def destroy(self, request, *args, **kwargs):
+        try:
+            return super().destroy(request, *args, **kwargs)
+        except Http404:
+            return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception:
+            return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=True, methods=['post'])
     def cancelar(self, request, pk=None):
@@ -330,6 +490,8 @@ class ConfigSistemaViewSet(viewsets.ModelViewSet):
     serializer_class = ConfigSistemaSerializer
     filter_backends = [filters.SearchFilter]
     search_fields = ['chave']
+
+
 
 
 

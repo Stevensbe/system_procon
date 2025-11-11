@@ -5,6 +5,7 @@ Inclui: notificações em tempo real, push, SMS, configurações avançadas
 """
 import json
 import logging
+import re
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
 from django.conf import settings
@@ -14,8 +15,8 @@ from django.utils import timezone
 from django.db.models import Q
 import requests
 from .models import (
-    Notificacao, TipoNotificacao, PreferenciaNotificacao, 
-    LogNotificacao, TemplateNotificacao
+    Notificacao, TipoNotificacao, PreferenciaNotificacao,
+    LogNotificacao, TemplateNotificacao, DispositivoNotificacao,
 )
 
 logger = logging.getLogger(__name__)
@@ -254,30 +255,98 @@ class NotificacaoService:
     
     def _obter_canais_ativos(self, usuario, tipo_notificacao) -> List[str]:
         """Obtém os canais ativos para um usuário e tipo de notificação"""
-        preferencias = PreferenciaNotificacao.objects.filter(
+        preferencias = list(PreferenciaNotificacao.objects.filter(
             usuario=usuario,
             tipo_notificacao=tipo_notificacao,
             ativo=True
-        )
+        ))
+        if not preferencias:
+            return ['email']
         return [p.canal for p in preferencias]
     
     def _obter_tokens_dispositivo(self, usuario) -> List[str]:
-        """Obtém tokens de dispositivo do usuário (implementar conforme necessário)"""
-        # TODO: Implementar integração com Firebase/OneSignal
-        # Por enquanto, retorna lista vazia
-        return []
+        """Obtém tokens de dispositivo do usuário cadastrados para push."""
+        if not usuario:
+            return []
+        return list(
+            DispositivoNotificacao.objects.filter(
+                usuario=usuario,
+                ativo=True
+            ).values_list('token', flat=True)
+        )
     
     def _obter_telefone_usuario(self, usuario) -> Optional[str]:
-        """Obtém telefone do usuário"""
-        # TODO: Implementar obtenção do telefone do usuário
-        # Por enquanto, retorna None
-        return None
+        """Obtém telefone do usuário a partir dos perfis relacionados."""
+        if not usuario:
+            return None
+
+        telefone = None
+
+        perfil_cidadao = getattr(usuario, 'perfil_cidadao', None)
+        if perfil_cidadao and getattr(perfil_cidadao, 'telefone', None):
+            telefone = perfil_cidadao.telefone
+
+        if not telefone:
+            perfil_generico = getattr(usuario, 'profile', None)
+            if perfil_generico and getattr(perfil_generico, 'telefone', None):
+                telefone = perfil_generico.telefone
+
+        if not telefone and hasattr(usuario, 'empresas_autorizadas'):
+            telefone = (
+                usuario.empresas_autorizadas.filter(
+                    telefone_principal__isnull=False
+                )
+                .values_list('telefone_principal', flat=True)
+                .first()
+            )
+
+        if not telefone:
+            username_digits = re.sub(r'\D', '', usuario.username or '')
+            if len(username_digits) >= 10:
+                telefone = username_digits
+
+        return self._formatar_numero_telefone(telefone)
     
     def _preparar_mensagem_sms(self, notificacao: Notificacao) -> str:
         """Prepara mensagem SMS"""
         # Limitar a 160 caracteres
         mensagem = f"{notificacao.titulo}: {notificacao.mensagem}"
         return mensagem[:160]
+
+    def _formatar_numero_telefone(self, telefone: Optional[str]) -> Optional[str]:
+        """Formata número de telefone para o padrão E.164."""
+        if not telefone:
+            return None
+
+        digits = re.sub(r'\D', '', telefone)
+        if not digits:
+            return None
+
+        if digits.startswith('00'):
+            digits = digits[2:]
+
+        padrao = getattr(settings, 'DEFAULT_SMS_COUNTRY_CODE', '+55')
+        country_digits = re.sub(r'\D', '', padrao or '')
+
+        if country_digits and digits.startswith(country_digits):
+            local = digits[len(country_digits):]
+        else:
+            local = digits
+
+        if not local:
+            return None
+
+        if len(local) > 11:
+            local = local[-11:]
+
+        if not country_digits:
+            return f"+{local}" if not local.startswith('+') else local
+
+        return f"+{country_digits}{local}"
+
+    def enviar_sms_direto(self, telefone: str, mensagem: str) -> bool:
+        """Permite enviar SMS sem precisar de uma instância de Notificação."""
+        return self._enviar_sms_twilio(telefone, mensagem[:160])
     
     def _obter_template_email(self, tipo_notificacao) -> Optional[TemplateNotificacao]:
         """Obtém template de email para o tipo de notificação"""
@@ -288,25 +357,97 @@ class NotificacaoService:
         ).first()
     
     def _enviar_firebase_push(self, push_data: Dict) -> bool:
-        """Envia notificação push via Firebase"""
+        """Envia notificação push via Firebase."""
+        server_key = getattr(settings, 'FIREBASE_SERVER_KEY', '')
+        tokens = push_data.get('tokens') or []
+
+        if not server_key:
+            logger.warning("FIREBASE_SERVER_KEY não configurado; push não será enviado.")
+            return False
+
+        if not tokens:
+            logger.debug("Nenhum token de dispositivo disponível para envio de push.")
+            return False
+
+        payload = {
+            'registration_ids': tokens,
+            'notification': push_data.get('notification', {}),
+            'data': push_data.get('data', {}),
+            'priority': 'high',
+        }
+        headers = {
+            'Authorization': f'key={server_key}',
+            'Content-Type': 'application/json',
+        }
+
         try:
-            # TODO: Implementar integração com Firebase
-            # Por enquanto, simula sucesso
-            logger.info(f"Push notification enviada: {push_data}")
-            return True
-        except Exception as e:
-            logger.error(f"Erro ao enviar push Firebase: {e}")
+            response = requests.post(
+                'https://fcm.googleapis.com/fcm/send',
+                headers=headers,
+                json=payload,
+                timeout=10,
+            )
+            if response.status_code != 200:
+                logger.error(
+                    "Falha ao enviar push (status: %s, resposta: %s)",
+                    response.status_code,
+                    response.text,
+                )
+                return False
+
+            resultado = response.json()
+            if resultado.get('failure'):
+                logger.warning("Firebase retornou falhas: %s", resultado)
+            return bool(resultado.get('success'))
+        except requests.RequestException as exc:
+            logger.error(f"Erro de comunicação com Firebase: {exc}")
+            return False
+        except Exception as exc:
+            logger.error(f"Erro ao enviar push Firebase: {exc}")
             return False
     
     def _enviar_sms_twilio(self, telefone: str, mensagem: str) -> bool:
-        """Envia SMS via Twilio"""
+        """Envia SMS via Twilio utilizando as credenciais configuradas."""
+        account_sid = getattr(settings, 'TWILIO_ACCOUNT_SID', '')
+        auth_token = getattr(settings, 'TWILIO_AUTH_TOKEN', '')
+        from_number = getattr(settings, 'TWILIO_FROM_NUMBER', '')
+
+        if not (account_sid and auth_token and from_number):
+            logger.warning("Credenciais do Twilio não configuradas; SMS não será enviado.")
+            return False
+
+        numero_formatado = self._formatar_numero_telefone(telefone)
+        if not numero_formatado:
+            logger.warning("Número de telefone inválido para envio de SMS: %s", telefone)
+            return False
+
+        payload = {
+            'To': numero_formatado,
+            'From': from_number,
+            'Body': mensagem[:160],
+        }
+
         try:
-            # TODO: Implementar integração com Twilio
-            # Por enquanto, simula sucesso
-            logger.info(f"SMS enviado para {telefone}: {mensagem}")
+            response = requests.post(
+                f'https://api.twilio.com/2010-04-01/Accounts/{account_sid}/Messages.json',
+                data=payload,
+                auth=(account_sid, auth_token),
+                timeout=10,
+            )
+            if response.status_code not in (200, 201):
+                logger.error(
+                    "Falha ao enviar SMS (status: %s, resposta: %s)",
+                    response.status_code,
+                    response.text,
+                )
+                return False
+            logger.info("SMS enviado para %s", numero_formatado)
             return True
-        except Exception as e:
-            logger.error(f"Erro ao enviar SMS Twilio: {e}")
+        except requests.RequestException as exc:
+            logger.error(f"Erro de comunicação com Twilio: {exc}")
+            return False
+        except Exception as exc:
+            logger.error(f"Erro ao enviar SMS via Twilio: {exc}")
             return False
     
     def _registrar_log_notificacao(self, notificacao: Notificacao, canal: str, resultado: str, mensagem_erro: str = ""):

@@ -18,10 +18,10 @@ class TestBasicEndpoints:
         assert 'status' in response.data
         assert response.data['status'] == 'healthy'
     
-    def test_test_api_endpoint(self, api_client):
+    def test_test_api_endpoint(self, authenticated_client):
         """Testa endpoint de teste da API"""
         url = reverse('test_api')
-        response = api_client.get(url)
+        response = authenticated_client.get(url)
         
         assert response.status_code == status.HTTP_200_OK
         assert 'message' in response.data

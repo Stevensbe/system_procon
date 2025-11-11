@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any, Tuple
 from django.utils import timezone
 from django.db import transaction, models
+from django.db.models import Sum, Avg, Count, F
 from django.core.mail import send_mail
 from django.conf import settings
 
@@ -70,7 +71,8 @@ class AnaliseRespostaService:
                 
                 # Calcular status inicial
                 status_inicial = self._calcular_status_inicial(tipo_resposta, analise_ia)
-                
+                prazo_limite = timezone.now() + timedelta(days=5)
+
                 with transaction.atomic():
                     # Criar registro da resposta
                     resposta = RespostaEmpresa.objects.create(
@@ -81,7 +83,7 @@ class AnaliseRespostaService:
                         valor_oferecido=valor_oferecido,
                         prazo_pagamento_oferecido=analise_ia.get('prazo_oferecido'),
                         responsavel_analise=usuario_analista,
-                        dados_análise_ia=analise_ia,
+                        prazo_analise=prazo_limite,
                     )
                     
                     # Atualizar status da CIP
@@ -314,18 +316,24 @@ class AnaliseRespostaService:
         
         from audiencia_calendario.models import HistoricoAudiencia  # Import local para evitar circular import
         
-        # Registrar no histórico da CIP relacionada
-        HistoricoAudiencia.objects.create(
-            agendamento=None,  # Seria None por não estar em audiência ainda
-            tipo_evento='RESPOSTA_ANALISADA',
-            descricao=f'Resposta empresarial analisada via IA: {resposta.tipo_resposta}',
-            dados_novos={
-                'analise_ia': analise_ia,
-                'resposta_id': resposta.id,
-                'confianca': analise_ia.get('confianca', 0),
-            },
-            usuario_responsavel=usuario,
+        # Registrar no histórico apenas se houver audiência relacionada
+        agendamento = (
+            resposta.cip.audiencias_vinculadas.first()
+            if hasattr(resposta.cip, "audiencias_vinculadas")
+            else None
         )
+        if agendamento:
+            HistoricoAudiencia.objects.create(
+                agendamento=agendamento,
+                tipo_evento='RESPOSTA_ANALISADA',
+                descricao=f'Resposta empresarial analisada via IA: {resposta.tipo_resposta}',
+                dados_novos={
+                    'analise_ia': analise_ia,
+                    'resposta_id': resposta.id,
+                    'confianca': analise_ia.get('confianca', 0),
+                },
+                usuario_responsavel=usuario,
+            )
 
 
 class RelatorioRespostaService:

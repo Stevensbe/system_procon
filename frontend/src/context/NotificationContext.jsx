@@ -191,10 +191,10 @@ export function NotificationProvider({ children }) {
   };
 
   // Função para mostrar erro de API
-  const showApiError = (error, defaultMessage = 'Erro na operação') => {
-    const message = error?.response?.data?.detail || 
-                   error?.response?.data?.message || 
-                   error?.message || 
+  const showApiError = (apiError, defaultMessage = 'Erro na operação') => {
+    const message = apiError?.response?.data?.detail || 
+                   apiError?.response?.data?.message || 
+                   apiError?.message || 
                    defaultMessage;
     
     error('Erro', message);

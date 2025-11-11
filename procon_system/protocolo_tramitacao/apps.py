@@ -10,8 +10,13 @@ class ProtocoloTramitacaoConfig(AppConfig):
         """Carrega signals quando a aplicação estiver pronta"""
         try:
             import protocolo_tramitacao.signals
-            # Configura setores padrão na primeira execução
-            from .signals import configurar_setores_padrao
-            configurar_setores_padrao()
         except ImportError:
-            pass
+            return
+
+        from django.db.models.signals import post_migrate
+        from .signals import configurar_setores_padrao
+
+        def _ensure_setores(sender, **kwargs):
+            configurar_setores_padrao()
+
+        post_migrate.connect(_ensure_setores, sender=self)

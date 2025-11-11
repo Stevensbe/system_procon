@@ -2,9 +2,16 @@ from django.contrib import admin
 from django.utils.html import format_html
 from django.utils import timezone
 from .models import (
-    CategoriaConteudo, ConteudoPortal, FormularioPublico, BannerPortal,
-    ConsultaPublica, AvaliacaoServico, ConfiguracaoPortal, EstatisticaPortal,
-    PerfilCidadao
+    CategoriaConteudo,
+    ConteudoPortal,
+    FormularioPublico,
+    BannerPortal,
+    ConsultaPublica,
+    AvaliacaoServico,
+    ConfiguracaoPortal,
+    EstatisticaPortal,
+    PerfilCidadao,
+    DenunciaCidadao,
 )
 
 
@@ -353,3 +360,26 @@ class EstatisticaPortalAdmin(admin.ModelAdmin):
     
     def has_change_permission(self, request, obj=None):
         return False
+
+
+@admin.register(DenunciaCidadao)
+class DenunciaCidadaoAdmin(admin.ModelAdmin):
+    list_display = [
+        "numero_denuncia",
+        "empresa_denunciada",
+        "tipo_infracao",
+        "status",
+        "origem_denuncia",
+        "criado_em",
+    ]
+    list_filter = ["status", "origem_denuncia", "tipo_infracao", "criado_em"]
+    search_fields = [
+        "numero_denuncia",
+        "empresa_denunciada",
+        "cnpj_empresa",
+        "descricao_fatos",
+        "nome_denunciante",
+        "cpf_cnpj",
+    ]
+    readonly_fields = ["numero_denuncia", "criado_em", "atualizado_em"]
+    ordering = ["-criado_em"]

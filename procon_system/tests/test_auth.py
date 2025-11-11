@@ -101,14 +101,14 @@ class TestAuthentication:
     
     def test_protected_endpoint_with_auth(self, authenticated_client):
         """Testa acesso a endpoint protegido com autenticação"""
-        url = reverse('test_api')
+        url = reverse('protected_endpoint')
         response = authenticated_client.get(url)
         
         assert response.status_code == status.HTTP_200_OK
     
     def test_protected_endpoint_without_auth(self, api_client):
         """Testa acesso a endpoint protegido sem autenticação"""
-        url = reverse('test_api')
+        url = reverse('protected_endpoint')
         response = api_client.get(url)
         
         assert response.status_code == status.HTTP_401_UNAUTHORIZED

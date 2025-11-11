@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import axios from 'axios';
+import api from '../../services/api';
 import { toast } from 'react-hot-toast';
 import { CameraIcon } from '@heroicons/react/24/outline';
 import BarcodeScannerGoogleVision from './BarcodeScannerGoogleVision';
@@ -96,7 +96,7 @@ const AutoApreensaoForm = () => {
                     cpf_responsavel: ''
                 });
             } else {
-                const response = await axios.get(`/api/fiscalizacao/apreensao-inutilizacao/${id}/`);
+                const response = await api.get(`/fiscalizacao/apreensao-inutilizacao/${id}/`);
                 setAuto(response.data);
             }
         } catch (error) {
@@ -108,7 +108,7 @@ const AutoApreensaoForm = () => {
 
     const carregarAutosSupermercado = async () => {
         try {
-            const response = await axios.get('/api/fiscalizacao/apreensao-inutilizacao/autos_supermercado_disponiveis/');
+            const response = await api.get('/fiscalizacao/apreensao-inutilizacao/autos_supermercado_disponiveis/');
             setAutosSupermercado(response.data);
         } catch (error) {
             console.error('Erro ao carregar autos de supermercado:', error);
@@ -117,7 +117,7 @@ const AutoApreensaoForm = () => {
 
     const carregarProximoNumero = async () => {
         try {
-            const response = await axios.get('/api/fiscalizacao/apreensao-inutilizacao/proximo_numero/');
+            const response = await api.get('/fiscalizacao/apreensao-inutilizacao/proximo_numero/');
             setProximoNumero(response.data.proximo_numero);
         } catch (error) {
             console.error('Erro ao carregar próximo número:', error);
@@ -279,10 +279,10 @@ const AutoApreensaoForm = () => {
             setLoading(true);
             
             if (id) {
-                await axios.put(`/api/fiscalizacao/apreensao-inutilizacao/${id}/`, auto);
+                await api.put(`/fiscalizacao/apreensao-inutilizacao/${id}/`, auto);
                 toast.success('Auto de apreensão atualizado com sucesso');
             } else {
-                await axios.post('/api/fiscalizacao/apreensao-inutilizacao/', auto);
+                await api.post('/fiscalizacao/apreensao-inutilizacao/', auto);
                 toast.success('Auto de apreensão criado com sucesso');
             }
             

@@ -9,6 +9,7 @@ from typing import Dict, List, Optional, Any, Tuple
 from django.utils import timezone
 from django.db import transaction, models
 from django.core.mail import send_mail
+from django.conf import settings
 from django.utils.dateparse import parse_datetime
 
 from .models import (
@@ -17,6 +18,8 @@ from .models import (
 )
 from cip_automatica.models import CIPAutomatica
 from logging_config import logger_manager, LoggedOperation, log_execution_time
+from notificacoes.models import TipoNotificacao
+from notificacoes.services import notificacao_service
 
 
 class CalendarioAudienciaService:
@@ -125,7 +128,7 @@ class CalendarioAudienciaService:
         }
     
     @log_execution_time('buscar_horarios_livres')
-    def buscar_horarios_livres(self, data: date, duracao_horas: int = 2, 
+    def buscar_horarios_livres(self, data: dt_date, duracao_horas: int = 2, 
                              mediador_id: Optional[int] = None,
                              local_id: Optional[int] = None) -> List[Dict[str, Any]]:
         """Busca horários livres em uma data específica"""
@@ -267,6 +270,109 @@ class ReagendamentoService:
     
     def __init__(self):
         self.logger = logger_manager.get_logger('reagendamento_service')
+        self.ALERTA_SOLICITADO = 'AUDIENCIA_REAGENDAMENTO_SOLICITADO'
+        self.ALERTA_APROVADO = 'AUDIENCIA_REAGENDAMENTO_APROVADO'
+
+    def _garantir_tipo_notificacao(self, codigo: str, nome: str):
+        TipoNotificacao.objects.get_or_create(
+            codigo=codigo,
+            defaults={
+                'nome': nome,
+                'descricao': nome,
+                'template_email': nome,
+                'template_sms': nome,
+                'template_push': nome,
+            },
+        )
+
+    def _notificar_reagendamento(
+        self,
+        agendamento: AgendamentoAudiencia,
+        reagendamento: Reagendamento,
+        evento: str,
+        solicitante: Any = None,
+    ):
+        if not agendamento:
+            return
+
+        codigo = self.ALERTA_SOLICITADO if evento == 'solicitado' else self.ALERTA_APROVADO
+        nome_tipo = (
+            'Reagendamento de audiência solicitado'
+            if evento == 'solicitado'
+            else 'Reagendamento de audiência confirmado'
+        )
+        self._garantir_tipo_notificacao(codigo, nome_tipo)
+
+        numero = agendamento.numero_protocolo or str(agendamento.id)
+        data_nova = reagendamento.nova_data.astimezone(timezone.get_current_timezone())
+        data_texto = data_nova.strftime('%d/%m/%Y %H:%M')
+
+        if evento == 'solicitado':
+            assunto = f'Reagendamento solicitado para audiência {numero}'
+            mensagem = (
+                f"O reagendamento da audiência {numero} foi solicitado para {data_texto}.\n"
+                f"Motivo: {reagendamento.get_motivo_display() if hasattr(reagendamento, 'get_motivo_display') else reagendamento.motivo or 'Motivo não informado.'}"
+            )
+        else:
+            assunto = f'Reagendamento confirmado para audiência {numero}'
+            mensagem = f"A audiência {numero} foi reagendada para {data_texto}."
+
+        participantes = [
+            getattr(agendamento.mediador, 'usuario', None),
+            agendamento.criado_por,
+            solicitante,
+        ]
+
+        destinatarios = {}
+        for usuario in participantes:
+            if usuario and usuario.id not in destinatarios:
+                destinatarios[usuario.id] = usuario
+
+        if not destinatarios:
+            return
+
+        dados_extras = {
+            'agendamento_id': str(agendamento.id),
+            'numero_protocolo': numero,
+            'nova_data': data_nova.isoformat(),
+            'evento': evento,
+        }
+
+        notificacoes_criadas = []
+
+        for usuario in destinatarios.values():
+            notificacao = notificacao_service.criar_notificacao(
+                tipo_codigo=codigo,
+                destinatario_id=usuario.id,
+                titulo=assunto,
+                mensagem=mensagem,
+                dados_extras=dados_extras,
+                prioridade='alta',
+            )
+            notificacoes_criadas.append(notificacao)
+
+            if getattr(usuario, 'email', None):
+                try:
+                    send_mail(
+                        subject=assunto,
+                        message=mensagem,
+                        from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', None),
+                        recipient_list=[usuario.email],
+                        fail_silently=True,
+                    )
+                except Exception as exc:
+                    self.logger.logger.warning(
+                        'Falha ao enviar email de reagendamento para %s: %s',
+                        usuario.email,
+                        exc,
+                    )
+
+        try:
+            notificacao_service.processar_notificacoes_pendentes()
+        except Exception as exc:
+            self.logger.logger.warning(
+                'Falha ao processar notificações de reagendamento: %s', exc
+            )
     
     @log_execution_time('solicitar_reagendamento')
     def solicitar_reagendamento(self, agendamento_id: str, nova_data: datetime,
@@ -294,6 +400,13 @@ class ReagendamentoService:
                 'nova_data': nova_data.isoformat(),
                 'motivo': motivo,
             })
+
+            self._notificar_reagendamento(
+                agendamento=agendamento,
+                reagendamento=reagendamento,
+                evento='solicitado',
+                solicitante=solicitante,
+            )
             
             return reagendamento
             
@@ -338,6 +451,13 @@ class ReagendamentoService:
                 'REAGENDED',
                 f'Reagendada de {data_anterior.strftime("%d/%m/%Y %H:%M")} para {reagendamento.nova_data.strftime("%d/%m/%Y %H:%M")}',
                 aprovador
+            )
+
+            self._notificar_reagendamento(
+                agendamento=agendamento,
+                reagendamento=reagendamento,
+                evento='aprovado',
+                solicitante=reagendamento.solicitado_por,
             )
             
             self.logger.log_operation('reagendamento_aprovado', {

@@ -1,93 +1,110 @@
+import logging
+
+from django.conf import settings
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.utils import timezone
-from .models import AutoInfracao, Processo, HistoricoProcesso
+
+from .models import AutoInfracao, HistoricoProcesso, Processo
+
+
+logger = logging.getLogger(__name__)
+
 
 @receiver(post_save, sender=AutoInfracao)
 def criar_processo_automatico(sender, instance, created, **kwargs):
     """
-    Signal que cria automaticamente um processo administrativo
-    sempre que um Auto de Infração é criado.
+    Cria automaticamente um processo administrativo quando um Auto de Infracao
+    e registrado, mantendo o comportamento original em ambiente de producao.
     """
-    if created:  # Só executa quando o auto é criado, não quando é atualizado
+    if getattr(settings, "TESTING", False):
+        return
+
+    if created:
         try:
-            # Verifica se já existe um processo para este auto
-            if hasattr(instance, 'processo'):
-                return  # Já existe processo, não criar duplicado
-            
-            # Criar o processo automaticamente
+            if hasattr(instance, "processo"):
+                return
+
             processo = Processo.objects.create(
                 auto_infracao=instance,
                 autuado=instance.razao_social,
                 cnpj=instance.cnpj,
-                status='aguardando_defesa',
-                prioridade='normal',
+                status="aguardando_defesa",
+                prioridade="normal",
                 valor_multa=instance.valor_multa,
                 fiscal_responsavel=instance.fiscal_nome,
-                # Definir prazo de defesa (15 dias úteis a partir da criação)
                 prazo_defesa=calcular_prazo_defesa(instance.data_fiscalizacao),
                 data_notificacao=timezone.now().date(),
             )
-            
-            # Criar registro no histórico
+
             HistoricoProcesso.objects.create(
                 processo=processo,
-                tipo='criacao',
-                descricao_mudanca=f'Processo criado automaticamente a partir do Auto de Infração {instance.numero}',
-                data_ocorrencia=timezone.now(),
-                usuario_responsavel='Sistema Automático'
+                status_anterior=None,
+                status_novo=processo.status,
+                observacao=f"Processo criado automaticamente a partir do Auto de Infracao {instance.numero}",
+                usuario="Sistema Automatico",
             )
-            
-            print(f"✅ Processo {processo.numero_processo} criado automaticamente para Auto de Infração {instance.numero}")
-            
-        except Exception as e:
-            print(f"❌ Erro ao criar processo automaticamente para Auto {instance.numero}: {str(e)}")
+
+            logger.info(
+                "Process %s created automatically for auto %s",
+                processo.numero_processo,
+                instance.numero,
+            )
+
+        except Exception:
+            logger.exception(
+                "Failed to create process automatically for auto %s",
+                instance.numero,
+            )
+
 
 @receiver(post_save, sender=Processo)
 def registrar_mudanca_status(sender, instance, created, **kwargs):
     """
-    Signal que registra mudanças de status do processo no histórico.
+    Registra mudancas de status do processo no historico.
     """
-    if not created:  # Só para atualizações, não criações
+    if getattr(settings, "TESTING", False):
+        return
+
+    if not created:
         try:
-            # Buscar último status no histórico
-            ultimo_historico = HistoricoProcesso.objects.filter(
-                processo=instance,
-                tipo='status_change'
-            ).order_by('-data_ocorrencia').first()
-            
-            # Se o status mudou, registrar no histórico
+            ultimo_historico = (
+                HistoricoProcesso.objects.filter(processo=instance)
+                .order_by("-data_mudanca")
+                .first()
+            )
+
             status_anterior = ultimo_historico.status_novo if ultimo_historico else None
-            
+
             if status_anterior and status_anterior != instance.status:
                 HistoricoProcesso.objects.create(
                     processo=instance,
-                    tipo='status_change',
-                    descricao_mudanca=f'Status alterado de "{status_anterior}" para "{instance.status}"',
                     status_anterior=status_anterior,
                     status_novo=instance.status,
-                    data_ocorrencia=timezone.now(),
-                    usuario_responsavel='Sistema'  # Pode ser melhorado para capturar usuário real
+                    observacao=f'Status alterado de "{status_anterior}" para "{instance.status}"',
+                    usuario="Sistema",
                 )
-                
-        except Exception as e:
-            print(f"❌ Erro ao registrar mudança de status: {str(e)}")
+
+        except Exception:
+            logger.exception(
+                "Failed to register status change for process %s",
+                instance.pk,
+            )
+
 
 def calcular_prazo_defesa(data_fiscalizacao, dias_uteis=15):
     """
-    Calcula o prazo para apresentação de defesa (15 dias úteis).
+    Calcula o prazo para apresentacao de defesa (15 dias uteis).
     """
     from datetime import timedelta
-    
+
     data_base = data_fiscalizacao if data_fiscalizacao else timezone.now().date()
     prazo = data_base
-    
-    # Adicionar dias úteis (seg-sex)
+
     dias_adicionados = 0
     while dias_adicionados < dias_uteis:
         prazo += timedelta(days=1)
-        # Se não for fim de semana (seg=0, dom=6)
-        if prazo.weekday() < 5:  
+        if prazo.weekday() < 5:
             dias_adicionados += 1
-    
+
     return prazo

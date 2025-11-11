@@ -4,6 +4,7 @@ Signals para integração automática da Caixa de Entrada com outros módulos
 
 import logging
 
+from django.conf import settings
 from django.db.models.signals import pre_save, post_save
 from django.dispatch import receiver
 from django.contrib.contenttypes.models import ContentType
@@ -16,6 +17,8 @@ logger = logging.getLogger(__name__)
 
 @receiver(pre_save, sender=CaixaEntrada)
 def aplicar_rotas_automaticas(sender, instance, raw=False, **kwargs):
+    if getattr(settings, "TESTING", False):
+        return
     if raw or instance.pk:
         return
     aplicar_roteamento_automatico(instance)
@@ -24,6 +27,8 @@ def aplicar_rotas_automaticas(sender, instance, raw=False, **kwargs):
 @receiver(post_save, sender=CaixaEntrada)
 def sincronizar_caixa_no_protocolo(sender, instance, created, update_fields=None, raw=False, **kwargs):
     """Garante que o documento da caixa de entrada esteja vinculado ao protocolo e atualiza o fluxo."""
+    if getattr(settings, "TESTING", False):
+        return
     if raw:
         return
 
@@ -56,6 +61,8 @@ def criar_documento_caixa_entrada_peticao(sender, instance, created, **kwargs):
     """
     Cria documento na caixa de entrada quando uma petição é criada
     """
+    if getattr(settings, "TESTING", False):
+        return
     if created and instance.origem == 'PORTAL_CIDADAO':
         try:
             # Determinar setor destino baseado no tipo de petição
@@ -99,10 +106,10 @@ def criar_documento_caixa_entrada_peticao(sender, instance, created, **kwargs):
                 detalhes=f'Petição criada via Portal do Cidadão - Tipo: {instance.tipo_peticao.nome}'
             )
             
-            print(f"Documento {documento.numero_protocolo} criado na caixa de entrada para petição {instance.numero_peticao}")
+            logger.info("Document %s created in inbox for petition %s", documento.numero_protocolo, instance.numero_peticao)
             
-        except Exception as e:
-            print(f"Erro ao criar documento na caixa de entrada para petição {instance.numero_peticao}: {e}")
+        except Exception:
+            logger.exception("Failed to create inbox document for petition %s", instance.numero_peticao)
 
 
 
@@ -113,13 +120,15 @@ def criar_documento_caixa_entrada_multa(sender, instance, created, **kwargs):
     """
     Cria documento na caixa de entrada quando uma multa é criada
     """
+    if getattr(settings, "TESTING", False):
+        return
     if created:
         try:
             # Criar documento na caixa de entrada
             documento = CaixaEntrada.objects.create(
                 tipo_documento='MULTA',
-                assunto=f'Multa - {instance.empresa.razao_social}',
-                descricao=f'Multa #{getattr(instance, 'pk', '')} - Valor: R$ {instance.valor}',
+                assunto=f"Multa - {instance.empresa.razao_social}",
+                descricao=f"Multa #{getattr(instance, 'pk', '')} - Valor: R$ {instance.valor}",
                 prioridade='NORMAL',
                 remetente_nome=instance.empresa.razao_social,
                 remetente_documento=instance.empresa.cnpj,
@@ -135,13 +144,17 @@ def criar_documento_caixa_entrada_multa(sender, instance, created, **kwargs):
             HistoricoCaixaEntrada.objects.create(
                 documento=documento,
                 acao='CRIADO',
-                detalhes=f'Multa {instance.numero} criada'
+                detalhes=f"Multa {getattr(instance, 'id', '')} criada"
             )
             
-            print(f"Documento {documento.numero_protocolo} criado na caixa de entrada para multa {instance.numero}")
+            logger.info(
+                "Document %s created in inbox for fine %s",
+                documento.numero_protocolo,
+                getattr(instance, "id", ""),
+            )
             
-        except Exception as e:
-            print(f"Erro ao criar documento na caixa de entrada para multa #{getattr(instance, 'pk', '')}: {e}")
+        except Exception:
+            logger.exception("Failed to create inbox document for fine %s", getattr(instance, "pk", ""))
 
 
 @receiver(post_save, sender='juridico.ProcessoJuridico')
@@ -175,10 +188,10 @@ def criar_documento_caixa_entrada_processo_juridico(sender, instance, created, *
                 detalhes=f'Processo jurídico {instance.numero} criado'
             )
             
-            print(f"Documento {documento.numero_protocolo} criado na caixa de entrada para processo {instance.numero}")
+            logger.info("Document %s created in inbox for process %s", documento.numero_protocolo, instance.numero)
             
-        except Exception as e:
-            print(f"Erro ao criar documento na caixa de entrada para processo {instance.numero}: {e}")
+        except Exception:
+            logger.exception("Failed to create inbox document for process %s", instance.numero)
 
 
 @receiver(post_save, sender='portal_cidadao.DenunciaCidadao')
@@ -186,6 +199,8 @@ def criar_documento_caixa_entrada_denuncia(sender, instance, created, **kwargs):
     """
     Cria documento na caixa de entrada quando uma denúncia é criada via Portal do Cidadão
     """
+    if getattr(settings, "TESTING", False):
+        return
     if created:
         try:
             # Preparar dados do remetente baseado no anonimato
@@ -227,10 +242,10 @@ def criar_documento_caixa_entrada_denuncia(sender, instance, created, **kwargs):
                 detalhes=f'Denúncia criada via Portal do Cidadão - {instance.numero_denuncia}'
             )
             
-            print(f"Documento {documento.numero_protocolo} criado na Caixa de Denúncias para denúncia {instance.numero_denuncia}")
+            logger.info("Document %s created in complaints inbox for report %s", documento.numero_protocolo, instance.numero_denuncia)
             
-        except Exception as e:
-            print(f"Erro ao criar documento na caixa de entrada para denúncia {instance.numero_denuncia}: {e}")
+        except Exception:
+            logger.exception("Failed to create inbox document for report %s", instance.numero_denuncia)
 
 
 @receiver(post_save, sender='fiscalizacao.AutoInfracao')
@@ -238,6 +253,8 @@ def criar_documento_caixa_entrada_auto_fiscal(sender, instance, created, **kwarg
     """
     Cria documento na caixa de entrada quando um auto de infração é criado pelo fiscal
     """
+    if getattr(settings, "TESTING", False):
+        return
     if not created:
         return
 
@@ -269,10 +286,10 @@ def criar_documento_caixa_entrada_auto_fiscal(sender, instance, created, **kwarg
             detalhes=f'Auto de infração {getattr(instance, "numero", "")} criado pelo fiscal'
         )
 
-        print(f"Documento {documento.numero_protocolo} criado na Caixa de Autos para auto {getattr(instance, 'numero', '')}")
+        logger.info("Document %s created in auto inbox for auto %s", documento.numero_protocolo, getattr(instance, "numero", ""))
 
-    except Exception as e:
-        print(f"Erro ao criar documento na caixa de entrada para auto {getattr(instance, 'numero', '')}: {e}")
+    except Exception:
+        logger.exception("Failed to create inbox document for auto %s", getattr(instance, "numero", ""))
 
 
 # Signal para atualizar status da caixa de entrada quando documento relacionado é atualizado
@@ -281,6 +298,8 @@ def atualizar_status_caixa_entrada(sender, instance, created, **kwargs):
     """
     Atualiza status da caixa de entrada baseado no documento relacionado
     """
+    if getattr(settings, "TESTING", False):
+        return
     if not created and instance.documento_relacionado:
         try:
             # Verificar se o documento relacionado foi respondido
@@ -312,8 +331,10 @@ def atualizar_status_caixa_entrada(sender, instance, created, **kwargs):
                             detalhes=f'Status alterado para ARQUIVADO baseado no documento relacionado'
                         )
             
-        except Exception as e:
-            print(f"Erro ao atualizar status da caixa de entrada {instance.numero_protocolo}: {e}")
+        except Exception:
+            logger.exception("Failed to update inbox status for document %s", instance.numero_protocolo)
+
+
 
 
 

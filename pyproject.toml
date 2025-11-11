@@ -35,7 +35,7 @@ sections = ["FUTURE", "STDLIB", "THIRDPARTY", "DJANGO", "FIRSTPARTY", "LOCALFOLD
 DJANGO_SETTINGS_MODULE = "procon_system.settings"
 python_files = ["tests.py", "test_*.py", "*_tests.py"]
 addopts = "--strict-markers --strict-config --verbose"
-testpaths = ["tests"]
+testpaths = ["procon_system"]
 markers = [
     "slow: marks tests as slow",
     "integration: marks tests as integration tests",

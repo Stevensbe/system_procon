@@ -1,11 +1,21 @@
-from .models import Atendimento
-from django.core.mail import send_mail
+import json
+import logging
+from decimal import Decimal
+from datetime import timedelta
+
+import requests
 from django.conf import settings
+from django.core.exceptions import ValidationError
+from django.core.mail import send_mail
 from django.template.loader import render_to_string
 from django.utils import timezone
-from datetime import timedelta
-import requests
-import json
+
+from fiscalizacao.models import AutoInfracao
+from notificacoes.services import notificacao_service
+from portal_empresa.services import gestao_empresa_service
+from .models import Atendimento, SenhaAtendimento, FilaAtendimento, RegraDistribuicaoAtendimento
+
+logger = logging.getLogger(__name__)
 
 
 class AtendimentoService:
@@ -15,6 +25,41 @@ class AtendimentoService:
     def criar_atendimento(dados, usuario):
         """Cria um novo atendimento"""
         try:
+            consentimento_flag = bool(dados.get('consentimento_lgpd', False))
+            consentimento_origem = dados.get('consentimento_origem', 'GUICHE')
+            consentimento_em = timezone.now() if consentimento_flag else None
+
+            observacoes = dados.get('observacoes', '')
+            descricao_fatos = dados.get('descricao_fatos', '')
+            texto_classificacao = f"{observacoes} {descricao_fatos}".strip()
+            valor_envolvido = dados.get('valor_envolvido')
+
+            classificacao = dados.get('classificacao_automatica') or {}
+            gravidade = dados.get('gravidade')
+            assunto_classificado = classificacao.get('assunto_classificado') or ClassificacaoService.classificar_assunto(texto_classificacao)
+
+            if texto_classificacao and not classificacao:
+                gravidade_calculada, correspondencias = ClassificacaoService.classificar_gravidade(texto_classificacao)
+                tipo_classificacao = ClassificacaoService.determinar_tipo_classificacao(texto_classificacao, valor_envolvido)
+                classificacao = {
+                    'gravidade': gravidade_calculada,
+                    'correspondencias': correspondencias,
+                    'tipo_classificacao': tipo_classificacao,
+                }
+                if not gravidade:
+                    gravidade = gravidade_calculada
+
+            if not gravidade:
+                gravidade = Atendimento.Gravidade.MEDIA
+
+            classificacao['assunto_classificado'] = assunto_classificado
+
+            responsavel_distribuicao = DistribuicaoAutomaticaService.obter_responsavel(
+                gravidade=gravidade,
+                assunto=assunto_classificado,
+                tipo_classificacao=classificacao.get('tipo_classificacao'),
+            )
+
             atendimento = Atendimento.objects.create(
                 atendente=usuario,
                 consumidor_nome=dados['consumidor_nome'],
@@ -22,8 +67,22 @@ class AtendimentoService:
                 consumidor_telefone=dados.get('consumidor_telefone', ''),
                 consumidor_email=dados.get('consumidor_email', ''),
                 tipo_atendimento=dados['tipo_atendimento'],
-                observacoes=dados.get('observacoes', ''),
+                canal_atendimento=dados.get('canal_atendimento', 'BALCAO'),
+                observacoes=observacoes,
+                consentimento_lgpd=consentimento_flag,
+                consentimento_origem=consentimento_origem,
+                consentimento_registrado_em=consentimento_em,
+                gravidade=gravidade,
+                classificacao_automatica=classificacao,
+                distribuidor_responsavel=responsavel_distribuicao,
             )
+            try:
+                reclamacao = dados.get('reclamacao') or getattr(atendimento, 'reclamacao', None)
+                if reclamacao:
+                    gestao_empresa_service.notificar_reclamacao_portal(reclamacao)
+            except Exception:
+                # Notificar falha, mas n�o impedir a cria��o do atendimento
+                pass
             return {'sucesso': True, 'atendimento': atendimento}
         except Exception as e:
             return {'sucesso': False, 'erro': str(e)}
@@ -32,6 +91,32 @@ class AtendimentoService:
     def registrar_presencial(dados, usuario, reclamacao):
         """Cria atendimento presencial vinculado a uma reclamacao"""
         try:
+            consentimento_origem = dados.get('consentimento_origem', 'GUICHE')
+            classificacao = dados.get('classificacao_automatica') or {}
+            gravidade = dados.get('gravidade', Atendimento.Gravidade.MEDIA)
+            consentimento_em = dados.get('consentimento_registrado_em', timezone.now())
+            descricao_fatos = dados.get('descricao_fatos', '')
+            texto_classificacao = f"{dados.get('observacoes', '')} {descricao_fatos}".strip()
+
+            if not classificacao:
+                gravidade_calculada, correspondencias = ClassificacaoService.classificar_gravidade(texto_classificacao)
+                tipo_classificacao = ClassificacaoService.determinar_tipo_classificacao(texto_classificacao, dados.get('valor_envolvido'))
+                classificacao = {
+                    'gravidade': gravidade_calculada,
+                    'correspondencias': correspondencias,
+                    'tipo_classificacao': tipo_classificacao,
+                }
+                gravidade = gravidade or gravidade_calculada
+
+            assunto_classificado = ClassificacaoService.classificar_assunto(texto_classificacao)
+            classificacao['assunto_classificado'] = assunto_classificado
+
+            responsavel_distribuicao = DistribuicaoAutomaticaService.obter_responsavel(
+                gravidade=gravidade,
+                assunto=assunto_classificado,
+                tipo_classificacao=classificacao.get('tipo_classificacao'),
+            )
+
             atendimento = Atendimento.objects.create(
                 atendente=usuario,
                 consumidor_nome=dados['consumidor_nome'],
@@ -42,6 +127,12 @@ class AtendimentoService:
                 canal_atendimento=dados.get('canal_atendimento', 'BALCAO'),
                 observacoes=dados.get('observacoes', ''),
                 reclamacao=reclamacao,
+                consentimento_lgpd=True,
+                consentimento_origem=consentimento_origem,
+                consentimento_registrado_em=consentimento_em,
+                gravidade=gravidade,
+                classificacao_automatica=classificacao,
+                distribuidor_responsavel=responsavel_distribuicao,
             )
             return {'sucesso': True, 'atendimento': atendimento}
         except Exception as e:
@@ -60,6 +151,30 @@ class AtendimentoService:
             return {'sucesso': True}
         except Exception as e:
             return {'sucesso': False, 'erro': str(e)}
+
+    @staticmethod
+    def solicitar_remocao(atendimento_id, observacoes=""):
+        """Solicita remo��o de dados pessoais de um atendimento."""
+        try:
+            atendimento = Atendimento.objects.get(id=atendimento_id)
+            atendimento.solicitar_remocao_dados(observacoes=observacoes)
+            return {'sucesso': True}
+        except Atendimento.DoesNotExist:
+            return {'sucesso': False, 'erro': 'Atendimento n�o encontrado'}
+        except Exception as exc:
+            return {'sucesso': False, 'erro': str(exc)}
+
+    @staticmethod
+    def confirmar_remocao(atendimento_id):
+        """Confirma a remo��o de dados pessoais, executando anonimiza��o."""
+        try:
+            atendimento = Atendimento.objects.get(id=atendimento_id)
+            atendimento.confirmar_remocao_dados()
+            return {'sucesso': True}
+        except Atendimento.DoesNotExist:
+            return {'sucesso': False, 'erro': 'Atendimento n�o encontrado'}
+        except Exception as exc:
+            return {'sucesso': False, 'erro': str(exc)}
 
 
 class ValidacaoService:
@@ -218,6 +333,20 @@ class ReceitaFederalService:
 
 class ClassificacaoService:
     """Serviço para classificação automática"""
+
+    GRAVIDADE_PALAVRAS = {
+        'ALTA': [
+            'ameaça', 'violência', 'fraude', 'lesão grave', 'acidente',
+            'risco de morte', 'intoxicação', 'envenenamento', 'golpe'
+        ],
+        'MEDIA': [
+            'reincidência', 'descumprimento', 'dano', 'prazo excedido',
+            'produto defeituoso', 'serviço suspenso', 'cobrança indevida'
+        ],
+        'BAIXA': [
+            'atraso', 'informação', 'orientação', 'duvida', 'reclamação'
+        ],
+    }
     
     @staticmethod
     def classificar_assunto(descricao):
@@ -263,6 +392,42 @@ class ClassificacaoService:
         return 'ATENDIMENTO_SIMPLES'
 
 
+    @classmethod
+    def classificar_gravidade(cls, descricao):
+        """Determina gravidade automática a partir da descrição"""
+        texto = (descricao or '').lower()
+        correspondencias = []
+        gravidade = 'BAIXA'
+
+        for nivel, palavras in getattr(cls, 'GRAVIDADE_PALAVRAS', {}).items():
+            for palavra in palavras:
+                if palavra in texto:
+                    correspondencias.append({'nivel': nivel, 'palavra': palavra})
+
+        if any(item['nivel'] == 'ALTA' for item in correspondencias):
+            gravidade = 'ALTA'
+        elif any(item['nivel'] == 'MEDIA' for item in correspondencias):
+            gravidade = 'MEDIA'
+
+        return gravidade, correspondencias
+
+
+class DistribuicaoAutomaticaService:
+    """Determina responsáveis com base nas regras de distribuição."""
+
+    @staticmethod
+    def obter_responsavel(gravidade=None, assunto=None, tipo_classificacao=None):
+        regras = RegraDistribuicaoAtendimento.objects.filter(ativo=True).order_by('prioridade', 'id')
+        gravidade_norm = (gravidade or '').upper()
+        assunto_norm = (assunto or '').upper()
+        tipo_norm = (tipo_classificacao or '').upper()
+
+        for regra in regras:
+            if regra.combina(gravidade=gravidade_norm, assunto=assunto_norm, tipo_classificacao=tipo_norm):
+                return regra.responsavel
+        return None
+
+
 class NotificacaoService:
     """Serviço para envio de notificações"""
     
@@ -292,6 +457,14 @@ class NotificacaoService:
                 [reclamacao.consumidor_email],
                 fail_silently=False,
             )
+
+            telefone = getattr(reclamacao, 'consumidor_telefone', '')
+            if telefone:
+                sms_mensagem = (
+                    f"PROCON: Reclamacao {reclamacao.numero_protocolo} "
+                    "registrada com sucesso. Acompanhe pelo portal."
+                )
+                notificacao_service.enviar_sms_direto(telefone, sms_mensagem)
             
             return {'sucesso': True}
             
@@ -436,3 +609,140 @@ class WorkflowService:
         except Exception as e:
             return {'sucesso': False, 'erro': str(e)}
 
+
+
+class FilaAtendimentoService:
+    """Serviços auxiliares para gerenciamento de filas e senhas."""
+
+    @staticmethod
+    def _fila(balcao):
+        return FilaAtendimento.obter_fila_ativa(balcao)
+
+    @classmethod
+    def emitir_senha(cls, balcao, prioridade=SenhaAtendimento.Prioridade.NORMAL, observacoes=""):
+        senha = SenhaAtendimento(balcao=balcao, prioridade=prioridade, observacoes=observacoes)
+        senha.save()
+
+        fila = cls._fila(balcao)
+        fila.quantidade_emitidas += 1
+        fila.ultima_senha_emitida = senha.identificador
+        fila.save(update_fields=['quantidade_emitidas', 'ultima_senha_emitida', 'atualizado_em'])
+
+        return senha, fila
+
+    @classmethod
+    def chamar_proxima(cls, balcao, atendente=None):
+        fila = cls._fila(balcao)
+        filtro = SenhaAtendimento.objects.filter(balcao=balcao, status=SenhaAtendimento.Status.EM_ESPERA)
+        senha = filtro.order_by('-prioridade', 'emitido_em').first()
+        if not senha:
+            raise ValidationError({'detail': 'Não há senhas em espera.'})
+
+        senha.marcar_chamada(atendente=atendente)
+        balcao.ultima_chamada_em = timezone.now()
+        balcao.save(update_fields=['ultima_chamada_em'])
+
+        fila.quantidade_chamadas += 1
+        fila.ultima_senha_chamada = senha.identificador
+        fila.save(update_fields=['quantidade_chamadas', 'ultima_senha_chamada', 'atualizado_em'])
+
+        return senha, fila
+
+    @classmethod
+    def iniciar_senha(cls, senha, atendente=None):
+        senha.iniciar_atendimento(atendente=atendente)
+        return senha, cls._fila(senha.balcao)
+
+    @classmethod
+    def finalizar_senha(cls, senha, atendente=None):
+        senha.finalizar(atendente=atendente)
+        fila = cls._fila(senha.balcao)
+        fila.quantidade_finalizadas += 1
+        fila.save(update_fields=['quantidade_finalizadas', 'atualizado_em'])
+        return senha, fila
+
+    @staticmethod
+    def cancelar_senha(senha, motivo=""):
+        senha.cancelar(motivo)
+        return senha
+
+    @staticmethod
+    def pular_senha(senha, justificativa="Senha pulada"):
+        senha.status = SenhaAtendimento.Status.EM_ESPERA
+        senha.chamado_em = None
+        senha.atendente_responsavel = None
+        if justificativa:
+            senha.observacoes = f"{senha.observacoes}\n{justificativa}" if senha.observacoes else justificativa
+        senha.emitido_em = timezone.now()
+        senha.save(update_fields=['status', 'chamado_em', 'atendente_responsavel', 'observacoes', 'emitido_em'])
+        return senha
+
+
+def encaminhar_para_fiscalizacao(reclamacao, usuario=None):
+    """
+    Cria automaticamente um Auto de Infração em Fiscalização quando a decisão
+    administrativa gera penalidade. Retorna (auto, criado_nesse_fluxo).
+    """
+    if not reclamacao or getattr(reclamacao, 'auto_infracao_relacionado', None):
+        auto_existente = getattr(reclamacao, 'auto_infracao_relacionado', None)
+        return auto_existente, False
+
+    try:
+        agora = timezone.now()
+
+        def _sanitize_cpf(cpf):
+            numeros = ''.join(filter(str.isdigit, cpf or ''))
+            return numeros if len(numeros) == 11 else '00000000000'
+
+        valor_base = reclamacao.valor_multa or reclamacao.valor_envolvido
+        try:
+            valor_multa = Decimal(str(valor_base)) if valor_base else Decimal('500.00')
+        except Exception:
+            valor_multa = Decimal('500.00')
+        if valor_multa <= 0:
+            valor_multa = Decimal('500.00')
+
+        auto = AutoInfracao.objects.create(
+            data_fiscalizacao=agora.date(),
+            hora_fiscalizacao=agora.time().replace(microsecond=0),
+            municipio=reclamacao.consumidor_cidade if getattr(reclamacao, 'consumidor_cidade', None) else 'MANAUS',
+            estado='AM',
+            razao_social=reclamacao.empresa_razao_social or 'Fornecedor não informado',
+            nome_fantasia=reclamacao.empresa_razao_social or '',
+            atividade=reclamacao.assunto_classificado or 'Não informado',
+            endereco=reclamacao.empresa_endereco or 'Endereço não informado',
+            cnpj=reclamacao.empresa_cnpj or '00.000.000/0000-00',
+            telefone=reclamacao.empresa_telefone or '',
+            relatorio=f"Auto gerado automaticamente a partir da reclamação {reclamacao.numero_protocolo}.",
+            base_legal_cdc="Art. 55 e Art. 56 do Código de Defesa do Consumidor",
+            infracao_falta_informacao=True,
+            outras_infracoes=reclamacao.fundamentacao_decisao or '',
+            valor_multa=valor_multa,
+            responsavel_nome=reclamacao.consumidor_nome or 'Responsável não informado',
+            responsavel_cpf=_sanitize_cpf(reclamacao.consumidor_cpf),
+            responsavel_funcao='Consumidor',
+            fiscal_nome=(usuario.get_full_name() or usuario.get_username()) if usuario else 'Sistema PROCON',
+            observacoes="Auto criado automaticamente após decisão administrativa.",
+            data_notificacao=agora.date(),
+            data_vencimento=agora.date() + timedelta(days=10),
+        )
+
+        reclamacao.auto_infracao_relacionado = auto
+        reclamacao.save(update_fields=['auto_infracao_relacionado'])
+
+        logger.info(
+            "Auto de infração %s criado automaticamente para reclamação %s",
+            auto.numero,
+            reclamacao.id,
+        )
+
+        return auto, True
+
+    except Exception as exc:
+        logger.error(
+            "Falha ao encaminhar reclamação %s para fiscalização: %s",
+            getattr(reclamacao, 'id', '?'),
+            exc,
+            exc_info=True,
+        )
+        return None, False

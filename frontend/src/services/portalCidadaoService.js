@@ -1,4 +1,13 @@
+import axios from 'axios';
 import api from './api';
+
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || (import.meta.env.DEV ? 'http://localhost:8000' : 'http://localhost:8000');
+
+const portalPublicApi = axios.create({
+  baseURL: `${API_BASE_URL}/api`,
+  timeout: 30000,
+});
 
 const portalCidadaoService = {
   // Consulta pÃºblica
@@ -85,7 +94,7 @@ const portalCidadaoService = {
         });
       }
 
-      const response = await api.post('/portal/api/denuncia/', formData, {
+      const response = await portalPublicApi.post('/portal/api/denuncia/', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },

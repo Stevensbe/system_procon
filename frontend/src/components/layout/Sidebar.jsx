@@ -27,7 +27,9 @@ const menuItems = [
   { path: '/recursos-defesas', name: 'Recursos e Defesas', icon: '⚖️', type: 'juridico' },
   
   // Itens do tipo 'fiscalizacao'
+  { path: '/triagem', name: 'Triagem Inicial', icon: '📝', type: 'fiscalizacao', description: 'Fila de triagem e denúncias' },
   { path: '/fiscalizacao/infracoes', name: 'Autos de Infração', icon: '⚖️', type: 'fiscalizacao' },
+  { path: '/ppa', name: 'PPAs', icon: '📋', type: 'fiscalizacao', description: 'Procedimentos Preliminares' },
   { path: '/agenda', name: 'Agenda', icon: '📅', type: 'fiscalizacao' },
   
   // Itens do tipo 'financeiro'
@@ -36,6 +38,8 @@ const menuItems = [
   
   // Itens do tipo 'atendimento'
   { path: '/atendimento/dashboard', name: 'Dashboard Atendimento', icon: '📊', type: 'atendimento' },
+  { path: '/atendimento/dashboard-lgpd', name: 'Painel LGPD', icon: '🛡️', type: 'atendimento' },
+  { path: '/atendimento/configuracoes', name: 'Prazos do Atendimento', icon: '🕒', type: 'atendimento' },
   { path: '/atendimento/reclamacoes/nova', name: 'Nova Reclamação', icon: '➕', type: 'atendimento' },
   { path: '/atendimento/reclamacoes', name: 'Lista de Reclamações', icon: '📋', type: 'atendimento' },
   
@@ -104,6 +108,16 @@ function Sidebar() {
     textAlign: 'center',
     fontFamily: 'Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, sans-serif'
   };
+
+  // 🔍 DEBUG: Ver quais itens de fiscalização existem
+  React.useEffect(() => {
+    const fiscalizacaoItems = menuItems.filter(item => item.type === 'fiscalizacao');
+    console.log('🔍 DEBUG SIDEBAR - Itens de Fiscalização:', fiscalizacaoItems);
+    console.log('🔍 Total de itens:', fiscalizacaoItems.length);
+    fiscalizacaoItems.forEach((item, index) => {
+      console.log(`  ${index + 1}. ${item.icon} ${item.name} → ${item.path}`);
+    });
+  }, []);
 
   return (
     <aside className="w-64 bg-gray-100 dark:bg-[#1a1d21] p-4 flex flex-col h-full transition-colors duration-300">
@@ -226,8 +240,15 @@ function Sidebar() {
                   `${linkClasses} ${isActive ? activeLinkClasses : ''}`
                 }
               >
-                <span className="sidebar-icon-emoji text-lg mr-3" style={iconStyle}>{item.icon}</span>
-                <span className="text-sm font-medium">{item.name}</span>
+                <span className="text-lg mr-3">{item.icon}</span>
+                <div className="flex-1">
+                  <div className="text-sm font-medium">{item.name}</div>
+                  {item.description && (
+                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                      {item.description}
+                    </div>
+                  )}
+                </div>
               </NavLink>
             ))}
         </div>

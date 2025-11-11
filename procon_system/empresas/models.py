@@ -6,9 +6,9 @@ from django.urls import reverse
 
 class PorteEmpresa(models.Model):
     nome = models.CharField("Nome do Porte", max_length=50, unique=True)
-    descricao = models.TextField("Descrição", blank=True)
-    faturamento_min = models.DecimalField("Faturamento Mínimo", max_digits=15, decimal_places=2, null=True, blank=True)
-    faturamento_max = models.DecimalField("Faturamento Máximo", max_digits=15, decimal_places=2, null=True, blank=True)
+    descricao = models.TextField("DescriÃ§Ã£o", blank=True)
+    faturamento_min = models.DecimalField("Faturamento MÃ­nimo", max_digits=15, decimal_places=2, null=True, blank=True)
+    faturamento_max = models.DecimalField("Faturamento MÃ¡ximo", max_digits=15, decimal_places=2, null=True, blank=True)
     
     class Meta:
         verbose_name = "Porte de Empresa"
@@ -21,13 +21,13 @@ class PorteEmpresa(models.Model):
 
 class SegmentoEconomico(models.Model):
     nome = models.CharField("Nome do Segmento", max_length=100, unique=True)
-    codigo = models.CharField("Código", max_length=20, blank=True)
-    descricao = models.TextField("Descrição", blank=True)
+    codigo = models.CharField("CÃ³digo", max_length=20, blank=True)
+    descricao = models.TextField("DescriÃ§Ã£o", blank=True)
     ativo = models.BooleanField("Ativo", default=True)
     
     class Meta:
-        verbose_name = "Segmento Econômico"
-        verbose_name_plural = "Segmentos Econômicos"
+        verbose_name = "Segmento EconÃ´mico"
+        verbose_name_plural = "Segmentos EconÃ´micos"
         ordering = ['nome']
     
     def __str__(self):
@@ -49,13 +49,13 @@ class Empresa(models.Model):
     
     CLASSIFICACAO_RISCO_CHOICES = [
         ('baixo', 'Baixo Risco'),
-        ('medio', 'Médio Risco'),
+        ('medio', 'MÃ©dio Risco'),
         ('alto', 'Alto Risco'),
-        ('critico', 'Crítico'),
+        ('critico', 'CrÃ­tico'),
     ]
     
-    # Dados básicos
-    razao_social = models.CharField("Razão Social", max_length=255)
+    # Dados bÃ¡sicos
+    razao_social = models.CharField("RazÃ£o Social", max_length=255)
     nome_fantasia = models.CharField("Nome Fantasia", max_length=255, blank=True)
     cnpj = models.CharField(
         "CNPJ", 
@@ -63,21 +63,23 @@ class Empresa(models.Model):
         unique=True,
         validators=[RegexValidator(r'^\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}$', 'CNPJ deve estar no formato XX.XXX.XXX/XXXX-XX')]
     )
-    inscricao_estadual = models.CharField("Inscrição Estadual", max_length=20, blank=True)
-    inscricao_municipal = models.CharField("Inscrição Municipal", max_length=20, blank=True)
+    uuid_local = models.UUIDField("UUID mobile", unique=True, null=True, blank=True,
+                                  help_text="Identificador de rascunhos da aplicacao mobile")
+    inscricao_estadual = models.CharField("InscriÃ§Ã£o Estadual", max_length=20, blank=True)
+    inscricao_municipal = models.CharField("InscriÃ§Ã£o Municipal", max_length=20, blank=True)
     
-    # Tipo e situação
+    # Tipo e situaÃ§Ã£o
     tipo = models.CharField("Tipo", max_length=10, choices=TIPO_CHOICES, default='matriz')
-    situacao = models.CharField("Situação", max_length=10, choices=SITUACAO_CHOICES, default='ativa')
+    situacao = models.CharField("SituaÃ§Ã£o", max_length=10, choices=SITUACAO_CHOICES, default='ativa')
     
-    # Classificação
+    # ClassificaÃ§Ã£o
     porte = models.ForeignKey(PorteEmpresa, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Porte")
     segmento = models.ForeignKey(SegmentoEconomico, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Segmento")
-    classificacao_risco = models.CharField("Classificação de Risco", max_length=10, choices=CLASSIFICACAO_RISCO_CHOICES, default='baixo')
+    classificacao_risco = models.CharField("ClassificaÃ§Ã£o de Risco", max_length=10, choices=CLASSIFICACAO_RISCO_CHOICES, default='baixo')
     
-    # Endereço
-    endereco = models.CharField("Endereço", max_length=255)
-    numero = models.CharField("Número", max_length=20)
+    # EndereÃ§o
+    endereco = models.CharField("EndereÃ§o", max_length=255)
+    numero = models.CharField("NÃºmero", max_length=20)
     complemento = models.CharField("Complemento", max_length=100, blank=True)
     bairro = models.CharField("Bairro", max_length=100)
     cep = models.CharField("CEP", max_length=10)
@@ -93,10 +95,10 @@ class Empresa(models.Model):
     # Datas importantes
     data_abertura = models.DateField("Data de Abertura", null=True, blank=True)
     data_cadastro = models.DateTimeField("Data de Cadastro", auto_now_add=True)
-    data_atualizacao = models.DateTimeField("Última Atualização", auto_now=True)
+    data_atualizacao = models.DateTimeField("Ãltima AtualizaÃ§Ã£o", auto_now=True)
     
-    # Observações e notas
-    observacoes = models.TextField("Observações", blank=True)
+    # ObservaÃ§Ãµes e notas
+    observacoes = models.TextField("ObservaÃ§Ãµes", blank=True)
     
     # Controle
     ativo = models.BooleanField("Ativo", default=True)
@@ -110,6 +112,7 @@ class Empresa(models.Model):
         ordering = ['razao_social']
         indexes = [
             models.Index(fields=['cnpj']),
+            models.Index(fields=['uuid_local']),
             models.Index(fields=['razao_social']),
             models.Index(fields=['classificacao_risco']),
             models.Index(fields=['situacao']),
@@ -137,15 +140,15 @@ class Empresa(models.Model):
     
     @property
     def total_infracoes(self):
-        """Retorna o total de infrações da empresa"""
-        # Importação dinâmica para evitar import circular
+        """Retorna o total de infraÃ§Ãµes da empresa"""
+        # ImportaÃ§Ã£o dinÃ¢mica para evitar import circular
         from fiscalizacao.models import AutoInfracao
         return AutoInfracao.objects.filter(cnpj=self.cnpj).count()
     
     @property
     def total_multas(self):
         """Retorna o total de multas da empresa"""
-        # Importação dinâmica para evitar import circular
+        # ImportaÃ§Ã£o dinÃ¢mica para evitar import circular
         from multas.models import Multa
         return Multa.objects.filter(empresa=self).count()
     
@@ -159,12 +162,12 @@ class Empresa(models.Model):
     
     @property
     def multas_pendentes(self):
-        """Retorna o número de multas pendentes"""
+        """Retorna o nÃºmero de multas pendentes"""
         from multas.models import Multa
         return Multa.objects.filter(empresa=self, status='pendente').count()
     
     def atualizar_classificacao_risco(self):
-        """Atualiza a classificação de risco baseada no histórico de infrações"""
+        """Atualiza a classificaÃ§Ã£o de risco baseada no histÃ³rico de infraÃ§Ãµes"""
         total_infracoes = self.total_infracoes
         multas_pendentes = self.multas_pendentes
         
@@ -189,12 +192,12 @@ class ResponsavelLegal(models.Model):
     telefone = models.CharField("Telefone", max_length=20, blank=True)
     email = models.EmailField("E-mail", blank=True)
     ativo = models.BooleanField("Ativo", default=True)
-    data_inicio = models.DateField("Data de Início", default=timezone.now)
+    data_inicio = models.DateField("Data de InÃ­cio", default=timezone.now)
     data_fim = models.DateField("Data de Fim", null=True, blank=True)
     
     class Meta:
-        verbose_name = "Responsável Legal"
-        verbose_name_plural = "Responsáveis Legais"
+        verbose_name = "ResponsÃ¡vel Legal"
+        verbose_name_plural = "ResponsÃ¡veis Legais"
         ordering = ['-ativo', 'nome']
     
     def __str__(self):
@@ -204,25 +207,25 @@ class ResponsavelLegal(models.Model):
 class HistoricoEmpresa(models.Model):
     TIPO_EVENTO_CHOICES = [
         ('cadastro', 'Cadastro'),
-        ('atualizacao', 'Atualização de Dados'),
-        ('infracao', 'Infração'),
-        ('multa', 'Aplicação de Multa'),
+        ('atualizacao', 'AtualizaÃ§Ã£o de Dados'),
+        ('infracao', 'InfraÃ§Ã£o'),
+        ('multa', 'AplicaÃ§Ã£o de Multa'),
         ('pagamento', 'Pagamento de Multa'),
-        ('recurso', 'Interposição de Recurso'),
-        ('suspensao', 'Suspensão'),
-        ('reativacao', 'Reativação'),
-        ('observacao', 'Observação Geral'),
+        ('recurso', 'InterposiÃ§Ã£o de Recurso'),
+        ('suspensao', 'SuspensÃ£o'),
+        ('reativacao', 'ReativaÃ§Ã£o'),
+        ('observacao', 'ObservaÃ§Ã£o Geral'),
     ]
     
     empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name='historico', verbose_name="Empresa")
     tipo_evento = models.CharField("Tipo de Evento", max_length=20, choices=TIPO_EVENTO_CHOICES)
-    descricao = models.TextField("Descrição")
+    descricao = models.TextField("DescriÃ§Ã£o")
     data_evento = models.DateTimeField("Data do Evento", auto_now_add=True)
-    usuario = models.CharField("Usuário", max_length=100, blank=True)  # Idealmente seria ForeignKey para User
+    usuario = models.CharField("UsuÃ¡rio", max_length=100, blank=True)  # Idealmente seria ForeignKey para User
     
     class Meta:
-        verbose_name = "Histórico da Empresa"
-        verbose_name_plural = "Histórico das Empresas"
+        verbose_name = "HistÃ³rico da Empresa"
+        verbose_name_plural = "HistÃ³rico das Empresas"
         ordering = ['-data_evento']
     
     def __str__(self):
@@ -231,9 +234,9 @@ class HistoricoEmpresa(models.Model):
 
 class EnderecoFilial(models.Model):
     empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name='enderecos_adicionais', verbose_name="Empresa")
-    nome = models.CharField("Nome/Identificação", max_length=100)
-    endereco = models.CharField("Endereço", max_length=255)
-    numero = models.CharField("Número", max_length=20)
+    nome = models.CharField("Nome/IdentificaÃ§Ã£o", max_length=100)
+    endereco = models.CharField("EndereÃ§o", max_length=255)
+    numero = models.CharField("NÃºmero", max_length=20)
     complemento = models.CharField("Complemento", max_length=100, blank=True)
     bairro = models.CharField("Bairro", max_length=100)
     cep = models.CharField("CEP", max_length=10)
@@ -243,8 +246,8 @@ class EnderecoFilial(models.Model):
     ativo = models.BooleanField("Ativo", default=True)
     
     class Meta:
-        verbose_name = "Endereço Adicional"
-        verbose_name_plural = "Endereços Adicionais"
+        verbose_name = "EndereÃ§o Adicional"
+        verbose_name_plural = "EndereÃ§os Adicionais"
         ordering = ['nome']
     
     def __str__(self):

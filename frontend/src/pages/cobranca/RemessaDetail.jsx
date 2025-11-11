@@ -6,7 +6,6 @@ import {
   DocumentArrowUpIcon,
   EyeIcon,
   ArrowDownTrayIcon,
-  UploadIcon,
   CheckCircleIcon,
   XCircleIcon,
   ClockIcon,

@@ -9,6 +9,8 @@ from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from core.decorators import auth_ratelimit
 
+from .serializers import CustomTokenObtainPairSerializer, UserProfileSerializer
+
 User = get_user_model()
 
 class RegisterView(generics.CreateAPIView):
@@ -50,6 +52,7 @@ class RegisterView(generics.CreateAPIView):
 class LoginView(TokenObtainPairView):
     """View para login de usuários"""
     permission_classes = [permissions.AllowAny]
+    serializer_class = CustomTokenObtainPairSerializer
     
     @auth_ratelimit(rate='5/m')
     def post(self, request, *args, **kwargs):
@@ -61,7 +64,7 @@ class LogoutView(generics.GenericAPIView):
     
     def post(self, request):
         try:
-            refresh_token = request.data.get('refresh_token')
+            refresh_token = request.data.get('refresh_token') or request.data.get('refresh')
             if refresh_token:
                 token = RefreshToken(refresh_token)
                 token.blacklist()
@@ -77,13 +80,10 @@ class LogoutView(generics.GenericAPIView):
 class UserProfileView(generics.RetrieveUpdateAPIView):
     """View para perfil do usuário"""
     permission_classes = [permissions.IsAuthenticated]
+    serializer_class = UserProfileSerializer
     
     def get_object(self):
         return self.request.user
-    
-    def get_serializer_class(self):
-        from .serializers import UserProfileSerializer
-        return UserProfileSerializer
 
 class ChangePasswordView(generics.UpdateAPIView):
     """View para alteração de senha"""

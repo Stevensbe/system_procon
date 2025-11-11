@@ -143,6 +143,7 @@ def aplicar_roteamento_automatico(documento) -> bool:
         tipo = (getattr(documento, 'tipo_documento', '') or 'OUTROS').upper()
         prioridade = (getattr(documento, 'prioridade', '') or 'NORMAL').upper()
         setor_atual = (getattr(documento, 'setor_destino', '') or '').strip()
+        setor_original = setor_atual
 
         setor_prioridade = ROTAS_PRIORIDADE.get(prioridade)
         routing_decisions = []
@@ -182,6 +183,9 @@ def aplicar_roteamento_automatico(documento) -> bool:
                 documento.destinatario_direto = responsavel
                 changed = True
         
+        if changed and setor_original and not getattr(documento, 'setor_lotacao', '').strip():
+            documento.setor_lotacao = setor_original
+
         # Log das decisões de roteamento
         logger.log_operation('roteamento_aplicado', {
             'routing_decisions': routing_decisions,

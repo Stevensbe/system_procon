@@ -118,9 +118,24 @@ class DashboardNotificacoesSerializer(serializers.Serializer):
     notificacoes_enviadas = serializers.IntegerField()
     notificacoes_lidas = serializers.IntegerField()
     notificacoes_falhadas = serializers.IntegerField()
-    notificacoes_por_tipo = serializers.DictField()
-    notificacoes_por_canal = serializers.DictField()
+    notificacoes_por_tipo = serializers.DictField(child=serializers.IntegerField())
+    notificacoes_por_canal = serializers.DictField(child=serializers.IntegerField())
     notificacoes_recentes = NotificacaoSerializer(many=True)
+
+
+class NotificacaoContadorSerializer(serializers.Serializer):
+    total = serializers.IntegerField()
+    pendentes = serializers.IntegerField()
+    enviadas = serializers.IntegerField()
+    lidas = serializers.IntegerField()
+    falhadas = serializers.IntegerField()
+
+
+class NotificacaoEstatisticasSerializer(serializers.Serializer):
+    hoje = serializers.IntegerField()
+    ontem = serializers.IntegerField()
+    semana_passada = serializers.IntegerField()
+    mes_passado = serializers.IntegerField()
 
 class NotificacaoBulkSerializer(serializers.Serializer):
     """Serializer para operações em lote de notificações"""

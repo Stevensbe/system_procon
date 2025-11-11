@@ -8,6 +8,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from ..models import ProtocoloDocumento, TramitacaoDocumento, Setor
+from ..notifications import GerenciadorNotificacoes
 
 try:
     from caixa_entrada.models import CaixaEntrada, HistoricoCaixaEntrada  # type: ignore
@@ -282,6 +283,8 @@ class WorkflowProtocoloService:
             observacoes=observacoes,
         )
 
+        GerenciadorNotificacoes.notificar_protocolado(protocolo, usuario_acao=usuario)
+
         return protocolo
 
     @transaction.atomic
@@ -348,6 +351,8 @@ class WorkflowProtocoloService:
             observacoes=observacoes,
         )
 
+        GerenciadorNotificacoes.notificar_tramitacao(tramitacao, usuario_acao=usuario)
+
         return tramitacao
 
     @transaction.atomic
@@ -409,6 +414,8 @@ class WorkflowProtocoloService:
             observacoes=observacoes,
         )
 
+        GerenciadorNotificacoes.notificar_recebimento(tramitacao, usuario_acao=usuario)
+
         return tramitacao
 
     @transaction.atomic
@@ -427,6 +434,8 @@ class WorkflowProtocoloService:
             usuario=usuario,
             observacoes=observacoes,
         )
+
+        GerenciadorNotificacoes.notificar_finalizacao(protocolo, usuario_acao=usuario)
         return protocolo
 
 

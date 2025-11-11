@@ -25,7 +25,8 @@ from .models import (
 )
 from .serializers import (
     CaixaEntradaSerializer, CaixaEntradaDetailSerializer, AnexoCaixaEntradaSerializer,
-    HistoricoCaixaEntradaSerializer, ConfiguracaoCaixaEntradaSerializer
+    HistoricoCaixaEntradaSerializer, ConfiguracaoCaixaEntradaSerializer,
+    CaixaEntradaDashboardSerializer
 )
 from .mixins import AdminPermissionMixin
 from .services import sincronizar_protocolo_caixa
@@ -100,15 +101,32 @@ def _aplicar_filtro_setor(queryset, valores):
     if isinstance(valores, str):
         valores = [valores]
 
-    filtro_setor = Q()
+    variantes = set()
     for valor in valores:
-        for variante in _gerar_variantes_setor(valor):
-            filtro_setor |= Q(setor_destino__iexact=variante)
+        variantes.update(_gerar_variantes_setor(valor))
 
-    if not filtro_setor:
+    variantes_normalizadas = {
+        _normalizar_codigo_setor(variante)
+        for variante in variantes
+        if _normalizar_codigo_setor(variante)
+    }
+
+    if not variantes_normalizadas:
         return queryset.none()
 
-    return queryset.filter(filtro_setor)
+    ids_correspondentes = []
+    for pk, setor_destino, setor_lotacao in queryset.values_list('id', 'setor_destino', 'setor_lotacao'):
+        normalizados = {
+            _normalizar_codigo_setor(setor_destino),
+            _normalizar_codigo_setor(setor_lotacao),
+        }
+        if normalizados.intersection(variantes_normalizadas):
+            ids_correspondentes.append(pk)
+
+    if not ids_correspondentes:
+        return queryset.none()
+
+    return queryset.filter(id__in=ids_correspondentes)
 
 
 def filtrar_documentos_por_usuario(queryset, request, apenas_pessoal=False):
@@ -965,6 +983,8 @@ class CaixaEntradaViewSet(viewsets.ModelViewSet):
         # Documentos recentes
         recentes = queryset.order_by('-data_entrada')[:10]
         
+        recentes_serializados = CaixaEntradaSerializer(recentes, many=True).data
+
         dados = {
             'total': total,
             'nao_lidos': nao_lidos,
@@ -972,10 +992,12 @@ class CaixaEntradaViewSet(viewsets.ModelViewSet):
             'urgentes': urgentes,
             'distribuicao_status': list(distribuicao_status),
             'distribuicao_tipo': list(distribuicao_tipo),
-            'recentes': CaixaEntradaSerializer(recentes, many=True).data
+            'recentes': recentes_serializados
         }
-        
-        return Response(dados)
+
+        serializer = CaixaEntradaDashboardSerializer(data=dados)
+        serializer.is_valid(raise_exception=True)
+        return Response(serializer.data)
     
     @action(detail=False, methods=['get'])
     def atrasados(self, request):

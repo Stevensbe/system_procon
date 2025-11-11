@@ -9,7 +9,33 @@ from django.db import models
 # Importar modelos reais
 from multas.models import Multa, Empresa
 from fiscalizacao.models import AutoInfracao
-from financeiro.models import Financeiro
+from financeiro.models import Financeiro, Transacao
+
+
+def _criar_empresa(razao_social='Empresa Teste LTDA', cnpj='12.345.678/0001-90', endereco='Rua Teste, 123'):
+    return Empresa.objects.create(
+        razao_social=razao_social,
+        cnpj=cnpj,
+        endereco=endereco,
+        cidade='Manaus',
+        estado='AM',
+    )
+
+
+def _criar_auto_infracao(numero, empresa, valor):
+    return AutoInfracao.objects.create(
+        numero=numero,
+        data_fiscalizacao=date.today(),
+        hora_fiscalizacao='10:00',
+        razao_social=empresa.razao_social,
+        cnpj=empresa.cnpj,
+        endereco=empresa.endereco,
+        base_legal_cdc='Art. 55 do CDC',
+        valor_multa=valor,
+        responsavel_nome='Fiscal Responsável',
+        responsavel_cpf='123.456.789-00',
+        fiscal_nome='Agente Fiscal',
+    )
 
 class TestMultaModel:
     """Testes para o modelo Multa"""
@@ -402,95 +428,65 @@ class TestModelRelationships:
     
     def test_multa_empresa_relationship(self, db):
         """Testa relacionamento entre multa e empresa"""
-        # Criar empresa
-        empresa = Empresa.objects.create(
-            razao_social='Empresa Teste LTDA',
-            cnpj='12.345.678/0001-90',
-            endereco='Rua Teste, 123',
-            cidade='Manaus',
-            estado='AM'
-        )
-        
-        # Criar multa relacionada à empresa
+        empresa = _criar_empresa()
+        auto = _criar_auto_infracao('AUTO-REL-001', empresa, Decimal('1000.00'))
+
         multa = Multa.objects.create(
-            numero_processo='PROC-2025-001',
-            valor=Decimal('1000.00'),
+            processo=auto,
             empresa=empresa,
-            motivo='Infração de proteção ao consumidor',
-            status='pendente'
+            valor=Decimal('1000.00'),
+            observacoes='Infração de proteção ao consumidor',
         )
         
         assert multa.empresa == empresa
-        assert empresa in empresa.multas.all()
+        assert multa in empresa.multas.all()
     
     def test_fiscalizacao_empresa_relationship(self, db):
         """Testa relacionamento entre fiscalização e empresa"""
-        # Criar empresa
-        empresa = Empresa.objects.create(
-            razao_social='Supermercado Teste LTDA',
-            cnpj='12.345.678/0001-90',
-            endereco='Rua Teste, 123',
-            cidade='Manaus',
-            estado='AM'
-        )
+        empresa = _criar_empresa('Supermercado Teste LTDA', '23.456.789/0001-00')
+        fiscalizacao = _criar_auto_infracao('AUTO-FIS-001', empresa, Decimal('750.00'))
         
-        # Criar fiscalização relacionada à empresa
-        fiscalizacao = Fiscalizacao.objects.create(
-            tipo='supermercado',
-            empresa=empresa,
-            endereco='Rua Teste, 123',
-            data_fiscalizacao=date.today(),
-            status='agendada'
-        )
-        
-        assert fiscalizacao.empresa == empresa
-        assert fiscalizacao in empresa.fiscalizacoes.all()
+        assert fiscalizacao.razao_social == empresa.razao_social
+        assert fiscalizacao.cnpj == empresa.cnpj
 
 class TestModelMethods:
     """Testes para métodos dos modelos"""
     
     def test_multa_get_total_value(self, db):
         """Testa método para calcular valor total de multas"""
-        # Criar várias multas
+        empresa1 = _criar_empresa('Empresa 1 LTDA', '12.345.678/0001-90')
+        empresa2 = _criar_empresa('Empresa 2 LTDA', '98.765.432/0001-10', 'Rua Exemplo, 456')
+
+        auto1 = _criar_auto_infracao('AUTO-TOTAL-001', empresa1, Decimal('1000.00'))
+        auto2 = _criar_auto_infracao('AUTO-TOTAL-002', empresa2, Decimal('2000.00'))
+
         Multa.objects.create(
-            numero_processo='PROC-2025-001',
+            processo=auto1,
+            empresa=empresa1,
             valor=Decimal('1000.00'),
-            empresa='Empresa 1 LTDA',
-            cnpj='12.345.678/0001-90',
-            motivo='Infração 1',
-            status='pendente'
+            observacoes='Infração 1',
         )
-        
         Multa.objects.create(
-            numero_processo='PROC-2025-002',
+            processo=auto2,
+            empresa=empresa2,
             valor=Decimal('2000.00'),
-            empresa='Empresa 2 LTDA',
-            cnpj='98.765.432/0001-10',
-            motivo='Infração 2',
-            status='pendente'
+            observacoes='Infração 2',
         )
-        
+
         total = Multa.objects.aggregate(total=models.Sum('valor'))['total']
         assert total == Decimal('3000.00')
     
     def test_empresa_get_multas_count(self, db):
         """Testa método para contar multas de uma empresa"""
-        empresa = Empresa.objects.create(
-            razao_social='Empresa Teste LTDA',
-            cnpj='12.345.678/0001-90',
-            endereco='Rua Teste, 123',
-            cidade='Manaus',
-            estado='AM'
-        )
-        
-        # Criar multas para a empresa
-        for i in range(3):
+        empresa = _criar_empresa()
+
+        for index in range(3):
+            auto = _criar_auto_infracao(f'AUTO-CNT-{index}', empresa, Decimal('1000.00'))
             Multa.objects.create(
-                numero_processo=f'PROC-2025-00{i+1}',
-                valor=Decimal('1000.00'),
+                processo=auto,
                 empresa=empresa,
-                motivo=f'Infração {i+1}',
-                status='pendente'
+                valor=Decimal('1000.00'),
+                observacoes=f'Infração {index+1}',
             )
         
         count = empresa.multas.count()

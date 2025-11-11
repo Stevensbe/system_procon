@@ -9,6 +9,13 @@ from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
+from .serializers import (
+    FinanceiroDashboardSerializer,
+    ArrecadacaoMensalResponseSerializer,
+    ComposicaoCarteiraResponseSerializer,
+    RelatorioMultasResponseSerializer,
+    EmpresasListResponseSerializer,
+)
 from rest_framework import status
 from rest_framework.pagination import PageNumberPagination
 from datetime import datetime, timedelta
@@ -426,7 +433,9 @@ def dashboard_api_view(request):
     URL: /api/financeiro/dashboard/
     """
     dados = get_dados_financeiros_agregados()
-    return Response(dados)
+    serializer = FinanceiroDashboardSerializer(data=dados)
+    serializer.is_valid(raise_exception=True)
+    return Response(serializer.data)
 
 
 @api_view(['GET'])
@@ -470,15 +479,18 @@ def arrecadacao_mensal_api_view(request):
         })
     
     dados_arrecadacao.reverse()
-    
-    return Response({
+
+    payload = {
         'dados': dados_arrecadacao,
         'meta': {
             'total_periodos': 12,
             'data_geracao': hoje.strftime('%Y-%m-%d'),
             'fonte_dados': 'RegistroFinanceiro' if registros_financeiros and registros_financeiros.exists() else 'Multa'
         }
-    })
+    }
+    serializer = ArrecadacaoMensalResponseSerializer(data=payload)
+    serializer.is_valid(raise_exception=True)
+    return Response(serializer.data)
 
 
 @api_view(['GET'])
@@ -574,7 +586,7 @@ def composicao_carteira_api_view(request):
         total_registros = Multa.objects.count()
         fonte_dados = 'Multa'
     
-    return Response({
+    payload = {
         'dados': composicao,
         'meta': {
             'total_carteira': float(total_carteira),
@@ -582,7 +594,10 @@ def composicao_carteira_api_view(request):
             'data_calculo': hoje.strftime('%Y-%m-%d'),
             'fonte_dados': fonte_dados
         }
-    })
+    }
+    serializer = ComposicaoCarteiraResponseSerializer(data=payload)
+    serializer.is_valid(raise_exception=True)
+    return Response(serializer.data)
 
 
 class MultasPagination(PageNumberPagination):
@@ -701,8 +716,10 @@ def relatorio_multas_api_view(request):
             }
         }
     }
-    
-    return paginator.get_paginated_response(response_data)
+
+    serializer = RelatorioMultasResponseSerializer(data=response_data)
+    serializer.is_valid(raise_exception=True)
+    return paginator.get_paginated_response(serializer.data)
 
 
 @api_view(['GET'])
@@ -724,7 +741,14 @@ def empresas_list_api_view(request):
         for empresa in empresas
     ]
     
-    return Response({
+    payload = {
         'empresas': empresas_data,
         'total': len(empresas_data)
-    })
+    }
+    serializer = EmpresasListResponseSerializer(data=payload)
+    serializer.is_valid(raise_exception=True)
+    return Response(serializer.data)
+
+
+
+

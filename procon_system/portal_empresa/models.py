@@ -6,9 +6,109 @@ Sistema Procon - Fase 5 - Portal Externo & Integradores
 from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
-from django.core.validators import RegexValidator
+from django.core.validators import RegexValidator, EmailValidator
 import uuid
 import hashlib
+
+
+class SolicitacaoCadastroEmpresa(models.Model):
+    """Solicitações submetidas via portal para cadastro de nova empresa."""
+
+    STATUS_CHOICES = [
+        ("PENDENTE", "Pendente de análise"),
+        ("APROVADA", "Aprovada"),
+        ("REJEITADA", "Rejeitada"),
+    ]
+
+    razao_social = models.CharField(max_length=200)
+    nome_fantasia = models.CharField(max_length=200, blank=True)
+    cnpj = models.CharField(max_length=18, validators=[
+        RegexValidator(
+            regex=r'^\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}$',
+            message='CNPJ deve estar no formato XX.XXX.XXX/XXXX-XX'
+        )
+    ])
+    email_contato = models.EmailField()
+    telefone_contato = models.CharField(max_length=20, blank=True)
+    responsavel_legal = models.CharField(max_length=150)
+    cargo_responsavel = models.CharField(max_length=120, blank=True)
+
+    endereco_completo = models.TextField()
+    cidade = models.CharField(max_length=100)
+    estado = models.CharField(max_length=2)
+    cep = models.CharField(max_length=10, blank=True)
+
+    observacoes = models.TextField(blank=True)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default="PENDENTE")
+    analisado_por = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name="solicitacoes_aprovadas"
+    )
+    analisado_em = models.DateTimeField(null=True, blank=True)
+    motivo_rejeicao = models.TextField(blank=True)
+
+    criado_em = models.DateTimeField(auto_now_add=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Solicitação de Cadastro de Empresa"
+        verbose_name_plural = "Solicitações de Cadastro de Empresas"
+        ordering = ["-criado_em"]
+
+    def marcar_aprovada(self, usuario):
+        self.status = "APROVADA"
+        self.analisado_por = usuario
+        self.analisado_em = timezone.now()
+        self.motivo_rejeicao = ""
+        self.save(update_fields=["status", "analisado_por", "analisado_em", "motivo_rejeicao"])
+
+    def marcar_rejeitada(self, usuario, motivo):
+        self.status = "REJEITADA"
+        self.analisado_por = usuario
+        self.analisado_em = timezone.now()
+        self.motivo_rejeicao = motivo or ""
+        self.save(update_fields=["status", "analisado_por", "analisado_em", "motivo_rejeicao"])
+
+    def aprovar(self, usuario):
+        self.marcar_aprovada(usuario)
+
+        empresa, created = EmpresaAutorizada.objects.get_or_create(
+            cnpj=self.cnpj,
+            defaults={
+                "razao_social": self.razao_social,
+                "nome_fantasia": self.nome_fantasia or self.razao_social,
+                "email_principal": self.email_contato,
+                "telefone_principal": self.telefone_contato,
+                "responsavel_legal": self.responsavel_legal,
+                "endereco_completo": self.endereco_completo,
+                "cidade": self.cidade,
+                "estado": self.estado,
+                "cep": self.cep,
+                "status": "ATIVA",
+            },
+        )
+
+        if not created:
+            # Atualiza dados básicos com informações mais recentes da solicitação
+            empresa.razao_social = self.razao_social
+            empresa.nome_fantasia = self.nome_fantasia or empresa.nome_fantasia
+            empresa.email_principal = self.email_contato
+            empresa.telefone_principal = self.telefone_contato
+            empresa.responsavel_legal = self.responsavel_legal
+            empresa.endereco_completo = self.endereco_completo
+            empresa.cidade = self.cidade
+            empresa.estado = self.estado
+            empresa.cep = self.cep
+            empresa.status = "ATIVA"
+            empresa.save()
+
+        token = TokenEmpresa(
+            empresa=empresa,
+            usuario_criador=usuario if usuario and usuario.is_authenticated else None,
+        )
+        token.gerar_tokens()
+        token.save()
+
+        return empresa, token
 
 
 class EmpresaAutorizada(models.Model):
@@ -249,6 +349,13 @@ class RespostaEmpresaPortal(models.Model):
     token_usado = models.ForeignKey(TokenEmpresa, on_delete=models.SET_NULL, null=True)
     
     # Documentos relacionados
+    reclamacao_relacionada = models.ForeignKey(
+        'portal_cidadao.ReclamacaoDenuncia',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='respostas_portal',
+    )
     cip_relacionada = models.ForeignKey('cip_automatica.CIPAutomatica', on_delete=models.CASCADE, null=True)
     audiencia_relacionada = models.ForeignKey('audiencia_calendario.AgendamentoAudiencia', on_delete=models.SET_NULL, null=True)
     

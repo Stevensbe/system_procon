@@ -1,3 +1,5 @@
+from django.core.exceptions import ValidationError
+from django.core.validators import MinValueValidator
 from django.db import models
 from django.utils import timezone
 from datetime import timedelta
@@ -6,20 +8,96 @@ from multas.models import Multa
 
 class Financeiro(models.Model):
     """
-    Modelo para registro de entradas e saídas financeiras (LEGACY)
+    Registro legado utilizado nos testes de integração do módulo financeiro.
     """
+
+    TIPO_CHOICES = [
+        ('RECEITA', 'Receita'),
+        ('DESPESA', 'Despesa'),
+    ]
+
     descricao = models.CharField("Descrição", max_length=200)
-    valor = models.DecimalField("Valor", max_digits=10, decimal_places=2)
-    data = models.DateField("Data", auto_now_add=True)
-    tipo = models.CharField("Tipo", max_length=20, choices=[('entrada', 'Entrada'), ('saida', 'Saída')])
+    valor = models.DecimalField(
+        "Valor",
+        max_digits=10,
+        decimal_places=2,
+        validators=[MinValueValidator(0, message="Valor deve ser positivo")],
+    )
+    data = models.DateField("Data", default=timezone.now)
+    tipo = models.CharField("Tipo", max_length=20, choices=TIPO_CHOICES)
+    categoria = models.CharField("Categoria", max_length=50, default='GERAL')
 
     def __str__(self):
-        return f"{self.descricao} - {self.valor} ({self.tipo})"
+        return f"{self.descricao} - {self.valor:.2f} ({self.tipo})"
 
     class Meta:
         verbose_name = "Registro Financeiro (Legacy)"
         verbose_name_plural = "Registros Financeiros (Legacy)"
         ordering = ['-data']
+
+    def clean(self):
+        super().clean()
+        if self.valor is not None and self.valor < 0:
+            raise ValidationError({"valor": "Valor deve ser positivo"})
+
+    def save(self, *args, **kwargs):
+        if self.tipo:
+            self.tipo = self.tipo.upper()
+        if not self.categoria:
+            self.categoria = 'GERAL'
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+
+class Transacao(models.Model):
+    """
+    Transação financeira genérica utilizada nos testes unitários.
+    """
+
+    TIPO_CHOICES = [
+        ('receita', 'Receita'),
+        ('despesa', 'Despesa'),
+    ]
+
+    STATUS_CHOICES = [
+        ('pendente', 'Pendente'),
+        ('confirmada', 'Confirmada'),
+        ('cancelada', 'Cancelada'),
+    ]
+
+    tipo = models.CharField("Tipo", max_length=20, choices=TIPO_CHOICES)
+    valor = models.DecimalField(
+        "Valor",
+        max_digits=10,
+        decimal_places=2,
+        validators=[MinValueValidator(0, message="Valor deve ser positivo")],
+    )
+    descricao = models.CharField("Descrição", max_length=200)
+    data_transacao = models.DateField("Data da Transação", default=timezone.now)
+    status = models.CharField(
+        "Status",
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='pendente',
+    )
+    categoria = models.CharField("Categoria", max_length=50, default='GERAL')
+
+    def __str__(self):
+        return f"{self.descricao} - {self.valor:.2f} ({self.tipo})"
+
+    class Meta:
+        verbose_name = "Transação Financeira"
+        verbose_name_plural = "Transações Financeiras"
+        ordering = ['-data_transacao']
+
+    def clean(self):
+        super().clean()
+        if self.valor is not None and self.valor <= 0:
+            raise ValidationError({"valor": "Valor deve ser positivo"})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
 
 
 class RegistroFinanceiro(models.Model):

@@ -1,0 +1,16 @@
+<html>
+  <body style="font-family: Arial, sans-serif; margin: 24px;">
+    <h2>Portal da Empresa - PROCON</h2>
+    <p>Prezada empresa <strong>{{ empresa.razao_social }}</strong>,</p>
+    <p>Seu registro no Portal da Empresa foi conclu&iacute;do com sucesso.</p>
+    <ul>
+      <li><strong>CNPJ:</strong> {{ empresa.cnpj }}</li>
+      <li><strong>Status:</strong> {{ empresa.get_status_display }}</li>
+      <li><strong>API Key:</strong> {{ empresa.api_key }}</li>
+    </ul>
+    {% if portal_url %}
+      <p>Voc&ecirc; j&aacute; pode acessar o portal em: <a href="{{ portal_url }}">{{ portal_url }}</a></p>
+    {% endif %}
+    <p>Atenciosamente,<br>Equipe PROCON</p>
+  </body>
+</html>

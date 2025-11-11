@@ -126,7 +126,172 @@ class Notificacao(models.Model):
 
 class GerenciadorNotificacoes:
     """Classe utilitária para gerenciar notificações automáticas"""
-    
+
+    @staticmethod
+    def _nome_usuario(usuario):
+        if not usuario:
+            return "usuário não identificado"
+        return usuario.get_full_name() or usuario.get_username()
+
+    @staticmethod
+    def _unique_users(usuarios):
+        vistos = set()
+        ordenados = []
+        for usuario in usuarios:
+            if not usuario:
+                continue
+            chave = getattr(usuario, "pk", None)
+            if chave is not None:
+                if chave in vistos:
+                    continue
+                vistos.add(chave)
+            ordenados.append(usuario)
+        return ordenados
+
+    @classmethod
+    def _tipo_atualizacao(cls):
+        tipo, _ = TipoNotificacao.objects.get_or_create(
+            nome="Atualização de Protocolo",
+            defaults={
+                "descricao": "Notificações automáticas do fluxo de protocolo.",
+                "prioridade": "media",
+                "enviar_email": True,
+                "dias_antecedencia": 0,
+            },
+        )
+        return tipo
+
+    @classmethod
+    def _criar_notificacoes_etapa(cls, *, protocolo, titulo, mensagem, usuarios, objeto_url=""):
+        usuarios = cls._unique_users(usuarios)
+        if not usuarios:
+            return []
+
+        tipo = cls._tipo_atualizacao()
+        notificacoes = []
+        mensagem = (mensagem or "").strip()
+        for usuario in usuarios:
+            notificacoes.append(
+                Notificacao.objects.create(
+                    tipo=tipo,
+                    usuario=usuario,
+                    titulo=titulo,
+                    mensagem=mensagem,
+                    objeto_tipo="protocolo",
+                    objeto_id=protocolo.id,
+                    objeto_url=objeto_url or "",
+                )
+            )
+        return notificacoes
+
+    @classmethod
+    def notificar_protocolado(cls, protocolo, *, usuario_acao=None):
+        destino = getattr(protocolo, "setor_atual", None)
+        destino_nome = getattr(destino, "nome", "") or getattr(destino, "sigla", "")
+
+        responsavel_atual = getattr(protocolo, "responsavel_atual", None)
+        setor_responsavel = getattr(destino, "responsavel", None)
+
+        usuarios = []
+        for candidato in (setor_responsavel, responsavel_atual):
+            if candidato and candidato != usuario_acao:
+                usuarios.append(candidato)
+
+        titulo = f"Protocolo {protocolo.numero_protocolo} protocolado"
+        mensagem = f"O protocolo {protocolo.numero_protocolo} foi protocolado por {cls._nome_usuario(usuario_acao)}."
+        if destino_nome:
+            mensagem += f"\nSetor responsável: {destino_nome}."
+
+        return cls._criar_notificacoes_etapa(
+            protocolo=protocolo,
+            titulo=titulo,
+            mensagem=mensagem,
+            usuarios=usuarios,
+        )
+
+    @classmethod
+    def notificar_tramitacao(cls, tramitacao, *, usuario_acao=None):
+        protocolo = tramitacao.protocolo
+        origem = getattr(tramitacao, "setor_origem", None)
+        destino = getattr(tramitacao, "setor_destino", None)
+
+        destino_nome = getattr(destino, "nome", "") or getattr(destino, "sigla", "") or "destino"
+        usuarios = []
+
+        destino_responsavel = getattr(destino, "responsavel", None)
+        if destino_responsavel and destino_responsavel != usuario_acao:
+            usuarios.append(destino_responsavel)
+
+        responsavel_atual = getattr(protocolo, "responsavel_atual", None)
+        if responsavel_atual and responsavel_atual not in usuarios and responsavel_atual != usuario_acao:
+            usuarios.append(responsavel_atual)
+
+        titulo = f"Protocolo {protocolo.numero_protocolo} encaminhado"
+        mensagem = (
+            f"O protocolo {protocolo.numero_protocolo} foi encaminhado para o setor {destino_nome} "
+            f"por {cls._nome_usuario(usuario_acao)}."
+        )
+        if origem:
+            origem_nome = getattr(origem, "nome", "") or getattr(origem, "sigla", "")
+            if origem_nome:
+                mensagem += f"\nSetor de origem: {origem_nome}."
+        if tramitacao.motivo:
+            mensagem += f"\nMotivo: {tramitacao.motivo}."
+
+        return cls._criar_notificacoes_etapa(
+            protocolo=protocolo,
+            titulo=titulo,
+            mensagem=mensagem,
+            usuarios=usuarios,
+        )
+
+    @classmethod
+    def notificar_recebimento(cls, tramitacao, *, usuario_acao=None):
+        protocolo = tramitacao.protocolo
+        origem = getattr(tramitacao, "setor_origem", None)
+
+        usuarios = []
+        origem_responsavel = getattr(origem, "responsavel", None)
+        if origem_responsavel and origem_responsavel != usuario_acao:
+            usuarios.append(origem_responsavel)
+
+        protocolador = getattr(protocolo, "protocolado_por", None)
+        if protocolador and protocolador != usuario_acao:
+            usuarios.append(protocolador)
+
+        destino = getattr(tramitacao, "setor_destino", None)
+        destino_nome = getattr(destino, "nome", "") or getattr(destino, "sigla", "")
+
+        titulo = f"Protocolo {protocolo.numero_protocolo} recebido"
+        mensagem = f"O protocolo {protocolo.numero_protocolo} foi recebido por {cls._nome_usuario(usuario_acao)}."
+        if destino_nome:
+            mensagem += f"\nSetor de destino: {destino_nome}."
+
+        return cls._criar_notificacoes_etapa(
+            protocolo=protocolo,
+            titulo=titulo,
+            mensagem=mensagem,
+            usuarios=usuarios,
+        )
+
+    @classmethod
+    def notificar_finalizacao(cls, protocolo, *, usuario_acao=None):
+        usuarios = []
+        if protocolo.protocolado_por and protocolo.protocolado_por != usuario_acao:
+            usuarios.append(protocolo.protocolado_por)
+        if protocolo.responsavel_atual and protocolo.responsavel_atual != usuario_acao:
+            usuarios.append(protocolo.responsavel_atual)
+
+        titulo = f"Protocolo {protocolo.numero_protocolo} finalizado"
+        mensagem = f"O protocolo {protocolo.numero_protocolo} foi finalizado por {cls._nome_usuario(usuario_acao)}."
+
+        return cls._criar_notificacoes_etapa(
+            protocolo=protocolo,
+            titulo=titulo,
+            mensagem=mensagem,
+            usuarios=usuarios,
+        )
+
     @staticmethod
     def criar_notificacao_prazo_vencimento(protocolo):
         """Cria notificação de prazo vencendo"""

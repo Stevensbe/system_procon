@@ -9,8 +9,9 @@ from datetime import datetime, timedelta, timezone as dt_timezone
 from typing import Dict, List, Any, Optional, Tuple
 from decimal import Decimal
 from django.utils import timezone
-from django.db.models import Count, Sum, Avg, Q, F, Prefetch
+from django.db.models import Count, Sum, Avg, Q, F, Prefetch, ExpressionWrapper, DurationField
 from django.db import connection
+from django.db.models.functions import TruncDate
 from django.core.mail import send_mail
 from django.template.loader import render_to_string
 from django.conf import settings
@@ -19,6 +20,7 @@ from django.contrib.auth.models import User, Group
 from caixa_entrada.models import CaixaEntrada
 from protocolo_tramitacao.models import ProtocoloDocumento, TramitacaoDocumento
 from portal_cidadao.models import ReclamacaoDenuncia
+from portal_consumidor.models import TicketSuporteConsumidor, FeedbackConsumidor
 from cip_automatica.models import CIPAutomatica
 from audiencia_calendario.models import AgendamentoAudiencia
 from atendimento.models import Atendimento
@@ -748,7 +750,7 @@ class BusinessAnalyticsService:
         """Determina status geral do sistema baseado nas métricas"""
         taxa_resolucao = métricas.get('taxa_resolucao', 0)
         tempo_medio = métricas.get('tempo_medio_resposta', 0)
-        
+
         if taxa_resolucao >= 80 and tempo_medio <= 10:
             return 'EXCELENTE'
         elif taxa_resolucao >= 70 and tempo_medio <= 15:
@@ -757,3 +759,258 @@ class BusinessAnalyticsService:
             return 'REGULAR'
         else:
             return 'ATENCAO'
+
+
+class PortalConsumidorAnalyticsService:
+    """Serviço específico para consolidar métricas do Portal do Consumidor no BI."""
+
+    def __init__(self):
+        self.logger = logger_manager.get_logger('portal_consumidor_analytics')
+
+    def _parse_date(self, value: Optional[str], default: datetime) -> datetime:
+        if not value:
+            return default
+        try:
+            parsed = datetime.strptime(value, "%Y-%m-%d")
+            combined = datetime.combine(parsed, datetime.min.time())
+            if timezone.is_naive(combined):
+                return timezone.make_aware(combined)
+            return combined
+        except ValueError:
+            self.logger.warning(f"Data inválida recebida ({value}), utilizando padrão {default.date()}.")
+            return default
+
+    def _get_period(self, start_date: Optional[str], end_date: Optional[str]) -> Tuple[datetime, datetime]:
+        agora = timezone.now()
+        fim = self._parse_date(end_date, agora)
+        inicio_default = fim - timedelta(days=30)
+        inicio = self._parse_date(start_date, inicio_default)
+        if inicio > fim:
+            inicio = fim - timedelta(days=30)
+        return inicio, fim
+
+    def get_overview(self, start_date: Optional[str] = None, end_date: Optional[str] = None) -> Dict[str, Any]:
+        inicio, fim = self._get_period(start_date, end_date)
+        try:
+            tickets = self._tickets_metrics(inicio, fim)
+            feedbacks = self._feedback_metrics(inicio, fim)
+            series = self._series_tickets_diaria(inicio, fim)
+            return {
+                "periodo": {
+                    "inicio": inicio.isoformat(),
+                    "fim": fim.isoformat(),
+                },
+                "tickets": tickets,
+                "feedbacks": feedbacks,
+                "series": {
+                    "tickets_diarios": series,
+                },
+            }
+        except Exception as exc:
+            self.logger.error(f"Erro ao gerar overview do portal do consumidor: {exc}", exc_info=True)
+            raise
+
+    def _tickets_metrics(self, inicio: datetime, fim: datetime) -> Dict[str, Any]:
+        qs = TicketSuporteConsumidor.objects.filter(data_criacao__range=(inicio, fim))
+        total = qs.count()
+
+        por_status = {
+            item["status"]: item["total"]
+            for item in qs.values("status").annotate(total=Count("id"))
+        }
+        por_prioridade = {
+            item["prioridade"]: item["total"]
+            for item in qs.values("prioridade").annotate(total=Count("id"))
+        }
+
+        pendentes_qs = qs.filter(
+            status__in=[
+                TicketSuporteConsumidor.Status.ABERTO,
+                TicketSuporteConsumidor.Status.EM_ANALISE,
+            ]
+        )
+        pendentes_por_prioridade = {
+            item["prioridade"]: item["total"]
+            for item in pendentes_qs.values("prioridade").annotate(total=Count("id"))
+        }
+
+        respondidos = qs.filter(data_resposta__isnull=False)
+        tempo_medio = respondidos.aggregate(
+            media=Avg(
+                ExpressionWrapper(
+                    F("data_resposta") - F("data_criacao"),
+                    output_field=DurationField(),
+                )
+            )
+        )["media"]
+        tempo_medio_horas = round(tempo_medio.total_seconds() / 3600, 2) if tempo_medio else 0.0
+
+        limite_7_dias = fim - timedelta(days=7)
+        respondidos_7 = respondidos.filter(data_resposta__gte=limite_7_dias).count()
+        abertos_7 = qs.filter(data_criacao__gte=limite_7_dias).count()
+
+        return {
+            "total": total,
+            "por_status": por_status,
+            "por_prioridade": por_prioridade,
+            "pendentes_por_prioridade": pendentes_por_prioridade,
+            "tempo_medio_resposta_horas": tempo_medio_horas,
+            "respondidos_ultimos_7_dias": respondidos_7,
+            "abertos_ultimos_7_dias": abertos_7,
+        }
+
+    def _feedback_metrics(self, inicio: datetime, fim: datetime) -> Dict[str, Any]:
+        qs = FeedbackConsumidor.objects.filter(data_feedback__range=(inicio, fim))
+        total = qs.count()
+        satisfacao_media = qs.aggregate(media=Avg("nota_geral"))["media"] or 0
+        por_tipo = {
+            item["tipo_feedback"]: item["total"]
+            for item in qs.values("tipo_feedback").annotate(total=Count("id"))
+        }
+
+        return {
+            "total": total,
+            "satisfacao_media": round(float(satisfacao_media), 2) if total else 0.0,
+            "por_tipo": por_tipo,
+        }
+
+    def _series_tickets_diaria(self, inicio: datetime, fim: datetime) -> List[Dict[str, Any]]:
+        qs = (
+            TicketSuporteConsumidor.objects.filter(data_criacao__range=(inicio, fim))
+            .annotate(dia=TruncDate("data_criacao"))
+            .values("dia")
+            .annotate(total=Count("id"))
+            .order_by("dia")
+        )
+        return [
+            {"dia": item["dia"].isoformat(), "total": item["total"]}
+            for item in qs
+        ]
+
+    def persist_overview(
+        self,
+        overview: Dict[str, Any],
+        usuario=None,
+        codigo: str = "PORTAL_CONSUMIDOR_OVERVIEW",
+        nome: str = "Portal do Consumidor - Visão Geral",
+    ) -> AnaliseEmpirica:
+        """Persiste o overview como análise empírica para consulta posterior."""
+        period = overview.get("periodo", {})
+        tickets = overview.get("tickets", {})
+        feedbacks = overview.get("feedbacks", {})
+
+        analise, created = AnaliseEmpirica.objects.get_or_create(
+            codigo=codigo,
+            defaults={
+                "nome": nome,
+                "descricao": "Métricas consolidadas do Portal do Consumidor.",
+                "tipo_analise": "PERFORMANCE",
+                "modelo_analise": {},
+                "parametros_analise": {"fonte": "portal_consumidor"},
+                "filtros_base": {},
+                "fonte_dados": "PortalConsumidor",
+                "periodo_analise": period,
+                "resultado_principal": overview,
+                "metricas_calculadas": {
+                    "tickets": tickets,
+                    "feedbacks": feedbacks,
+                },
+                "insights_gerados": "",
+                "recomendacoes": "",
+                "atualizacao_automatica": True,
+                "frequencia_atualizacao_dias": 7,
+                "confiabilidade_score": Decimal("0.90"),
+                "validacao_realizada": True,
+                "observacoes_validacao": "",
+                "executado_por": usuario,
+            },
+        )
+
+        if not created:
+            analise.nome = nome
+            analise.descricao = "Métricas consolidadas do Portal do Consumidor."
+            analise.tipo_analise = "PERFORMANCE"
+            analise.parametros_analise = {"fonte": "portal_consumidor"}
+            analise.periodo_analise = period
+            analise.resultado_principal = overview
+            analise.metricas_calculadas = {
+                "tickets": tickets,
+                "feedbacks": feedbacks,
+            }
+            analise.insights_gerados = ""
+            analise.recomendacoes = ""
+            analise.atualizacao_automatica = True
+            analise.validacao_realizada = True
+            if usuario:
+                analise.executado_por = usuario
+            analise.executado_em = timezone.now()
+            analise.versao_analise = (analise.versao_analise or 1) + 1
+            analise.save()
+
+        return analise
+
+portal_consumidor_analytics_service = PortalConsumidorAnalyticsService()
+
+
+class AtendimentoAnalyticsService:
+    """Servi�o para consolidar m�tricas de atendimento presencial no BI."""
+
+    def persist_overview(
+        self,
+        overview: Dict[str, Any],
+        usuario=None,
+        codigo: str = "ATENDIMENTO_PRESENCIAL_OVERVIEW",
+        nome: str = "Atendimento Presencial - Vis�o Geral",
+    ) -> AnaliseEmpirica:
+        period = overview.get("periodo", {})
+        metricas = overview.get("metricas", {})
+        fila = overview.get("fila", {})
+
+        analise, created = AnaliseEmpirica.objects.get_or_create(
+            codigo=codigo,
+            defaults={
+                "nome": nome,
+                "descricao": "Resumo operacional do atendimento presencial, incluindo LGPD.",
+                "tipo_analise": "PERFORMANCE",
+                "modelo_analise": {},
+                "parametros_analise": {"fonte": "atendimento_presencial"},
+                "filtros_base": {},
+                "fonte_dados": "Atendimento",
+                "periodo_analise": period,
+                "resultado_principal": overview,
+                "metricas_calculadas": metricas,
+                "insights_gerados": "",
+                "recomendacoes": "",
+                "atualizacao_automatica": True,
+                "frequencia_atualizacao_dias": 7,
+                "confiabilidade_score": Decimal("0.85"),
+                "validacao_realizada": True,
+                "observacoes_validacao": "",
+                "executado_por": usuario,
+            },
+        )
+
+        if not created:
+            analise.nome = nome
+            analise.descricao = "Resumo operacional do atendimento presencial, incluindo LGPD."
+            analise.tipo_analise = "PERFORMANCE"
+            analise.parametros_analise = {"fonte": "atendimento_presencial"}
+            analise.periodo_analise = period
+            analise.resultado_principal = overview
+            analise.metricas_calculadas = metricas
+            analise.insights_gerados = ""
+            analise.recomendacoes = ""
+            analise.atualizacao_automatica = True
+            analise.validacao_realizada = True
+            analise.filtros_base = fila
+            if usuario:
+                analise.executado_por = usuario
+            analise.executado_em = timezone.now()
+            analise.versao_analise = (analise.versao_analise or 1) + 1
+            analise.save()
+
+        return analise
+
+
+atendimento_analytics_service = AtendimentoAnalyticsService()
+

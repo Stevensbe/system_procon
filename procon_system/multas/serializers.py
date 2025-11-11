@@ -22,22 +22,27 @@ class EmpresaSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class MultaSerializer(serializers.ModelSerializer):
+    valor = serializers.DecimalField(max_digits=12, decimal_places=2, coerce_to_string=True)
+    empresa = serializers.CharField(source='empresa.razao_social', read_only=True)
+    empresa_id = serializers.PrimaryKeyRelatedField(source='empresa', queryset=Empresa.objects.all(), write_only=True, required=False)
     processo_info = AutoInfracaoSerializer(source='processo', read_only=True)
     empresa_info = EmpresaSerializer(source='empresa', read_only=True)
     status_display = serializers.SerializerMethodField()
     esta_vencida = serializers.ReadOnlyField()
     dias_para_vencimento = serializers.ReadOnlyField()
+    motivo = serializers.CharField(source='observacoes', allow_blank=True, required=False)
+    data_pagamento = serializers.DateField(allow_null=True, required=False)
     
     class Meta:
         model = Multa
         fields = [
-            'id', 'processo', 'processo_info', 'empresa', 'empresa_info',
+            'id', 'processo', 'processo_info', 'empresa_id', 'empresa', 'empresa_info',
             'valor', 'data_emissao', 'data_vencimento', 'status',
             'status_display', 'comprovante_pagamento', 'observacoes',
-            'esta_vencida', 'dias_para_vencimento', 'criado_em', 'atualizado_em',
+            'motivo', 'data_pagamento', 'esta_vencida', 'dias_para_vencimento', 'criado_em', 'atualizado_em',
             'pago'  # Campo legacy para compatibilidade
         ]
-        read_only_fields = ['data_emissao', 'criado_em', 'atualizado_em', 'esta_vencida', 'dias_para_vencimento']
+        read_only_fields = ['data_emissao', 'criado_em', 'atualizado_em', 'esta_vencida', 'dias_para_vencimento', 'empresa']
     
     def get_status_display(self, obj):
         status_choices = dict(Multa.STATUS_CHOICES)

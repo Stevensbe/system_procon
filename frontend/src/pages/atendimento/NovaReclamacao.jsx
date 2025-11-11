@@ -13,6 +13,17 @@ import {
 } from '@heroicons/react/24/outline';
 import { useNotification } from '../../hooks/useNotifications';
 
+const MAX_FILE_SIZE_MB = 10;
+const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
+const ACCEPTED_TYPES = [
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'image/jpeg',
+  'image/png',
+  'text/plain',
+];
+
 const NovaReclamacao = () => {
   const navigate = useNavigate();
   const { showSuccess, showError } = useNotification();
@@ -20,6 +31,9 @@ const NovaReclamacao = () => {
   const createInitialFormData = () => ({
     // Dados basicos
     tipo_demanda: 'RECLAMACAO',
+
+    // Consentimento
+    consentimento_lgpd: false,
 
     // Dados do consumidor
     consumidor_nome: '',
@@ -55,6 +69,7 @@ const NovaReclamacao = () => {
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(1);
   const [formData, setFormData] = useState(createInitialFormData);
+  const [consentimentoAviso, setConsentimentoAviso] = useState(false);
 
   const steps = [
     { number: 1, title: 'Dados do Consumidor', icon: UserIcon },
@@ -81,13 +96,31 @@ const NovaReclamacao = () => {
   const [empresaData, setEmpresaData] = useState(null);
   const [cnpjMessage, setCnpjMessage] = useState(null);
   const [validatingCNPJ, setValidatingCNPJ] = useState(false);
+  const [quickCompanyModalOpen, setQuickCompanyModalOpen] = useState(false);
+  const [quickCompanyLoading, setQuickCompanyLoading] = useState(false);
+  const [quickCompanyForm, setQuickCompanyForm] = useState({
+    razao_social: '',
+    nome_fantasia: '',
+    email: '',
+    telefone: '',
+    responsavel: '',
+    cargo: '',
+    endereco: '',
+    cidade: '',
+    estado: '',
+    cep: ''
+  });
+  const [quickCompanyError, setQuickCompanyError] = useState(null);
 
   const handleInputChange = (e) => {
-    const { name, value } = e.target;
+    const { name, value, type, checked } = e.target;
     setFormData((prev) => ({
       ...prev,
-      [name]: value
+      [name]: type === 'checkbox' ? checked : value
     }));
+    if (name === 'consentimento_lgpd' && checked) {
+      setConsentimentoAviso(false);
+    }
   };
 
   const formatCPF = (value) => {
@@ -160,14 +193,97 @@ const NovaReclamacao = () => {
     }
   };
 
+  const abrirCadastroRapido = () => {
+    setQuickCompanyForm({
+      razao_social: formData.empresa_razao_social || '',
+      nome_fantasia: formData.empresa_razao_social || '',
+      email: formData.empresa_email || '',
+      telefone: formData.empresa_telefone || '',
+      responsavel: '',
+      cargo: '',
+      endereco: formData.empresa_endereco || '',
+      cidade: '',
+      estado: '',
+      cep: '',
+    });
+    setQuickCompanyError(null);
+    setQuickCompanyModalOpen(true);
+  };
+
+  const fecharCadastroRapido = () => {
+    setQuickCompanyModalOpen(false);
+  };
+
+  const handleQuickCompanyInput = (field, value) => {
+    setQuickCompanyForm((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+  };
+
+  const enviarCadastroRapido = async (event) => {
+    event.preventDefault();
+    if (!formData.empresa_cnpj) {
+      showError('Informe o CNPJ antes de solicitar o cadastro.');
+      return;
+    }
+    setQuickCompanyLoading(true);
+    setQuickCompanyError(null);
+    try {
+      const payload = {
+        cnpj: formData.empresa_cnpj,
+        razao_social: quickCompanyForm.razao_social || formData.empresa_razao_social,
+        nome_fantasia: quickCompanyForm.nome_fantasia || '',
+        email: quickCompanyForm.email,
+        telefone: quickCompanyForm.telefone,
+        responsavel: quickCompanyForm.responsavel,
+        cargo: quickCompanyForm.cargo,
+        endereco: quickCompanyForm.endereco,
+        cidade: quickCompanyForm.cidade,
+        estado: (quickCompanyForm.estado || '').toUpperCase(),
+        cep: quickCompanyForm.cep,
+      };
+
+      const { data } = await api.post('/atendimento/empresas/cadastro-rapido/', payload);
+      const mensagem = data?.mensagem || 'Solicitacao de cadastro enviada para analise.';
+      showSuccess(mensagem);
+      setCnpjMessage({ type: 'info', text: mensagem });
+      setQuickCompanyModalOpen(false);
+    } catch (error) {
+      const mensagem = error?.response?.data?.erro || error?.response?.data?.mensagem || 'Nao foi possivel registrar a solicitacao.';
+      setQuickCompanyError(mensagem);
+      showError(mensagem);
+    } finally {
+      setQuickCompanyLoading(false);
+    }
+  };
+
   const handleFileUpload = (event) => {
     const arquivos = Array.from(event.target.files || []);
     if (!arquivos.length) {
       return;
     }
+
+    const aceitos = [];
+    arquivos.forEach((arquivo) => {
+      if (!ACCEPTED_TYPES.includes(arquivo.type)) {
+        showError(`Formato não suportado: ${arquivo.name}`);
+        return;
+      }
+      if (arquivo.size > MAX_FILE_SIZE_BYTES) {
+        showError(`Arquivo ${arquivo.name} excede ${MAX_FILE_SIZE_MB}MB.`);
+        return;
+      }
+      aceitos.push(arquivo);
+    });
+
+    if (!aceitos.length) {
+      return;
+    }
+
     setFormData((prev) => ({
       ...prev,
-      anexos: [...prev.anexos, ...arquivos]
+      anexos: [...prev.anexos, ...aceitos],
     }));
   };
 
@@ -200,21 +316,31 @@ const NovaReclamacao = () => {
       return;
     }
 
+    if (!formData.consentimento_lgpd) {
+      setConsentimentoAviso(true);
+      showError('E necessario registrar o consentimento LGPD antes de finalizar o atendimento.');
+      setStep(5);
+      return;
+    }
+
     try {
+      setConsentimentoAviso(false);
       setLoading(true);
 
       const resultado = await atendimentoService.registrarPresencial({
         ...formData,
+        consentimento_origem: 'GUICHE',
         anexos: formData.anexos,
       });
 
-      showSuccess(`Atendimento ${resultado.numero_atendimento} e reclamacao ${resultado.reclamacao.numero_protocolo} registrados com sucesso!`);
+      showSuccess('Atendimento e reclamacao registrados com sucesso!');
 
       setFormData(createInitialFormData());
       setEmpresaData(null);
       setCnpjMessage(null);
+      setConsentimentoAviso(false);
       setStep(1);
-      navigate(`/atendimento/reclamacoes/${resultado.reclamacao.id}`);
+      navigate('/atendimento/reclamacoes/');
     } catch (error) {
       const resposta = error?.response?.data;
       let mensagem = 'Erro ao registrar atendimento';
@@ -456,9 +582,26 @@ const NovaReclamacao = () => {
           )}
         </div>
         {cnpjMessage && (
-          <p className={`mt-2 text-sm ${cnpjMessage.type === 'error' ? 'text-red-600' : 'text-green-600'}`}>
+          <p
+            className={`mt-2 text-sm ${
+              cnpjMessage.type === 'error'
+                ? 'text-red-600'
+                : cnpjMessage.type === 'info'
+                  ? 'text-blue-600'
+                  : 'text-green-600'
+            }`}
+          >
             {cnpjMessage.text}
           </p>
+        )}
+        {cnpjMessage && cnpjMessage.type === 'error' && (
+          <button
+            type="button"
+            onClick={abrirCadastroRapido}
+            className="mt-3 text-sm font-medium text-blue-600 hover:text-blue-800"
+          >
+            Empresa nao encontrada? Registrar cadastro rapido
+          </button>
         )}
       </div>
       <div>
@@ -691,13 +834,16 @@ const NovaReclamacao = () => {
                 <h3 className="text-sm font-medium text-gray-900">Arquivos Selecionados:</h3>
                 {formData.anexos.map((file, index) => (
                   <div key={index} className="flex items-center justify-between bg-gray-50 rounded-lg p-3">
-                    <div className="flex items-center">
-                      <PaperClipIcon className="h-4 w-4 text-gray-400 mr-2" />
-                      <span className="text-sm text-gray-900">{file.name}</span>
-                      <span className="text-xs text-gray-500 ml-2">
-                        ({(file.size / 1024 / 1024).toFixed(2)} MB)
-                      </span>
-                    </div>
+                      <div className="flex items-start sm:items-center flex-col sm:flex-row">
+                        <div className="flex items-center">
+                          <PaperClipIcon className="h-4 w-4 text-gray-400 mr-2" />
+                          <span className="text-sm text-gray-900">{file.name}</span>
+                        </div>
+                        <div className="ml-6 sm:ml-2 text-xs text-gray-500 flex flex-col sm:flex-row sm:items-center">
+                          <span>{(file.size / 1024 / 1024).toFixed(2)} MB</span>
+                          {file.type && <span className="sm:ml-2">({file.type})</span>}
+                        </div>
+                      </div>
                     <button
                       type="button"
                       onClick={() => removeFile(index)}
@@ -709,6 +855,27 @@ const NovaReclamacao = () => {
                 ))}
               </div>
             )}
+            <div className="rounded-lg border border-blue-100 bg-blue-50 p-4">
+              <label className="flex items-start gap-3 text-sm text-blue-900">
+                <input
+                  type="checkbox"
+                  name="consentimento_lgpd"
+                  checked={formData.consentimento_lgpd}
+                  onChange={handleInputChange}
+                  className="mt-1 h-4 w-4 rounded border-blue-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span>
+                  Autorizo o tratamento dos meus dados pessoais para fins de atendimento pelo PROCON,
+                  conforme previsto na Lei Geral de Proteção de Dados (LGPD).
+                </span>
+              </label>
+              {!formData.consentimento_lgpd && consentimentoAviso && (
+                <p className="mt-2 text-sm text-red-600">
+                  O consentimento é obrigatório para finalizar o atendimento.
+                </p>
+              )}
+            </div>
+
           </div>
         )}
         {/* Navigation */}
@@ -736,7 +903,7 @@ const NovaReclamacao = () => {
           ) : (
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || !formData.consentimento_lgpd}
               className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center"
             >
               {loading ? (
@@ -754,8 +921,162 @@ const NovaReclamacao = () => {
           )}
         </div>
       </form>
+      {quickCompanyModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900 bg-opacity-50 px-4">
+          <div className="w-full max-w-2xl bg-white rounded-lg shadow-xl p-6">
+            <div className="flex items-start justify-between mb-6">
+              <div>
+                <h3 className="text-xl font-semibold text-gray-900">Cadastro rapido da empresa</h3>
+                <p className="text-sm text-gray-500 mt-1">
+                  Geraremos uma solicitacao para a equipe de TI validar o acesso ao Portal da Empresa.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={fecharCadastroRapido}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <span className="sr-only">Fechar</span>
+                <span aria-hidden="true">&times;</span>
+              </button>
+            </div>
+            <form onSubmit={enviarCadastroRapido} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">CNPJ</label>
+                  <input
+                    type="text"
+                    value={formData.empresa_cnpj}
+                    readOnly
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-600"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Razao Social *</label>
+                  <input
+                    type="text"
+                    value={quickCompanyForm.razao_social}
+                    onChange={(e) => handleQuickCompanyInput('razao_social', e.target.value)}
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Nome Fantasia</label>
+                  <input
+                    type="text"
+                    value={quickCompanyForm.nome_fantasia}
+                    onChange={(e) => handleQuickCompanyInput('nome_fantasia', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">E-mail *</label>
+                  <input
+                    type="email"
+                    value={quickCompanyForm.email}
+                    onChange={(e) => handleQuickCompanyInput('email', e.target.value)}
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Telefone</label>
+                  <input
+                    type="text"
+                    value={quickCompanyForm.telefone}
+                    onChange={(e) => handleQuickCompanyInput('telefone', formatPhone(e.target.value))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Responsavel</label>
+                  <input
+                    type="text"
+                    value={quickCompanyForm.responsavel}
+                    onChange={(e) => handleQuickCompanyInput('responsavel', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Cargo</label>
+                  <input
+                    type="text"
+                    value={quickCompanyForm.cargo}
+                    onChange={(e) => handleQuickCompanyInput('cargo', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Endereco *</label>
+                  <input
+                    type="text"
+                    value={quickCompanyForm.endereco}
+                    onChange={(e) => handleQuickCompanyInput('endereco', e.target.value)}
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Cidade *</label>
+                  <input
+                    type="text"
+                    value={quickCompanyForm.cidade}
+                    onChange={(e) => handleQuickCompanyInput('cidade', e.target.value)}
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">UF *</label>
+                  <input
+                    type="text"
+                    value={quickCompanyForm.estado}
+                    onChange={(e) => handleQuickCompanyInput('estado', e.target.value.toUpperCase())}
+                    required
+                    maxLength={2}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 uppercase"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">CEP</label>
+                  <input
+                    type="text"
+                    value={quickCompanyForm.cep}
+                    onChange={(e) => handleQuickCompanyInput('cep', formatCEP(e.target.value))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+              </div>
+              {quickCompanyError && (
+                <p className="text-sm text-red-600">{quickCompanyError}</p>
+              )}
+              <div className="flex justify-end space-x-3 pt-2">
+                <button
+                  type="button"
+                  onClick={fecharCadastroRapido}
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={quickCompanyLoading}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-60"
+                >
+                  {quickCompanyLoading ? 'Enviando...' : 'Enviar solicitacao'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
 export default NovaReclamacao;
+
+
+
+

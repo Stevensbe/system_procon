@@ -167,7 +167,7 @@ class TestMultasAPI:
         
         assert response.status_code == status.HTTP_200_OK
         assert response.data['status'] == 'pago'
-        assert response.data['valor'] == 2500.00
+        assert response.data['valor'] == '2500.00'
     
     def test_multas_delete_endpoint(self, authenticated_client):
         """Testa exclusão de multa"""

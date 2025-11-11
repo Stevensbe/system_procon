@@ -1,0 +1,84 @@
+<testsuites id="" name="" tests="5" failures="5" skipped="0" errors="0" time="1.15387">
+<testsuite name="auth.spec.js" timestamp="2025-10-13T14:57:44.795Z" hostname="chromium" tests="5" failures="5" skipped="0" time="0.032" errors="0">
+<testcase name="Autenticação › deve fazer login com credenciais válidas" classname="auth.spec.js" time="0.006">
+<failure message="auth.spec.js:8:3 deve fazer login com credenciais válidas" type="FAILURE">
+<![CDATA[  [chromium] › auth.spec.js:8:3 › Autenticação › deve fazer login com credenciais válidas ──────────
+
+    Error: browserType.launch: Executable doesn't exist at C:\Users\stevens\AppData\Local\ms-playwright\chromium_headless_shell-1187\chrome-win\headless_shell.exe
+    ╔═════════════════════════════════════════════════════════════════════════╗
+    ║ Looks like Playwright Test or Playwright was just installed or updated. ║
+    ║ Please run the following command to download new browsers:              ║
+    ║                                                                         ║
+    ║     npx playwright install                                              ║
+    ║                                                                         ║
+    ║ <3 Playwright Team                                                      ║
+    ╚═════════════════════════════════════════════════════════════════════════╝
+]]>
+</failure>
+</testcase>
+<testcase name="Autenticação › deve mostrar erro com credenciais inválidas" classname="auth.spec.js" time="0.007">
+<failure message="auth.spec.js:23:3 deve mostrar erro com credenciais inválidas" type="FAILURE">
+<![CDATA[  [chromium] › auth.spec.js:23:3 › Autenticação › deve mostrar erro com credenciais inválidas ──────
+
+    Error: browserType.launch: Executable doesn't exist at C:\Users\stevens\AppData\Local\ms-playwright\chromium_headless_shell-1187\chrome-win\headless_shell.exe
+    ╔═════════════════════════════════════════════════════════════════════════╗
+    ║ Looks like Playwright Test or Playwright was just installed or updated. ║
+    ║ Please run the following command to download new browsers:              ║
+    ║                                                                         ║
+    ║     npx playwright install                                              ║
+    ║                                                                         ║
+    ║ <3 Playwright Team                                                      ║
+    ╚═════════════════════════════════════════════════════════════════════════╝
+]]>
+</failure>
+</testcase>
+<testcase name="Autenticação › deve fazer logout corretamente" classname="auth.spec.js" time="0.007">
+<failure message="auth.spec.js:39:3 deve fazer logout corretamente" type="FAILURE">
+<![CDATA[  [chromium] › auth.spec.js:39:3 › Autenticação › deve fazer logout corretamente ───────────────────
+
+    Error: browserType.launch: Executable doesn't exist at C:\Users\stevens\AppData\Local\ms-playwright\chromium_headless_shell-1187\chrome-win\headless_shell.exe
+    ╔═════════════════════════════════════════════════════════════════════════╗
+    ║ Looks like Playwright Test or Playwright was just installed or updated. ║
+    ║ Please run the following command to download new browsers:              ║
+    ║                                                                         ║
+    ║     npx playwright install                                              ║
+    ║                                                                         ║
+    ║ <3 Playwright Team                                                      ║
+    ╚═════════════════════════════════════════════════════════════════════════╝
+]]>
+</failure>
+</testcase>
+<testcase name="Autenticação › deve proteger rotas sem autenticação" classname="auth.spec.js" time="0.006">
+<failure message="auth.spec.js:58:3 deve proteger rotas sem autenticação" type="FAILURE">
+<![CDATA[  [chromium] › auth.spec.js:58:3 › Autenticação › deve proteger rotas sem autenticação ─────────────
+
+    Error: browserType.launch: Executable doesn't exist at C:\Users\stevens\AppData\Local\ms-playwright\chromium_headless_shell-1187\chrome-win\headless_shell.exe
+    ╔═════════════════════════════════════════════════════════════════════════╗
+    ║ Looks like Playwright Test or Playwright was just installed or updated. ║
+    ║ Please run the following command to download new browsers:              ║
+    ║                                                                         ║
+    ║     npx playwright install                                              ║
+    ║                                                                         ║
+    ║ <3 Playwright Team                                                      ║
+    ╚═════════════════════════════════════════════════════════════════════════╝
+]]>
+</failure>
+</testcase>
+<testcase name="Autenticação › deve manter sessão após refresh" classname="auth.spec.js" time="0.006">
+<failure message="auth.spec.js:66:3 deve manter sessão após refresh" type="FAILURE">
+<![CDATA[  [chromium] › auth.spec.js:66:3 › Autenticação › deve manter sessão após refresh ──────────────────
+
+    Error: browserType.launch: Executable doesn't exist at C:\Users\stevens\AppData\Local\ms-playwright\chromium_headless_shell-1187\chrome-win\headless_shell.exe
+    ╔═════════════════════════════════════════════════════════════════════════╗
+    ║ Looks like Playwright Test or Playwright was just installed or updated. ║
+    ║ Please run the following command to download new browsers:              ║
+    ║                                                                         ║
+    ║     npx playwright install                                              ║
+    ║                                                                         ║
+    ║ <3 Playwright Team                                                      ║
+    ╚═════════════════════════════════════════════════════════════════════════╝
+]]>
+</failure>
+</testcase>
+</testsuite>
+</testsuites>

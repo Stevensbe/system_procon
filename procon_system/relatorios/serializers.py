@@ -277,3 +277,16 @@ class CompartilharRelatorioSerializer(serializers.Serializer):
     pode_baixar = serializers.BooleanField(default=True)
     pode_compartilhar = serializers.BooleanField(default=False)
     data_expiracao = serializers.DateTimeField(required=False)
+
+
+class RelatorioResumoSerializer(serializers.Serializer):
+    titulo = serializers.CharField()
+    status = serializers.CharField()
+    formato = serializers.CharField()
+    progresso = serializers.IntegerField()
+
+
+class RelatorioDashboardSerializer(serializers.Serializer):
+    total_relatorios = serializers.IntegerField()
+    relatorios_por_status = serializers.DictField(child=serializers.IntegerField())
+    recentes = RelatorioResumoSerializer(many=True)

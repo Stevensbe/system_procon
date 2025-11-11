@@ -15,6 +15,8 @@ class Empresa(models.Model):
     nome_fantasia  = models.CharField("Nome Fantasia", max_length=255, blank=True)
     cnpj           = models.CharField("CNPJ", max_length=18, unique=True)
     endereco       = models.CharField("Endereço", max_length=255)
+    cidade         = models.CharField("Cidade", max_length=100, blank=True)
+    estado         = models.CharField("Estado", max_length=2, blank=True)
     telefone       = models.CharField("Telefone", max_length=20, blank=True)
     ativo          = models.BooleanField("Ativo", default=True)
 
@@ -28,7 +30,7 @@ class Multa(models.Model):
     """
     STATUS_CHOICES = [
         ('pendente', 'Pendente'),
-        ('paga', 'Paga'),
+        ('pago', 'Pago'),
         ('vencida', 'Vencida'),
         ('cancelada', 'Cancelada'),
     ]
@@ -110,7 +112,8 @@ class Multa(models.Model):
         ordering = ['-data_emissao', '-criado_em']
         
     def __str__(self):
-        return f"Multa #{self.pk} - {self.processo.numero_processo} - R$ {self.valor:.2f}"
+        numero_processo = getattr(self.processo, "numero_processo", getattr(self.processo, "numero", ""))
+        return f"Multa #{self.pk} - {numero_processo} - R$ {self.valor:.2f}"
     
     def save(self, *args, **kwargs):
         """
@@ -133,7 +136,7 @@ class Multa(models.Model):
                 self.status = 'vencida'
         
         # Sincroniza campo legacy
-        self.pago = (self.status == 'paga')
+        self.pago = (self.status == 'pago')
         
         super().save(*args, **kwargs)
     
@@ -156,7 +159,7 @@ class Multa(models.Model):
     
     def marcar_como_paga(self, comprovante=None, observacao=""):
         """Marca a multa como paga"""
-        self.status = 'paga'
+        self.status = 'pago'
         if comprovante:
             self.comprovante_pagamento = comprovante
         if observacao:

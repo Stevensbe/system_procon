@@ -213,6 +213,78 @@ def buscar_autos(request):
         }, status=500)
 
 
+@api_view(['GET'])
+def autos_constatacao_disponiveis(request):
+    """
+    Lista autos de constatação para integrações (PPA, agenda, etc).
+    """
+    try:
+        limite = int(request.GET.get('limite', 50))
+        if limite <= 0:
+            raise ValueError
+        limite = min(limite, 200)
+    except (TypeError, ValueError):
+        return Response(
+            {'error': 'limite invalido. Informe um inteiro positivo.'},
+            status=400
+        )
+
+    tipo = (request.GET.get('tipo', 'todos') or 'todos').lower()
+    somente_disponiveis = bool(request.GET.get('disponiveis'))
+
+    modelos = [
+        ('banco', AutoBanco),
+        ('posto', AutoPosto),
+        ('supermercado', AutoSupermercado),
+        ('diversos', AutoDiversos),
+    ]
+
+    def serialize_auto(item, tipo_nome):
+        return {
+            'id': item.id,
+            'tipo': tipo_nome,
+            'numero': item.numero,
+            'razao_social': getattr(item, 'razao_social', ''),
+            'empresa_autuada': getattr(
+                item,
+                'empresa_autuada',
+                getattr(item, 'razao_social', '')
+            ),
+            'cnpj': getattr(item, 'cnpj', ''),
+            'municipio': getattr(item, 'municipio', ''),
+            'data_fiscalizacao': (
+                item.data_fiscalizacao.isoformat()
+                if getattr(item, 'data_fiscalizacao', None)
+                else None
+            ),
+            'disponivel': True,
+        }
+
+    resultados = []
+    for nome, modelo in modelos:
+        if tipo not in ('todos', nome):
+            continue
+
+        queryset = modelo.objects.all().order_by('-data_fiscalizacao')
+        autos = queryset[:limite]
+        resultados.extend(serialize_auto(auto, nome) for auto in autos)
+
+    resultados.sort(
+        key=lambda registro: registro['data_fiscalizacao'] or '',
+        reverse=True
+    )
+
+    return Response({
+        'results': resultados,
+        'total': len(resultados),
+        'filters': {
+            'tipo': tipo,
+            'somente_disponiveis': somente_disponiveis,
+            'limite_por_tipo': limite,
+        }
+    })
+
+
 # ========================================
 # VIEWS DE UPLOAD
 # ========================================

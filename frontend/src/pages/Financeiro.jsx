@@ -48,7 +48,7 @@ const Financeiro = () => {
     setLoading(true);
     try {
       // Importar o serviço financeiro
-      const financeiroService = (await import('../../services/financeiroService')).default;
+      const financeiroService = (await import('../services/financeiroService')).default;
       
       // Carregar dados reais da API
       const [

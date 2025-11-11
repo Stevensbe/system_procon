@@ -147,6 +147,33 @@ class LogNotificacao(models.Model):
     def __str__(self):
         return f"{self.notificacao.titulo} - {self.canal} - {self.resultado}"
 
+class DispositivoNotificacao(models.Model):
+    """Tokens de dispositivos para envio de push"""
+
+    PLATAFORMA_CHOICES = [
+        ('android', 'Android'),
+        ('ios', 'iOS'),
+        ('web', 'Web'),
+        ('desktop', 'Desktop'),
+    ]
+
+    usuario = models.ForeignKey(User, on_delete=models.CASCADE, related_name='dispositivos_notificacao')
+    token = models.CharField(max_length=255)
+    plataforma = models.CharField(max_length=20, choices=PLATAFORMA_CHOICES, default='web')
+    descricao = models.CharField(max_length=100, blank=True)
+    ativo = models.BooleanField(default=True)
+    criado_em = models.DateTimeField(auto_now_add=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Dispositivo de Notificação"
+        verbose_name_plural = "Dispositivos de Notificação"
+        unique_together = ['usuario', 'token']
+        ordering = ['-atualizado_em']
+
+    def __str__(self):
+        return f"{self.usuario.username} - {self.plataforma}"
+
 class TemplateNotificacao(models.Model):
     """Templates de notificação"""
     nome = models.CharField(max_length=100)

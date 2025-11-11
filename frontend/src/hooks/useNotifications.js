@@ -13,7 +13,7 @@ export const useNotifications = () => {
         setIsLoading(true);
         
         // Buscar notificações do usuário
-        const response = await get('/api/notifications/');
+        const response = await get('/notificacoes/');
         
         if (response.data) {
           setNotifications(response.data.notifications || []);
@@ -40,7 +40,7 @@ export const useNotifications = () => {
 
   const markAsRead = async (notificationId) => {
     try {
-      await post(`/api/notifications/${notificationId}/mark-read/`);
+      await post(`/notificacoes/${notificationId}/mark-read/`);
       
       setNotifications(prev => 
         prev.map(notif => 
@@ -58,7 +58,7 @@ export const useNotifications = () => {
 
   const markAllAsRead = async () => {
     try {
-      await post('/api/notifications/mark-all-read/');
+      await post('/notificacoes/mark-all-read/');
       
       setNotifications(prev => 
         prev.map(notif => ({ ...notif, read: true }))
@@ -72,7 +72,7 @@ export const useNotifications = () => {
 
   const deleteNotification = async (notificationId) => {
     try {
-      await post(`/api/notifications/${notificationId}/delete/`);
+      await post(`/notificacoes/${notificationId}/delete/`);
       
       setNotifications(prev => 
         prev.filter(notif => notif.id !== notificationId)
@@ -90,7 +90,7 @@ export const useNotifications = () => {
 
   const clearAll = async () => {
     try {
-      await post('/api/notifications/clear-all/');
+      await post('/notificacoes/clear-all/');
       
       setNotifications([]);
       setUnreadCount(0);

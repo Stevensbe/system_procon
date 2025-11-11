@@ -18,17 +18,38 @@ import ErrorFallback from './components/common/ErrorFallback';
 import GlobalErrorBoundary from './components/common/GlobalErrorBoundary';
 
 // ✅ CORREÇÃO: ProtectedRoute integrado diretamente
-import { Navigate as NavigateComponent } from 'react-router-dom';
-import { getToken, isTokenValid } from './utils/token';
+import { useAuth, AuthState } from './context/AuthContext';
 
-// ✅ COMPONENTE PROTECTEDROUTE INTEGRADO
-function ProtectedRoute({ children }) {
-  const token = getToken();
-  
-  if (!token || !isTokenValid(token)) {
-    return <NavigateComponent to="/login" replace />;
+// ✅ COMPONENTES DE CONTROLE DE ROTAS
+function ProtectedRoute({ children, allowedRoles }) {
+  const { status, isLoading, isAuthenticated, role, getRedirectPath } = useAuth();
+
+  if (status === AuthState.LOADING || isLoading) {
+    return <LoadingSpinner message="Validando sessão..." />;
   }
-  
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (allowedRoles && allowedRoles.length > 0 && !allowedRoles.includes(role)) {
+    return <Navigate to={getRedirectPath(role)} replace />;
+  }
+
+  return children;
+}
+
+function PublicRoute({ children }) {
+  const { status, isLoading, isAuthenticated, role, getRedirectPath } = useAuth();
+
+  if (status === AuthState.LOADING || isLoading) {
+    return <LoadingSpinner message="Carregando sessão..." />;
+  }
+
+  if (isAuthenticated) {
+    return <Navigate to={getRedirectPath(role)} replace />;
+  }
+
   return children;
 }
 
@@ -73,6 +94,14 @@ const Logout = lazyLoad(() => import('./pages/auth/Logout'));
 
 // --- Portal do Cidadão (PÁGINA PÚBLICA) ---
 const PortalCidadao = lazyLoad(() => import('./pages/PortalCidadao'));
+const PortalEmpresa = lazyLoad(() => import('./pages/portal/PortalEmpresa'));
+const PortalEmpresaLogin = lazyLoad(() => import('./pages/portal/PortalEmpresaLogin'));
+const PortalEmpresaSolicitacao = lazyLoad(() => import('./pages/portal/PortalEmpresaSolicitacao'));
+const PortalEmpresaSolicitacoesAdmin = lazyLoad(() => import('./pages/portal/PortalEmpresaSolicitacoesAdmin'));
+const PortalEmpresaReclamacoes = lazyLoad(() => import('./pages/portal/PortalEmpresaReclamacoes'));
+const PortalConsumidor = lazyLoad(() => import('./pages/portal/PortalConsumidor'));
+const PortalConsumidorFeedbacksAdmin = lazyLoad(() => import('./pages/portal/PortalConsumidorFeedbacksAdmin'));
+const PortalConsumidorTicketsAdmin = lazyLoad(() => import('./pages/portal/PortalConsumidorTicketsAdmin'));
 
 // --- Dashboard (CRÍTICO - CARREGAMENTO IMEDIATO) ---
 const Dashboard = lazyLoad(() => import('./pages/Dashboard'));
@@ -85,6 +114,7 @@ const SelecaoAutoPage = preloadComponent(() => import('./pages/fiscalizacao/Sele
 const FiscalizacaoDashboard = preloadComponent(() => import('./pages/fiscalizacao/FiscalizacaoDashboard'));
 const AutoForm = preloadComponent(() => import('./pages/fiscalizacao/AutoForm'));
 const AutoList = preloadComponent(() => import('./pages/fiscalizacao/AutoList'));
+const TriagemListPage = lazyLoad(() => import('./pages/triagem/TriagemListPage'));
 
 // --- Módulo de Usuários (LAZY LOADING PADRÃO) ---
 const UsuariosDashboard = lazyLoad(() => import('./pages/usuarios/UsuariosDashboard'));
@@ -148,8 +178,23 @@ const RecursosDashboard = React.lazy(() => import('./pages/recursos/RecursosDash
 const RecursosList = React.lazy(() => import('./pages/recursos/RecursosList'));
 const RecursoForm = React.lazy(() => import('./pages/recursos/RecursoForm'));
 
+// --- Módulo PPA - Procedimento Preliminar Administrativo (Novo) ---
+const PPAListPage = React.lazy(() => import('./pages/ppa/PPAListPage'));
+const PPACreatePage = React.lazy(() => import('./pages/ppa/PPACreatePage'));
+const PPADetailPage = React.lazy(() => import('./pages/ppa/PPADetailPage'));
+const PPAEditPage = React.lazy(() => import('./pages/ppa/PPAEditPage'));
+const PPADebugPage = React.lazy(() => import('./pages/ppa/PPADebugPage'));
+
+// --- Debug do Menu ---
+const MenuDebugPage = React.lazy(() => import('./pages/MenuDebugPage'));
+
 // --- Módulo de Atendimento (Cópia do Pro Consumidor) ---
 const AtendimentoDashboard = lazyLoad(() => import('./pages/atendimento/AtendimentoDashboard'));
+const AtendimentoLgpdDashboard = lazyLoad(() => import('./pages/atendimento/AtendimentoLgpdDashboard'));
+const AtendimentoConfiguracaoPrazos = lazyLoad(() => import('./pages/atendimento/AtendimentoConfiguracaoPrazos'));
+const AtendimentoRegrasDistribuicao = lazyLoad(() => import('./pages/atendimento/AtendimentoRegrasDistribuicao'));
+const AtendimentoFilaGuiche = lazyLoad(() => import('./pages/atendimento/FilaGuiche'));
+const AtendimentoPainelTv = lazyLoad(() => import('./pages/atendimento/PainelTv'));
 const NovaReclamacao = lazyLoad(() => import('./pages/atendimento/NovaReclamacao'));
 const DetalhesReclamacao = lazyLoad(() => import('./pages/atendimento/DetalhesReclamacao'));
 
@@ -242,6 +287,9 @@ const ParametrosGerais = React.lazy(() => import('./pages/configuracoes/Parametr
 const BackupRestauracao = React.lazy(() => import('./pages/configuracoes/BackupRestauracao'));
 const LogsSistema = React.lazy(() => import('./pages/configuracoes/LogsSistema'));
 
+// --- Módulo de TI (Novo) ---
+const TIDashboard = React.lazy(() => import('./pages/ti/TIDashboard'));
+
 // --- Outras Páginas ---
 const UsuariosPage = React.lazy(() => import('./pages/Usuarios'));
 const RelatoriosPage = React.lazy(() => import('./pages/relatorios/RelatoriosPage'));
@@ -329,21 +377,42 @@ function App() {
           <Routes>
             
             {/* ===== ROTAS PÚBLICAS (SEM AUTENTICAÇÃO) ===== */}
-            <Route path="/login" element={<Login />} />
+            <Route
+              path="/login"
+              element={
+                <PublicRoute>
+                  <Login />
+                </PublicRoute>
+              }
+            />
             <Route path="/logout" element={<Logout />} />
             
+            <Route
+              path="/painel-atendimento/:balcaoId"
+              element={
+                <ProtectedRoute allowedRoles={['admin', 'staff']}>
+                  <AtendimentoPainelTv />
+                </ProtectedRoute>
+              }
+            />
+
             {/* ===== PORTAL DO CIDADÃO (PÁGINA PÚBLICA) ===== */}
-            <Route path="/portal-cidadao" element={<PortalCidadao />} />
+        <Route path="/portal-cidadao" element={<PortalCidadao />} />
+        <Route path="/portal-empresa/login" element={<PortalEmpresaLogin />} />
+        <Route path="/portal-empresa/solicitacao" element={<PortalEmpresaSolicitacao />} />
             
             {/* ===== REDIRECIONAMENTO RAIZ ===== */}
             <Route path="/" element={<Navigate to="/caixa-entrada/pessoal" replace />} />
             
             {/* ===== ROTAS PROTEGIDAS (COM LAYOUT) ===== */}
-            <Route path="/" element={
-              <ProtectedRoute>
-                <Layout />
-              </ProtectedRoute>
-            }>
+            <Route
+              path="/"
+              element={
+                <ProtectedRoute allowedRoles={['admin', 'staff']}>
+                  <Layout />
+                </ProtectedRoute>
+              }
+            >
               
               {/* === DASHBOARD === */}
               <Route path="dashboard" element={<Dashboard />} />
@@ -353,6 +422,7 @@ function App() {
               <Route path="fiscalizacao/dashboard" element={<FiscalizacaoDashboard />} />
               <Route path="fiscalizacao/selecao" element={<SelecaoAutoPage />} />
               <Route path="fiscalizacao/autos" element={<AutoList />} />
+              <Route path="triagem" element={<TriagemListPage />} />
               
               {/* === TESTE DE CÓDIGO DE BARRAS === */}
               <Route path="fiscalizacao/teste-barcode" element={<BarcodeTest />} />
@@ -428,6 +498,9 @@ function App() {
               <Route path="configuracoes/backup" element={<BackupRestauracao />} />
               <Route path="configuracoes/logs" element={<LogsSistema />} />
 
+              {/* === MÓDULO DE TI === */}
+              <Route path="ti" element={<TIDashboard />} />
+
               {/* === MÓDULO DE PROTOCOLO === */}
 <Route path="protocolo" element={<Navigate to="/protocolo/lista" replace />} />
 <Route path="protocolo/lista" element={<ProtocoloList />} />
@@ -461,9 +534,30 @@ function App() {
               <Route path="recursos/novo" element={<RecursoForm />} />
               <Route path="recursos/:id/editar" element={<RecursoForm />} />
 
+              {/* === DEBUG DO MENU === */}
+              <Route path="menu-debug" element={<MenuDebugPage />} />
+
+              {/* === MÓDULO PPA - PROCEDIMENTO PRELIMINAR ADMINISTRATIVO === */}
+              <Route path="ppa/debug" element={<PPADebugPage />} />
+              <Route path="ppa" element={<PPAListPage />} />
+              <Route path="ppa/novo" element={<PPACreatePage />} />
+              <Route path="ppa/:id" element={<PPADetailPage />} />
+              <Route path="ppa/:id/editar" element={<PPAEditPage />} />
+
               {/* === MÓDULO DE ATENDIMENTO (CÓPIA DO PRO CONSUMIDOR) === */}
               <Route path="atendimento" element={<Navigate to="/atendimento/dashboard" replace />} />
               <Route path="atendimento/dashboard" element={<AtendimentoDashboard />} />
+              <Route path="atendimento/dashboard-lgpd" element={<AtendimentoLgpdDashboard />} />
+              <Route path="atendimento/configuracoes" element={<AtendimentoConfiguracaoPrazos />} />
+              <Route path="atendimento/regras-distribuicao" element={<AtendimentoRegrasDistribuicao />} />
+              <Route
+                path="atendimento/filas"
+                element={
+                  <ProtectedRoute allowedRoles={['admin', 'staff']}>
+                    <AtendimentoFilaGuiche />
+                  </ProtectedRoute>
+                }
+              />
               <Route path="atendimento/reclamacoes/nova" element={<NovaReclamacao />} />
               <Route path="atendimento/reclamacoes/:id" element={<DetalhesReclamacao />} />
 
@@ -582,6 +676,7 @@ function App() {
               <Route path="multas" element={<MultasPage />} />
               <Route path="financeiro" element={<Financeiro />} />
               <Route path="empresas" element={<EmpresasPage />} />
+              <Route path="portal-empresa/solicitacoes" element={<PortalEmpresaSolicitacoesAdmin />} />
               <Route path="auditoria" element={<AuditoriaPage />} />
               <Route path="agenda" element={<AgendaPage />} />
               <Route path="consulta-publica" element={<ConsultaPublicaPage />} />
@@ -602,6 +697,46 @@ function App() {
               
             </Route>
             
+            <Route
+              path="/portal-empresa/reclamacoes"
+              element={
+                <ProtectedRoute allowedRoles={['empresa', 'admin', 'staff']}>
+                  <PortalEmpresaReclamacoes />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/portal-empresa"
+              element={
+                <ProtectedRoute allowedRoles={['admin', 'staff', 'empresa']}>
+                  <PortalEmpresa />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/portal-consumidor"
+              element={
+                <ProtectedRoute allowedRoles={['admin', 'staff', 'consumer']}>
+                  <PortalConsumidor />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/portal-consumidor/feedbacks"
+              element={
+                <ProtectedRoute allowedRoles={['admin', 'staff']}>
+                  <PortalConsumidorFeedbacksAdmin />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/portal-consumidor/tickets"
+              element={
+                <ProtectedRoute allowedRoles={['admin', 'staff']}>
+                  <PortalConsumidorTicketsAdmin />
+                </ProtectedRoute>
+              }
+            />
             {/* ===== PÁGINA 404 (DEVE SER A ÚLTIMA ROTA) ===== */}
             <Route path="*" element={<NotFoundPage />} />
             
@@ -616,6 +751,4 @@ function App() {
 }
 
 export default App;
-
-
 

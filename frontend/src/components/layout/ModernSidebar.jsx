@@ -1,8 +1,12 @@
 import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
+
+// Roles padrão para itens de menu
+const DEFAULT_ROLES = ['admin', 'staff'];
 
 // Menu items organizados por categoria
-const menuItems = [
+const baseMenuItems = [
   // Dashboard
   { path: '/dashboard', name: 'Dashboard', icon: 'fa-dashboard', type: 'main' },
   
@@ -23,11 +27,14 @@ const menuItems = [
   
   // Fiscalização
   { path: '/fiscalizacao', name: 'Fiscalização', icon: 'fa-search', type: 'fiscalizacao' },
+  { path: '/triagem', name: 'Triagem Inicial', icon: 'fa-clipboard-list', type: 'fiscalizacao', description: 'Fila de triagem e denúncias' },
+  { path: '/fiscalizacao/infracoes', name: 'Autos de Infração', icon: 'fa-balance-scale', type: 'fiscalizacao' },
   { path: '/fiscalizacao/bancos', name: 'Autos de Banco', icon: 'fa-university', type: 'fiscalizacao' },
   { path: '/fiscalizacao/supermercados', name: 'Autos de Supermercado', icon: 'fa-shopping-cart', type: 'fiscalizacao' },
   { path: '/fiscalizacao/postos', name: 'Autos de Posto', icon: 'fa-car', type: 'fiscalizacao' },
   { path: '/fiscalizacao/diversos', name: 'Autos Diversos', icon: 'fa-file', type: 'fiscalizacao' },
   { path: '/fiscalizacao/apreensao-inutilizacao', name: 'Auto Apreensão', icon: 'fa-ban', type: 'fiscalizacao', description: 'Com escaneamento' },
+  { path: '/ppa', name: 'PPAs', icon: 'fa-clipboard', type: 'fiscalizacao', description: 'Procedimentos Preliminares' },
   { path: '/agenda', name: 'Agenda', icon: 'fa-calendar', type: 'fiscalizacao' },
   
   // Jurídico
@@ -47,26 +54,37 @@ const menuItems = [
   { path: '/processos', name: 'Processos', icon: 'fa-tasks', type: 'processos' },
   { path: '/peticionamento', name: 'Peticionamento', icon: 'fa-file-text-o', type: 'processos' },
   
+  // Atendimento
+  { path: '/atendimento/filas', name: 'Fila de Atendimento', icon: 'fa-ticket', type: 'atendimento' },
+  { path: '/atendimento/dashboard-lgpd', name: 'Painel LGPD', icon: 'fa-user-shield', type: 'atendimento' },
+  { path: '/atendimento/configuracoes', name: 'Configurar Prazos', icon: 'fa-clock', type: 'atendimento' },
+  { path: '/atendimento/regras-distribuicao', name: 'Regras de Distribuição', icon: 'fa-random', type: 'atendimento' },
+
   // Relatórios
   { path: '/relatorios', name: 'Relatórios', icon: 'fa-bar-chart', type: 'relatorios' },
   { path: '/relatorios-executivos', name: 'Relatórios Executivos', icon: 'fa-pie-chart', type: 'relatorios' },
   
   // Administração
   { path: '/usuarios', name: 'Usuários', icon: 'fa-users', type: 'admin' },
+  { path: '/ti', name: 'TI', icon: 'fa-desktop', type: 'admin', roles: ['admin'] },
   { path: '/configuracoes', name: 'Configurações', icon: 'fa-cogs', type: 'admin' },
   { path: '/auditoria', name: 'Auditoria', icon: 'fa-shield', type: 'admin' },
   { path: '/notificacoes', name: 'Notificações', icon: 'fa-bell', type: 'admin' },
   { path: '/produtos', name: 'Produtos', icon: 'fa-cube', type: 'admin' },
+  
+  // Portais Externos
+  { path: '/portal-empresa', name: 'Portal Empresa', icon: 'fa-building', type: 'portais', roles: ['empresa'] },
+  { path: '/portal-empresa/reclamacoes', name: 'Minhas Reclamacoes', icon: 'fa-list', type: 'portais', roles: ['empresa', 'admin', 'staff'] },
+  { path: '/portal-consumidor', name: 'Portal Consumidor', icon: 'fa-user-circle', type: 'portais', roles: ['consumer', 'admin', 'staff'] },
+  { path: '/portal-consumidor/feedbacks', name: 'Feedbacks Consumidor', icon: 'fa-comments', type: 'portais', roles: ['admin', 'staff'] },
+  { path: '/portal-consumidor/tickets', name: 'Tickets Consumidor', icon: 'fa-life-ring', type: 'portais', roles: ['admin', 'staff'] },
 ];
 
-// Agrupar itens por categoria
-const groupedItems = menuItems.reduce((acc, item) => {
-  if (!acc[item.type]) {
-    acc[item.type] = [];
-  }
-  acc[item.type].push(item);
-  return acc;
-}, {});
+
+const menuItems = baseMenuItems.map((item) => ({
+  ...item,
+  roles: item.roles || DEFAULT_ROLES,
+}));
 
 // Configuração das categorias
 const categories = {
@@ -78,8 +96,10 @@ const categories = {
   juridico: { title: 'Jurídico', icon: 'fa-balance-scale' },
   financeiro: { title: 'Financeiro', icon: 'fa-line-chart' },
   processos: { title: 'Processos', icon: 'fa-tasks' },
+  atendimento: { title: 'Atendimento', icon: 'fa-headset' },
   relatorios: { title: 'Relatórios', icon: 'fa-bar-chart' },
-  admin: { title: 'Administração', icon: 'fa-cogs' }
+  admin: { title: 'Administração', icon: 'fa-cogs' },
+  portais: { title: 'Portais Externos', icon: 'fa-globe' },
 };
 
 function ModernSidebar({ isOpen = false, onClose }) {
@@ -87,6 +107,17 @@ function ModernSidebar({ isOpen = false, onClose }) {
     caixas: true, // Caixas sempre expandidas por padrão
     main: true,   // Dashboard sempre expandido
   });
+
+  const { role } = useAuth();
+  const effectiveRole = role || 'admin';
+  const filteredItems = menuItems.filter((item) => item.roles.includes(effectiveRole));
+  const groupedItems = filteredItems.reduce((acc, item) => {
+    if (!acc[item.type]) {
+      acc[item.type] = [];
+    }
+    acc[item.type].push(item);
+    return acc;
+  }, {});
 
   const toggleCategory = (category) => {
     setExpandedCategories(prev => ({

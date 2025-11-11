@@ -5,21 +5,29 @@ from django.http import JsonResponse, HttpResponse
 from django.db.models import Count, Q
 from django.utils import timezone
 from django.core.paginator import Paginator
-from rest_framework import viewsets, status
+from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from datetime import timedelta
 
+from core.permissions import RolePermission, role_required
 from .models import (
-    ProtocoloDocumento, TipoDocumento, Setor, 
-    TramitacaoDocumento, AnexoProtocolo, ConfiguracaoProtocolo
+    ProtocoloDocumento,
+    TipoDocumento,
+    Setor,
+    TramitacaoDocumento,
+    AnexoProtocolo,
+    ConfiguracaoProtocolo,
 )
 from .serializers import (
-    ProtocoloDocumentoSerializer, TipoDocumentoSerializer,
-    SetorSerializer, TramitacaoDocumentoSerializer,
-    AnexoProtocoloSerializer, ProtocolarDocumentoSerializer,
-    TramitarProtocoloSerializer
+    ProtocoloDocumentoSerializer,
+    TipoDocumentoSerializer,
+    SetorSerializer,
+    TramitacaoDocumentoSerializer,
+    AnexoProtocoloSerializer,
+    ProtocolarDocumentoSerializer,
+    TramitarProtocoloSerializer,
 )
 from .services import workflow_service
 
@@ -27,6 +35,7 @@ from .services import workflow_service
 # === VIEWS PRINCIPAIS ===
 
 @login_required
+@role_required('admin', 'staff')
 def dashboard_view(request):
     """Dashboard principal do módulo de protocolo"""
     
@@ -85,6 +94,7 @@ def dashboard_view(request):
 
 
 @login_required
+@role_required('admin', 'staff')
 def protocolar_documento(request):
     """Formulário para protocolar novo documento"""
     form = ProtocolarDocumentoSerializer()
@@ -127,6 +137,7 @@ def protocolar_documento(request):
 
 
 @login_required
+@role_required('admin', 'staff')
 def consultar_protocolo(request):
     """Consulta de protocolos com filtros"""
     protocolos = ProtocoloDocumento.objects.select_related(
@@ -181,6 +192,7 @@ def consultar_protocolo(request):
 
 
 @login_required
+@role_required('admin', 'staff')
 def detalhe_protocolo(request, numero):
     """Detalhes de um protocolo específico"""
     protocolo = get_object_or_404(ProtocoloDocumento, numero_protocolo=numero)
@@ -203,6 +215,7 @@ def detalhe_protocolo(request, numero):
 
 
 @login_required
+@role_required('admin', 'staff')
 def tramitar_documento(request, protocolo_id):
     """Tramitar documento para outro setor"""
     protocolo = get_object_or_404(ProtocoloDocumento, id=protocolo_id)
@@ -257,6 +270,7 @@ def tramitar_documento(request, protocolo_id):
 
 
 @login_required
+@role_required('admin', 'staff')
 def receber_documento(request, tramitacao_id):
     """Receber documento tramitado"""
     tramitacao = get_object_or_404(TramitacaoDocumento, id=tramitacao_id)
@@ -282,11 +296,14 @@ def receber_documento(request, tramitacao_id):
 
 
 @login_required
+@role_required('admin', 'staff')
 def relatorios_view(request):
     """Página de relatórios"""
     return render(request, 'protocolo_tramitacao/relatorios.html')
 
 
+@login_required
+@role_required('admin', 'staff')
 def relatorio_por_setor(request):
     """Relatório de protocolos por setor"""
     relatorio = ProtocoloDocumento.objects.values(
@@ -301,6 +318,8 @@ def relatorio_por_setor(request):
     return JsonResponse(list(relatorio), safe=False)
 
 
+@login_required
+@role_required('admin', 'staff')
 def relatorio_por_status(request):
     """Relatório de protocolos por status"""
     relatorio = ProtocoloDocumento.objects.values('status').annotate(
@@ -310,6 +329,8 @@ def relatorio_por_status(request):
     return JsonResponse(list(relatorio), safe=False)
 
 
+@login_required
+@role_required('admin', 'staff')
 def relatorio_por_prazo(request):
     """Relatório de protocolos por situação de prazo"""
     hoje = timezone.now()
@@ -343,6 +364,8 @@ def relatorio_por_prazo(request):
 
 class ProtocoloDocumentoViewSet(viewsets.ModelViewSet):
     """ViewSet para API de Protocolos"""
+    permission_classes = [RolePermission]
+    allowed_roles = ('admin', 'staff')
     queryset = ProtocoloDocumento.objects.select_related(
         'tipo_documento', 'setor_atual', 'setor_origem', 'protocolado_por'
     ).order_by('-data_protocolo')
@@ -406,18 +429,24 @@ class ProtocoloDocumentoViewSet(viewsets.ModelViewSet):
 
 class TipoDocumentoViewSet(viewsets.ModelViewSet):
     """ViewSet para API de Tipos de Documento"""
+    permission_classes = [RolePermission]
+    allowed_roles = ('admin', 'staff')
     queryset = TipoDocumento.objects.filter(ativo=True).order_by('nome')
     serializer_class = TipoDocumentoSerializer
 
 
 class SetorViewSet(viewsets.ModelViewSet):
     """ViewSet para API de Setores"""
+    permission_classes = [RolePermission]
+    allowed_roles = ('admin', 'staff')
     queryset = Setor.objects.filter(ativo=True).order_by('nome')
     serializer_class = SetorSerializer
 
 
 class TramitacaoDocumentoViewSet(viewsets.ModelViewSet):
     """ViewSet para API de Tramitações"""
+    permission_classes = [RolePermission]
+    allowed_roles = ('admin', 'staff')
     queryset = TramitacaoDocumento.objects.select_related(
         'protocolo', 'setor_origem', 'setor_destino', 'usuario'
     ).order_by('-data_tramitacao')
@@ -433,6 +462,8 @@ class TramitacaoDocumentoViewSet(viewsets.ModelViewSet):
 
 class AnexoProtocoloViewSet(viewsets.ModelViewSet):
     """ViewSet para API de Anexos"""
+    permission_classes = [RolePermission]
+    allowed_roles = ('admin', 'staff')
     queryset = AnexoProtocolo.objects.select_related(
         'protocolo', 'uploaded_by'
     ).order_by('-upload_em')
@@ -443,6 +474,8 @@ class AnexoProtocoloViewSet(viewsets.ModelViewSet):
 
 class EstatisticasAPIView(APIView):
     """API para estatísticas do dashboard"""
+    permission_classes = [RolePermission]
+    allowed_roles = ('admin', 'staff')
     
     def get(self, request):
         hoje = timezone.now()
@@ -471,6 +504,8 @@ class EstatisticasAPIView(APIView):
 
 class PendenciasAPIView(APIView):
     """API para pendências do usuário logado"""
+    permission_classes = [RolePermission]
+    allowed_roles = ('admin', 'staff')
     
     def get(self, request):
         # Protocolos no setor do usuário (simulando setor do usuário)
@@ -484,6 +519,8 @@ class PendenciasAPIView(APIView):
 
 class TramitacoesPendentesAPIView(APIView):
     """API para tramitações pendentes de recebimento"""
+    permission_classes = [RolePermission]
+    allowed_roles = ('admin', 'staff')
     
     def get(self, request):
         tramitacoes = TramitacaoDocumento.objects.filter(

@@ -4,6 +4,8 @@ from rest_framework import status
 from decimal import Decimal
 from datetime import date, timedelta
 
+from tests.conftest import assert_pagination
+
 class TestMultaWorkflow:
     """Testes de integração para fluxo completo de multas"""
     
@@ -343,7 +345,12 @@ class TestAuthenticationWorkflow:
         access_token = login_response.data['access']
         api_client.credentials(HTTP_AUTHORIZATION=f'Bearer {access_token}')
         
-        protected_url = reverse('test_api')
+        public_test_url = reverse('test_api')
+        public_response = api_client.get(public_test_url)
+        
+        assert public_response.status_code == status.HTTP_200_OK
+        
+        protected_url = reverse('auth:protected_endpoint')
         protected_response = api_client.get(protected_url)
         
         assert protected_response.status_code == status.HTTP_200_OK

@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="utf-8">
+    <title>Painel de Atendimento</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        :root {
+            font-family: "Segoe UI", Roboto, sans-serif;
+            background: #031522;
+            color: #f1f6fb;
+        }
+        body {
+            margin: 0;
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+        header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        header h1 {
+            font-size: 3rem;
+            letter-spacing: 0.08em;
+            margin: 0;
+            text-transform: uppercase;
+        }
+        header p {
+            margin: 0.6rem 0 0;
+            color: #8fb4d9;
+            font-size: 1.1rem;
+        }
+        .painel-grid {
+            display: grid;
+            gap: 1.2rem;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            flex: 1;
+        }
+        .card {
+            background: linear-gradient(160deg, rgba(14, 37, 69, 0.9), rgba(17, 58, 92, 0.92));
+            border-radius: 18px;
+            padding: 1.8rem;
+            box-shadow: 0 20px 45px rgba(0, 0, 0, 0.35);
+            display: flex;
+            flex-direction: column;
+        }
+        .card h2 {
+            margin: 0;
+            font-size: 2.2rem;
+            text-transform: uppercase;
+        }
+        .card p.meta {
+            margin: 0.3rem 0 1.2rem;
+            color: #9ec2e0;
+            font-size: 1rem;
+        }
+        .status-bloco {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+        }
+        .status-bloco .senha-ativa {
+            font-size: 4rem;
+            font-weight: bold;
+            letter-spacing: 0.1em;
+        }
+        .status-bloco .mensagem {
+            font-size: 1rem;
+            max-width: 45%;
+            color: #c6def7;
+            text-align: right;
+        }
+        .fila-detalhes {
+            margin-top: 1.4rem;
+            display: flex;
+            justify-content: space-between;
+            font-size: 1.1rem;
+            color: #b9d2ea;
+        }
+        .alerta {
+            margin-top: 1rem;
+            padding: 1rem;
+            border-radius: 12px;
+            background: rgba(255, 209, 102, 0.15);
+            color: #ffd166;
+            font-size: 1.1rem;
+        }
+        footer {
+            margin-top: 2rem;
+            text-align: center;
+            color: #82a2c4;
+            font-size: 1rem;
+        }
+        @media (max-width: 900px) {
+            header h1 { font-size: 2.2rem; }
+            .status-bloco { flex-direction: column; align-items: flex-start; }
+            .status-bloco .mensagem { max-width: 100%; text-align: left; margin-top: 1rem; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Painel de Atendimento Presencial</h1>
+        <p id="mensagem-padrao">{{ mensagem_aguarde_padrao }}</p>
+    </header>
+
+    <section class="painel-grid" id="painel-grid">
+        {% for balcao in balcoes %}
+        <article class="card" data-balcao-id="{{ balcao.id }}">
+            <h2>{{ balcao.nome }}</h2>
+            <p class="meta">Código {{ balcao.codigo }} · {{ balcao.localizacao|default:"Localização não informada" }}</p>
+            <div class="status-bloco">
+                <span class="senha-ativa" id="senha-ativa-{{ balcao.id }}">---</span>
+                <span class="mensagem" id="mensagem-{{ balcao.id }}">Carregando informações...</span>
+            </div>
+            <div class="fila-detalhes">
+                <span>Em espera: <strong id="espera-{{ balcao.id }}">--</strong></span>
+                <span>Atendimento: <strong id="atendimento-{{ balcao.id }}">--</strong></span>
+                <span>Tempo estimado: <strong id="tempo-{{ balcao.id }}">-- min</strong></span>
+            </div>
+            <div class="alerta" id="alerta-{{ balcao.id }}" hidden>
+                Sem fila no momento. Por favor, aguarde novas senhas.
+            </div>
+        </article>
+        {% empty %}
+        <article class="card">
+            <h2>Nenhum guichê ativo</h2>
+            <p class="meta">Ative um guichê na administração para iniciar o painel.</p>
+        </article>
+        {% endfor %}
+    </section>
+
+    <footer>
+        Atualização automática a cada <span>{{ refresh_interval }}</span> segundos · Última atualização <span id="ultima-atualizacao">--:--:--</span>
+    </footer>
+
+    <script>
+        const REFRESH_INTERVAL = {{ refresh_interval|default:10 }};
+
+        function formatarHora(dataIso) {
+            if (!dataIso) return '--:--:--';
+            const data = new Date(dataIso);
+            return data.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        }
+
+        function atualizarPainel() {
+            fetch('/atendimento/autoatendimento/painel-resumo/')
+                .then(resp => resp.json())
+                .then(payload => {
+                    document.getElementById('ultima-atualizacao').textContent = formatarHora(payload.atualizado_em);
+                    payload.balcoes.forEach(info => {
+                        const senhaAtiva = document.getElementById(`senha-ativa-${info.id}`);
+                        const mensagem = document.getElementById(`mensagem-${info.id}`);
+                        const espera = document.getElementById(`espera-${info.id}`);
+                        const atendimento = document.getElementById(`atendimento-${info.id}`);
+                        const tempo = document.getElementById(`tempo-${info.id}`);
+                        const alerta = document.getElementById(`alerta-${info.id}`);
+
+                        if (senhaAtiva) {
+                            const ativa = (info.senhas_em_atendimento && info.senhas_em_atendimento[0])
+                                ? info.senhas_em_atendimento[0].identificador
+                                : (info.proxima_senha || '---');
+                            senhaAtiva.textContent = ativa;
+                        }
+                        if (mensagem) {
+                            mensagem.textContent = info.mensagem_aguarde;
+                        }
+                        if (espera) {
+                            espera.textContent = info.senhas_em_espera;
+                        }
+                        if (atendimento) {
+                            const emAtendimento = info.senhas_em_atendimento ? info.senhas_em_atendimento.length : 0;
+                            atendimento.textContent = emAtendimento;
+                        }
+                        if (tempo) {
+                            tempo.textContent = `${info.tempo_estimado_minutos} min`;
+                        }
+                        if (alerta) {
+                            alerta.hidden = !info.alerta_fila_vazia;
+                        }
+                    });
+                })
+                .catch(err => console.warn('Falha ao atualizar painel', err));
+        }
+
+        atualizarPainel();
+        setInterval(atualizarPainel, REFRESH_INTERVAL * 1000);
+    </script>
+</body>
+</html>

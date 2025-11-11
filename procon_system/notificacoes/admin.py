@@ -4,7 +4,8 @@ from .models import (
     Notificacao,
     PreferenciaNotificacao,
     LogNotificacao,
-    TemplateNotificacao
+    TemplateNotificacao,
+    DispositivoNotificacao,
 )
 
 @admin.register(TipoNotificacao)
@@ -91,10 +92,10 @@ class TemplateNotificacaoAdmin(admin.ModelAdmin):
     readonly_fields = ['criado_em', 'atualizado_em']
     
     fieldsets = (
-        ('Informações Básicas', {
+        ('Informacoes Basicas', {
             'fields': ('nome', 'tipo_notificacao', 'canal', 'ativo')
         }),
-        ('Conteúdo', {
+        ('Conteudo', {
             'fields': ('assunto', 'conteudo', 'variaveis')
         }),
         ('Timestamps', {
@@ -102,3 +103,11 @@ class TemplateNotificacaoAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
     )
+
+@admin.register(DispositivoNotificacao)
+class DispositivoNotificacaoAdmin(admin.ModelAdmin):
+    list_display = ['usuario', 'plataforma', 'token', 'ativo', 'atualizado_em']
+    list_filter = ['plataforma', 'ativo']
+    search_fields = ['usuario__username', 'usuario__first_name', 'usuario__last_name', 'token']
+    ordering = ['-atualizado_em']
+    readonly_fields = ['criado_em', 'atualizado_em']

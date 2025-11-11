@@ -671,30 +671,54 @@ class DenunciaCidadaoAPIView(APIView):
         
         return f"DEN-{seq:06d}/{ano}"
     
-    def _registrar_caixa_entrada(self, peticao, config):
-        """Cria registro na caixa de entrada conforme o tipo da peticao"""
+    def _registrar_caixa_entrada(self, peticao, config=None):
+        """Cria registro na caixa de entrada para petições ou denúncias."""
+        config = config or {
+            'tipo_caixa': 'DENUNCIA',
+            'nome': 'Denúncia Portal do Cidadão',
+            'prioridade': 'NORMAL',
+            'setor_destino': 'Fiscalização - Denúncias',
+        }
+
+        numero_documento = getattr(
+            peticao,
+            'numero_peticao',
+            getattr(peticao, 'numero_denuncia', ''),
+        )
+        descricao = getattr(peticao, 'descricao', None) or getattr(peticao, 'descricao_fatos', '')
+        remetente_nome = getattr(peticao, 'peticionario_nome', None) or getattr(peticao, 'nome_denunciante', '')
+        remetente_documento = getattr(
+            peticao,
+            'peticionario_documento',
+            getattr(peticao, 'cpf_cnpj', ''),
+        )
+        remetente_email = getattr(peticao, 'peticionario_email', None) or getattr(peticao, 'email', '')
+        remetente_telefone = getattr(peticao, 'peticionario_telefone', None) or getattr(peticao, 'telefone', '')
+        empresa_nome = getattr(peticao, 'empresa_nome', None) or getattr(peticao, 'empresa_denunciada', '')
+        empresa_cnpj = getattr(peticao, 'empresa_cnpj', None) or getattr(peticao, 'cnpj_empresa', '')
+
         try:
             return CaixaEntrada.objects.create(
                 tipo_documento=config.get('tipo_caixa', 'PETICAO'),
-                assunto=f"{config['nome']} - {peticao.numero_peticao}"[:200],
-                descricao=(peticao.descricao or '')[:1000],
+                assunto=f"{config['nome']} - {numero_documento}"[:200],
+                descricao=(descricao or '')[:1000],
                 prioridade=config.get('prioridade', 'NORMAL'),
-                remetente_nome=peticao.peticionario_nome,
-                remetente_documento=peticao.peticionario_documento,
-                remetente_email=peticao.peticionario_email,
-                remetente_telefone=peticao.peticionario_telefone,
-                empresa_nome=peticao.empresa_nome or '',
-                empresa_cnpj=peticao.empresa_cnpj or '',
-                setor_destino=config.get('setor_destino', 'JURIDICO_1'),
-                setor_lotacao=config.get('setor_destino', 'JURIDICO_1'),
+                remetente_nome=remetente_nome or 'Anônimo',
+                remetente_documento=remetente_documento or '',
+                remetente_email=remetente_email or '',
+                remetente_telefone=remetente_telefone or '',
+                empresa_nome=empresa_nome or '',
+                empresa_cnpj=empresa_cnpj or '',
+                setor_destino=config.get('setor_destino', 'Jurídico'),
+                setor_lotacao=config.get('setor_destino', 'Jurídico'),
                 content_type=ContentType.objects.get_for_model(peticao),
                 object_id=peticao.id,
                 origem='PORTAL_CIDADAO',
-                ip_origem=peticao.ip_origem,
-                user_agent=peticao.user_agent,
+                ip_origem=getattr(peticao, 'ip_origem', ''),
+                user_agent=getattr(peticao, 'user_agent', ''),
             )
         except Exception as exc:
-            print(f"Erro ao registrar peticao na caixa de entrada: {exc}")
+            print(f"Erro ao registrar documento na caixa de entrada: {exc}")
             return None
 
     def _notificar_destino(self, peticao, config, documento_caixa=None):
@@ -776,6 +800,18 @@ class DenunciaCidadaoAPIView(APIView):
                 )
         except Exception as exc:
             print(f"Erro ao notificar destino da peticao: {exc}")
+
+    def _notificar_fiscais(self, denuncia, documento_caixa=None):
+        """
+        Reaproveita o mecanismo de notificação para alertar a fiscalização sobre novas denúncias.
+        """
+        config = {
+            'nome': 'Denúncia Portal do Cidadão',
+            'setor_destino': 'Fiscalização - Denúncias',
+            'tipo_caixa': 'DENUNCIA',
+            'prioridade': 'ALTA',
+        }
+        self._notificar_destino(denuncia, config, documento_caixa=documento_caixa)
 
 class TiposPeticaoPortalAPIView(APIView):
     """Retorna os tipos de peticao disponveis para o portal do cidadao"""

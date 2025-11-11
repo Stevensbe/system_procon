@@ -49,7 +49,7 @@ def criar_protocolo_auto_infracao(sender, instance, created, **kwargs):
                 usuario=usuario_sistema
             )
             
-            print(f"✅ Protocolo {protocolo.numero_protocolo} criado automaticamente para Auto {instance.numero}")
+            print(f" Protocolo {protocolo.numero_protocolo} criado automaticamente para Auto {instance.numero}")
             
         except Exception as e:
             print(f"❌ Erro ao criar protocolo para Auto {instance.numero}: {e}")
@@ -88,7 +88,7 @@ def criar_protocolo_multa(sender, instance, created, **kwargs):
                 usuario=usuario_sistema
             )
             
-            print(f"✅ Protocolo {protocolo.numero_protocolo} criado automaticamente para Multa #{instance.pk}")
+            print(f" Protocolo {protocolo.numero_protocolo} criado automaticamente para Multa #{instance.pk}")
             
         except Exception as e:
             print(f"❌ Erro ao criar protocolo para Multa #{instance.pk}: {e}")
@@ -128,7 +128,7 @@ def atualizar_protocolo_processo(sender, instance, created, **kwargs):
                         protocolo.observacoes = f"{protocolo.observacoes}\nStatus atualizado: {instance.get_status_display()}".strip()
                         protocolo.save()
                         
-                        print(f"✅ Protocolo {protocolo.numero_protocolo} atualizado para status: {novo_status}")
+                        print(f" Protocolo {protocolo.numero_protocolo} atualizado para status: {novo_status}")
                         
         except Exception as e:
             print(f"❌ Erro ao atualizar protocolo do processo {instance.numero_processo}: {e}")
@@ -204,6 +204,6 @@ def configurar_setores_padrao():
             print(f"⚠️  Erro ao criar setor {setor_data['sigla']}: {e}")
     
     if setores_criados:
-        print(f"✅ Setores criados: {', '.join(setores_criados)}")
+        print(f" Setores criados: {', '.join(setores_criados)}")
     
     return setores_criados
