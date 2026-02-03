@@ -11,17 +11,17 @@
 
 :root {
   --sidebar-width: 280px;
-  --sidebar-bg: #ffffff;
-  --sidebar-bg-dark: #f8f9fa;
-  --sidebar-text: #495057;
-  --sidebar-text-hover: #212529;
-  --sidebar-active: #007bff;
-  --sidebar-active-bg: #e3f2fd;
-  --sidebar-border: #dee2e6;
+  --sidebar-bg: hsl(var(--sidebar-background));
+  --sidebar-bg-dark: hsl(var(--muted));
+  --sidebar-text: hsl(var(--sidebar-foreground));
+  --sidebar-text-hover: hsl(var(--foreground));
+  --sidebar-active: hsl(var(--procon-blue-500));
+  --sidebar-active-bg: hsl(var(--secondary));
+  --sidebar-border: hsl(var(--sidebar-border));
   --sidebar-shadow: 0 2px 4px rgba(0,0,0,0.1);
   --sidebar-transition: all 0.2s ease;
-  --sidebar-header-bg: #ffffff;
-  --sidebar-footer-bg: #f8f9fa;
+  --sidebar-header-bg: hsl(var(--sidebar-background));
+  --sidebar-footer-bg: hsl(var(--sidebar-background));
 }
 
 /* =========================================================================
@@ -377,16 +377,17 @@
    === MODO ESCURO ===
    ========================================================================= */
 
-[data-theme="dark"] .sidebar {
-  --sidebar-bg: #1a1d21;
-  --sidebar-bg-dark: #0c0f12;
-  --sidebar-text: #9ca3af;
-  --sidebar-text-hover: #f3f4f6;
-  --sidebar-active: #3b82f6;
-  --sidebar-active-bg: #374151;
-  --sidebar-border: rgba(255,255,255,0.1);
-  --sidebar-header-bg: #0c0f12;
-  --sidebar-footer-bg: #0c0f12;
+[data-theme="dark"] .sidebar,
+.dark .sidebar {
+  --sidebar-bg: hsl(var(--sidebar-background));
+  --sidebar-bg-dark: hsl(var(--muted));
+  --sidebar-text: hsl(var(--sidebar-foreground));
+  --sidebar-text-hover: hsl(var(--foreground));
+  --sidebar-active: hsl(var(--procon-blue-400));
+  --sidebar-active-bg: hsl(var(--secondary));
+  --sidebar-border: hsl(var(--sidebar-border));
+  --sidebar-header-bg: hsl(var(--sidebar-background));
+  --sidebar-footer-bg: hsl(var(--sidebar-background));
 }
 
 /* =========================================================================

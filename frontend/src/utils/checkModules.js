@@ -24,6 +24,7 @@ export const checkModules = () => {
     // Módulos financeiros
     cobranca: () => import('../pages/cobranca/CobrancaDashboard'),
     recursos: () => import('../pages/recursos/RecursosDashboard'),
+    tramitacao: () => import('../pages/tramitacao/TramitacaoDashboard'),
     
     // Módulos administrativos
     auditoria: () => import('../pages/auditoria/AuditoriaDashboard'),
@@ -89,6 +90,7 @@ export const checkRoutes = () => {
     '/consulta-publica',
     '/cobranca',
     '/recursos',
+    '/tramitacao',
     '/auditoria',
     '/notificacoes',
     '/legislacao',

@@ -10,6 +10,8 @@ import empresasService from '../../services/empresasService';
 const EmpresasPage = () => {
   const [empresas, setEmpresas] = useState([]);
   const [loading, setLoading] = useState(false);
+  const SELECT_ALL_VALUE = "__all__";
+
   const [filtros, setFiltros] = useState({
     search: '',
     situacao: '',
@@ -55,7 +57,7 @@ const EmpresasPage = () => {
   };
 
   const handleFiltroChange = (campo, valor) => {
-    setFiltros(prev => ({ ...prev, [campo]: valor }));
+    setFiltros(prev => ({ ...prev, [campo]: valor === SELECT_ALL_VALUE ? '' : valor }));
   };
 
   const aplicarFiltros = () => {
@@ -130,12 +132,12 @@ const EmpresasPage = () => {
             
             <div>
               <Label htmlFor="situacao">Situação</Label>
-              <Select value={filtros.situacao} onValueChange={(value) => handleFiltroChange('situacao', value)}>
+              <Select value={filtros.situacao || undefined} onValueChange={(value) => handleFiltroChange('situacao', value)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Todas" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Todas</SelectItem>
+                  <SelectItem value={SELECT_ALL_VALUE}>Todas</SelectItem>
                   <SelectItem value="ativa">Ativa</SelectItem>
                   <SelectItem value="suspensa">Suspensa</SelectItem>
                   <SelectItem value="inativa">Inativa</SelectItem>
@@ -145,12 +147,12 @@ const EmpresasPage = () => {
             
             <div>
               <Label htmlFor="porte">Porte</Label>
-              <Select value={filtros.porte} onValueChange={(value) => handleFiltroChange('porte', value)}>
+              <Select value={filtros.porte || undefined} onValueChange={(value) => handleFiltroChange('porte', value)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Todos" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Todos</SelectItem>
+                  <SelectItem value={SELECT_ALL_VALUE}>Todos</SelectItem>
                   {portes.map((porte) => (
                     <SelectItem key={porte.id} value={porte.id}>
                       {porte.nome}
@@ -162,12 +164,12 @@ const EmpresasPage = () => {
             
             <div>
               <Label htmlFor="segmento">Segmento</Label>
-              <Select value={filtros.segmento} onValueChange={(value) => handleFiltroChange('segmento', value)}>
+              <Select value={filtros.segmento || undefined} onValueChange={(value) => handleFiltroChange('segmento', value)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Todos" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Todos</SelectItem>
+                  <SelectItem value={SELECT_ALL_VALUE}>Todos</SelectItem>
                   {segmentos.map((segmento) => (
                     <SelectItem key={segmento.id} value={segmento.id}>
                       {segmento.nome}
@@ -179,12 +181,12 @@ const EmpresasPage = () => {
             
             <div>
               <Label htmlFor="cidade">Cidade</Label>
-              <Select value={filtros.cidade} onValueChange={(value) => handleFiltroChange('cidade', value)}>
+              <Select value={filtros.cidade || undefined} onValueChange={(value) => handleFiltroChange('cidade', value)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Todas" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Todas</SelectItem>
+                  <SelectItem value={SELECT_ALL_VALUE}>Todas</SelectItem>
                   {cidades.map((cidade) => (
                     <SelectItem key={cidade} value={cidade}>
                       {cidade}

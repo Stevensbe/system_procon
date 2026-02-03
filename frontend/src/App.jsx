@@ -18,7 +18,8 @@ import ErrorFallback from './components/common/ErrorFallback';
 import GlobalErrorBoundary from './components/common/GlobalErrorBoundary';
 
 // ✅ CORREÇÃO: ProtectedRoute integrado diretamente
-import { useAuth, AuthState } from './context/AuthContext';
+// import { useAuth, AuthState } from './context/AuthContext'; // Django Auth (desativado)
+import { useAuth, AuthState } from './context/SupabaseAuthContext'; // Supabase Auth (ATIVO)
 
 // ✅ COMPONENTES DE CONTROLE DE ROTAS
 function ProtectedRoute({ children, allowedRoles }) {
@@ -92,6 +93,13 @@ const preloadComponent = (importFunc) => {
 const Login = lazyLoad(() => import('./pages/auth/Login'));
 const Logout = lazyLoad(() => import('./pages/auth/Logout'));
 
+// --- Páginas de Autenticação Supabase (NOVO) ---
+const SupabaseLogin = lazyLoad(() => import('./pages/auth/SupabaseLogin'));
+const SupabaseRegister = lazyLoad(() => import('./pages/auth/SupabaseRegister'));
+const ForgotPassword = lazyLoad(() => import('./pages/auth/ForgotPassword'));
+const ResetPassword = lazyLoad(() => import('./pages/auth/ResetPassword'));
+const AuthCallback = lazyLoad(() => import('./pages/auth/AuthCallback'));
+
 // --- Portal do Cidadão (PÁGINA PÚBLICA) ---
 const PortalCidadao = lazyLoad(() => import('./pages/PortalCidadao'));
 const PortalEmpresa = lazyLoad(() => import('./pages/portal/PortalEmpresa'));
@@ -120,10 +128,12 @@ const TriagemListPage = lazyLoad(() => import('./pages/triagem/TriagemListPage')
 const UsuariosDashboard = lazyLoad(() => import('./pages/usuarios/UsuariosDashboard'));
 const UsuariosList = lazyLoad(() => import('./pages/usuarios/UsuariosList'));
 const UsuarioForm = lazyLoad(() => import('./pages/usuarios/UsuarioForm'));
+const SupabaseUsersAdmin = lazyLoad(() => import('./pages/usuarios/SupabaseUsersAdmin'));
 
 // --- Autos de Banco (LAZY LOADING PADRÃO) ---
 const AutoBancoListPage = lazyLoad(() => import('./pages/fiscalizacao/banco/AutoBancoListPage'));
 const AutoBancoDetailPage = lazyLoad(() => import('./pages/fiscalizacao/banco/AutoBancoDetailPage'));
+const AutoBancoCreatePage = lazyLoad(() => import('./pages/fiscalizacao/banco/AutoBancoCreatePage'));
 const AutoBancoEditPage = lazyLoad(() => import('./pages/fiscalizacao/banco/AutoBancoEditPage'));
 
 // --- Autos de Supermercado (LAZY LOADING PADRÃO) ---
@@ -152,11 +162,15 @@ const AutoInfracaoEditPage = lazyLoad(() => import('./pages/fiscalizacao/infraca
 
 // --- Autos de Apreensão/Inutilização (LAZY LOADING PADRÃO) ---
 const AutoApreensaoPage = lazyLoad(() => import('./pages/fiscalizacao/AutoApreensaoPage'));
+const NotificacoesFiscalizacaoPage = lazyLoad(() => import('./pages/fiscalizacao/NotificacoesFiscalizacaoPage'));
 
 // --- Teste de Código de Barras (LAZY LOADING PADRÃO) ---
 const BarcodeTest = lazyLoad(() => import('./components/fiscalizacao/BarcodeTest'));
 const BarcodeTestSimple = lazyLoad(() => import('./components/fiscalizacao/BarcodeTestSimple'));
 const BarcodeTestAPI = lazyLoad(() => import('./components/fiscalizacao/BarcodeTestAPI'));
+
+// --- Tramitação ---
+const TramitacaoDashboard = React.lazy(() => import('./pages/tramitacao/TramitacaoDashboard'));
 
 // --- Processos Administrativos ---
 const ProcessoListPage = React.lazy(() => import('./pages/processos/ProcessoListPage'));
@@ -206,6 +220,9 @@ const BoletoDetail = React.lazy(() => import('./pages/cobranca/BoletoDetail'));
 const PagamentoBoleto = React.lazy(() => import('./pages/cobranca/PagamentoBoleto'));
 const CobrancaPage = React.lazy(() => import('./pages/cobranca/CobrancaPage'));
 const CobrancaForm = React.lazy(() => import('./pages/cobranca/CobrancaForm'));
+const GrmList = React.lazy(() => import('./pages/cobranca/GrmList'));
+const GrmForm = React.lazy(() => import('./pages/cobranca/GrmForm'));
+const GrmDetail = React.lazy(() => import('./pages/cobranca/GrmDetail'));
 
 // --- Módulo de Remessas (Novo) ---
 const RemessasList = React.lazy(() => import('./pages/cobranca/RemessasList'));
@@ -219,28 +236,23 @@ const ProdutosPage = React.lazy(() => import('./pages/produtos/ProdutosPage'));
 // --- Componentes de Demonstração ---
 const IrregularidadesDemo = React.lazy(() => import('./components/fiscalizacao/IrregularidadesDemo'));
 
-              // --- Módulo Jurídico ---
-              const DashboardJuridico = React.lazy(() => import('./pages/juridico/DashboardJuridico'));
-              const ListaProcessos = React.lazy(() => import('./pages/juridico/ListaProcessos'));
-              const DetalheProcesso = React.lazy(() => import('./pages/juridico/DetalheProcesso'));
-              const FormProcesso = React.lazy(() => import('./pages/juridico/FormProcesso'));
-              const ListaAnalises = React.lazy(() => import('./pages/juridico/ListaAnalises'));
-              const RelatoriosAvancados = React.lazy(() => import('./pages/juridico/RelatoriosAvancados'));
-              const ConfiguracoesJuridicas = React.lazy(() => import('./pages/juridico/ConfiguracoesJuridicas'));
-              const DocumentosJuridicos = React.lazy(() => import('./pages/juridico/DocumentosJuridicos'));
-              const HistoricosJuridicos = React.lazy(() => import('./pages/juridico/HistoricosJuridicos'));
+// --- Módulo Jurídico ---
+const DashboardJuridico = React.lazy(() => import('./pages/juridico/DashboardJuridico'));
+const ListaProcessos = React.lazy(() => import('./pages/juridico/ListaProcessos'));
+const DetalheProcesso = React.lazy(() => import('./pages/juridico/DetalheProcesso'));
+const FormProcesso = React.lazy(() => import('./pages/juridico/FormProcesso'));
+const ListaAnalises = React.lazy(() => import('./pages/juridico/ListaAnalises'));
+const RelatoriosAvancados = React.lazy(() => import('./pages/juridico/RelatoriosAvancados'));
+const ConfiguracoesJuridicas = React.lazy(() => import('./pages/juridico/ConfiguracoesJuridicas'));
+const DocumentosJuridicos = React.lazy(() => import('./pages/juridico/DocumentosJuridicos'));
+const HistoricosJuridicos = React.lazy(() => import('./pages/juridico/HistoricosJuridicos'));
+const PeticoesJuridico1 = React.lazy(() => import('./pages/juridico/PeticoesJuridico1'));
+const PeticoesJuridico2 = React.lazy(() => import('./pages/juridico/PeticoesJuridico2'));
 
 // --- Módulo de Relatórios (Novo) ---
 const RelatoriosDashboard = React.lazy(() => import('./pages/relatorios/RelatoriosDashboard'));
 const RelatoriosList = React.lazy(() => import('./pages/relatorios/RelatoriosList'));
 const RelatorioForm = React.lazy(() => import('./pages/relatorios/RelatorioForm'));
-
-// --- Módulo de Tramitação (Novo) ---
-const TramitacaoDashboard = React.lazy(() => import('./pages/tramitacao/TramitacaoDashboard'));
-const TramitacaoList = React.lazy(() => import('./pages/tramitacao/TramitacaoList'));
-const TramitacaoForm = React.lazy(() => import('./pages/tramitacao/TramitacaoForm'));
-const TramitacaoDetail = React.lazy(() => import('./pages/tramitacao/TramitacaoDetail'));
-const TramitarDocumento = React.lazy(() => import('./pages/tramitacao/TramitarDocumento'));
 
 // --- Módulo de Auditoria (Novo) ---
 const AuditoriaDashboard = React.lazy(() => import('./pages/auditoria/AuditoriaDashboard'));
@@ -265,17 +277,6 @@ const RecursoDefesaForm = React.lazy(() => import('./pages/recursos-defesas/Recu
 
 // --- Módulo de Legislação (Novo) ---
 const LegislacaoDashboard = React.lazy(() => import('./pages/legislacao/LegislacaoDashboard'));
-
-// --- Módulo de Protocolo (Novo) ---
-const ProtocoloDashboard = React.lazy(() => import('./pages/protocolo/ProtocoloDashboard'));
-const ProtocoloList = React.lazy(() => import('./pages/protocolo/ProtocoloList'));
-const ProtocoloForm = React.lazy(() => import('./pages/protocolo/ProtocoloForm'));
-const ProtocoloDetail = React.lazy(() => import('./pages/protocolo/ProtocoloDetail'));
-
-// --- Módulo de Peticionamento (Novo) ---
-const PeticionamentoDashboard = React.lazy(() => import('./pages/peticionamento/PeticionamentoDashboard'));
-const PeticionamentoForm = React.lazy(() => import('./pages/peticionamento/PeticionamentoForm'));
-const PeticionamentoDetail = React.lazy(() => import('./pages/peticionamento/PeticionamentoDetail'));
 
 // --- Módulo de Caixa de Entrada por Setor (Novo) ---
 const CaixaEntrada = lazyLoad(() => import('./pages/caixa-entrada/CaixaEntrada'));
@@ -330,7 +331,7 @@ const SimpleErrorFallback = ({ error, resetErrorBoundary }) => (
       <p className="text-gray-600 mb-6">
         {error?.message || 'Erro inesperado na aplicação'}
       </p>
-      <button 
+      <button
         onClick={resetErrorBoundary}
         className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
       >
@@ -354,17 +355,17 @@ function App() {
 
     // Inicializar monitoramento
     monitoringService.trackPageView('app_start');
-    
+
     // Sincronizar eventos de monitoramento armazenados
     monitoringService.syncStoredEvents();
-    
+
     // Configurar sincronização automática quando voltar online
     const handleOnline = () => {
       monitoringService.syncStoredEvents();
     };
-    
+
     window.addEventListener('online', handleOnline);
-    
+
     return () => {
       window.removeEventListener('online', handleOnline);
     };
@@ -375,7 +376,7 @@ function App() {
       <Router>
         <Suspense fallback={<PageLoadingFallback />}>
           <Routes>
-            
+
             {/* ===== ROTAS PÚBLICAS (SEM AUTENTICAÇÃO) ===== */}
             <Route
               path="/login"
@@ -386,7 +387,35 @@ function App() {
               }
             />
             <Route path="/logout" element={<Logout />} />
-            
+
+            {/* ===== ROTAS DE AUTENTICAÇÃO SUPABASE (NOVAS) ===== */}
+            <Route
+              path="/auth/login"
+              element={
+                <PublicRoute>
+                  <SupabaseLogin />
+                </PublicRoute>
+              }
+            />
+            <Route
+              path="/auth/register"
+              element={
+                <PublicRoute>
+                  <SupabaseRegister />
+                </PublicRoute>
+              }
+            />
+            <Route
+              path="/auth/forgot-password"
+              element={
+                <PublicRoute>
+                  <ForgotPassword />
+                </PublicRoute>
+              }
+            />
+            <Route path="/auth/reset-password" element={<ResetPassword />} />
+            <Route path="/auth/callback" element={<AuthCallback />} />
+
             <Route
               path="/painel-atendimento/:balcaoId"
               element={
@@ -397,13 +426,13 @@ function App() {
             />
 
             {/* ===== PORTAL DO CIDADÃO (PÁGINA PÚBLICA) ===== */}
-        <Route path="/portal-cidadao" element={<PortalCidadao />} />
-        <Route path="/portal-empresa/login" element={<PortalEmpresaLogin />} />
-        <Route path="/portal-empresa/solicitacao" element={<PortalEmpresaSolicitacao />} />
-            
+            <Route path="/portal-cidadao" element={<PortalCidadao />} />
+            <Route path="/portal-empresa/login" element={<PortalEmpresaLogin />} />
+            <Route path="/portal-empresa/solicitacao" element={<PortalEmpresaSolicitacao />} />
+
             {/* ===== REDIRECIONAMENTO RAIZ ===== */}
-            <Route path="/" element={<Navigate to="/caixa-entrada/pessoal" replace />} />
-            
+            <Route path="/" element={<Navigate to="/caixa-entrada" replace />} />
+
             {/* ===== ROTAS PROTEGIDAS (COM LAYOUT) ===== */}
             <Route
               path="/"
@@ -413,47 +442,48 @@ function App() {
                 </ProtectedRoute>
               }
             >
-              
+
               {/* === DASHBOARD === */}
               <Route path="dashboard" element={<Dashboard />} />
-              
+
               {/* === FISCALIZAÇÃO === */}
               <Route path="fiscalizacao" element={<FiscalizacaoHomePage />} />
               <Route path="fiscalizacao/dashboard" element={<FiscalizacaoDashboard />} />
               <Route path="fiscalizacao/selecao" element={<SelecaoAutoPage />} />
               <Route path="fiscalizacao/autos" element={<AutoList />} />
               <Route path="triagem" element={<TriagemListPage />} />
-              
+
               {/* === TESTE DE CÓDIGO DE BARRAS === */}
               <Route path="fiscalizacao/teste-barcode" element={<BarcodeTest />} />
               <Route path="fiscalizacao/teste-simples" element={<BarcodeTestSimple />} />
               <Route path="fiscalizacao/teste-api" element={<BarcodeTestAPI />} />
               <Route path="fiscalizacao/novo-auto" element={<AutoForm />} />
               <Route path="fiscalizacao/auto/:id/editar" element={<AutoForm />} />
-              
+
               {/* === AUTOS DE BANCO === */}
               <Route path="fiscalizacao/bancos" element={<AutoBancoListPage />} />
+              <Route path="fiscalizacao/bancos/novo" element={<AutoBancoCreatePage />} />
               <Route path="fiscalizacao/bancos/:id" element={<AutoBancoDetailPage />} />
               <Route path="fiscalizacao/bancos/:id/editar" element={<AutoBancoEditPage />} />
-              
+
               {/* === AUTOS DE SUPERMERCADO === */}
               <Route path="fiscalizacao/supermercados" element={<AutoSupermercadoListPage />} />
               <Route path="fiscalizacao/supermercados/novo" element={<AutoSupermercadoCreatePage />} />
               <Route path="fiscalizacao/supermercados/:id" element={<AutoSupermercadoDetailPage />} />
               <Route path="fiscalizacao/supermercados/:id/editar" element={<AutoSupermercadoEditPage />} />
-              
+
               {/* === AUTOS DE POSTO === */}
               <Route path="fiscalizacao/postos" element={<AutoPostoListPage />} />
               <Route path="fiscalizacao/postos/novo" element={<AutoPostoCreatePage />} />
               <Route path="fiscalizacao/postos/:id" element={<AutoPostoDetailPage />} />
               <Route path="fiscalizacao/postos/:id/editar" element={<AutoPostoEditPage />} />
-              
+
               {/* === AUTOS DIVERSOS === */}
               <Route path="fiscalizacao/diversos" element={<AutoDiversosListPage />} />
               <Route path="fiscalizacao/diversos/novo" element={<AutoDiversosCreatePage />} />
               <Route path="fiscalizacao/diversos/:id" element={<AutoDiversosDetailPage />} />
               <Route path="fiscalizacao/diversos/:id/editar" element={<AutoDiversosEditPage />} />
-              
+
               {/* === AUTOS DE INFRAÇÃO === */}
               <Route path="fiscalizacao/infracoes" element={<AutoInfracaoListPage />} />
               <Route path="fiscalizacao/infracoes/novo" element={<AutoInfracaoCreatePage />} />
@@ -463,32 +493,22 @@ function App() {
               {/* === AUTOS DE APREENSÃO/INUTILIZAÇÃO === */}
               <Route path="fiscalizacao/apreensao-inutilizacao" element={<AutoApreensaoPage />} />
               <Route path="fiscalizacao/apreensao-inutilizacao/:id" element={<AutoApreensaoPage />} />
+              <Route path="fiscalizacao/notificacoes" element={<NotificacoesFiscalizacaoPage />} />
 
               {/* === MÓDULO DE USUÁRIOS === */}
-              <Route path="usuarios" element={<UsuariosPage />} />
+              <Route path="usuarios" element={<SupabaseUsersAdmin />} />
+              <Route path="usuarios/admin" element={<SupabaseUsersAdmin />} />
               <Route path="usuarios/dashboard" element={<UsuariosDashboard />} />
               <Route path="usuarios/lista" element={<UsuariosList />} />
               <Route path="usuarios/novo" element={<UsuarioForm />} />
               <Route path="usuarios/:id/editar" element={<UsuarioForm />} />
-              
+
               {/* === MÓDULO DE RELATÓRIOS === */}
               <Route path="relatorios" element={<RelatoriosPage />} />
               <Route path="relatorios/dashboard" element={<RelatoriosDashboard />} />
               <Route path="relatorios/lista" element={<RelatoriosList />} />
               <Route path="relatorios/gerar" element={<RelatorioForm />} />
               <Route path="relatorios/:id" element={<RelatoriosList />} />
-
-              {/* === MÓDULO DE TRAMITAÇÃO === */}
-                      <Route path="tramitacao" element={<TramitacaoList />} />
-        <Route path="tramitacao/dashboard" element={<TramitacaoDashboard />} />
-        <Route path="tramitacao/lista" element={<TramitacaoList />} />
-        <Route path="tramitacao/nova" element={<TramitacaoForm />} />
-        <Route path="tramitacao/tramitar" element={<TramitarDocumento />} />
-        <Route path="tramitacao/pendentes" element={<TramitacaoList />} />
-        <Route path="tramitacao/historico" element={<TramitacaoList />} />
-        <Route path="tramitacao/relatorios" element={<TramitacaoList />} />
-        <Route path="tramitacao/:id/editar" element={<TramitacaoForm />} />
-        <Route path="tramitacao/:id" element={<TramitacaoDetail />} />
 
               {/* === MÓDULO DE CONFIGURAÇÕES === */}
               <Route path="configuracoes" element={<ConfiguracoesPage />} />
@@ -501,23 +521,8 @@ function App() {
               {/* === MÓDULO DE TI === */}
               <Route path="ti" element={<TIDashboard />} />
 
-              {/* === MÓDULO DE PROTOCOLO === */}
-<Route path="protocolo" element={<Navigate to="/protocolo/lista" replace />} />
-<Route path="protocolo/lista" element={<ProtocoloList />} />
-<Route path="protocolo/dashboard" element={<ProtocoloDashboard />} />
-<Route path="protocolo/novo" element={<ProtocoloForm />} />
-<Route path="protocolo/:id" element={<ProtocoloDetail />} />
-<Route path="protocolo/:id/editar" element={<ProtocoloForm />} />
-
-              {/* === MÓDULO DE PETICIONAMENTO === */}
-              <Route path="peticionamento" element={<Navigate to="/peticionamento/dashboard" replace />} />
-              <Route path="peticionamento/dashboard" element={<PeticionamentoDashboard />} />
-              <Route path="peticionamento/novo" element={<PeticionamentoForm />} />
-              <Route path="peticionamento/:id" element={<PeticionamentoDetail />} />
-              <Route path="peticionamento/:id/editar" element={<PeticionamentoForm />} />
-
               {/* === MÓDULO DE CAIXA DE ENTRADA POR SETOR === */}
-                            <Route path="caixa-entrada" element={<CaixaEntrada />} />
+              <Route path="caixa-entrada" element={<CaixaEntrada />} />
               <Route path="caixa-entrada/:setor" element={<Navigate to="/caixa-entrada" replace />} />
               <Route path="caixa-entrada/:setor/:categoria" element={<Navigate to="/caixa-entrada" replace />} />
               <Route path="caixa-denuncias" element={<Navigate to="/caixa-entrada" replace />} />
@@ -571,20 +576,23 @@ function App() {
               <Route path="cobranca/boletos/:id/pagamento" element={<PagamentoBoleto />} />
               <Route path="cobranca/nova" element={<CobrancaForm />} />
               <Route path="cobranca/:id/editar" element={<CobrancaForm />} />
-              
+              <Route path="cobranca/grm" element={<GrmList />} />
+              <Route path="cobranca/grm/novo" element={<GrmForm />} />
+              <Route path="cobranca/grm/:id" element={<GrmDetail />} />
+
               {/* === MÓDULO DE REMESSAS === */}
               <Route path="cobranca/remessas" element={<RemessasList />} />
               <Route path="cobranca/remessas/novo" element={<RemessaForm />} />
               <Route path="cobranca/remessas/:id" element={<RemessaDetail />} />
               <Route path="cobranca/remessas/:id/editar" element={<RemessaForm />} />
-              
+
               {/* === MÓDULO DE NOTIFICAÇÕES === */}
-              <Route path="notificacoes" element={<NotificacoesPage />} />
+              <Route path="notificacoes" element={<Navigate to="/notificacoes/dashboard" replace />} />
               <Route path="notificacoes/dashboard" element={<NotificacoesDashboard />} />
-              <Route path="notificacoes/historico" element={<NotificacoesPage />} />
-              <Route path="notificacoes/templates" element={<NotificacoesPage />} />
-              <Route path="notificacoes/relatorios" element={<NotificacoesPage />} />
-              <Route path="notificacoes/configuracoes" element={<NotificacoesPage />} />
+              <Route path="notificacoes/historico" element={<Navigate to="/notificacoes/dashboard" replace />} />
+              <Route path="notificacoes/templates" element={<Navigate to="/notificacoes/dashboard" replace />} />
+              <Route path="notificacoes/relatorios" element={<Navigate to="/notificacoes/dashboard" replace />} />
+              <Route path="notificacoes/configuracoes" element={<Navigate to="/notificacoes/dashboard" replace />} />
 
               {/* === MÓDULO DE AUDITORIA === */}
               <Route path="auditoria" element={<AuditoriaDashboard />} />
@@ -621,28 +629,28 @@ function App() {
               <Route path="consulta-publica/precos" element={<ConsultaPublicaDashboard />} />
               <Route path="consulta-publica/restricoes" element={<ConsultaPublicaDashboard />} />
               <Route path="consulta-publica/relatorios" element={<ConsultaPublicaDashboard />} />
-              
+
               {/* === MÓDULO DE ANÁLISE JURÍDICA === */}
               <Route path="analise-juridica" element={<AnaliseJuridicaDashboard />} />
               <Route path="analise-juridica/dashboard" element={<AnaliseJuridicaDashboard />} />
               <Route path="analise-juridica/nova" element={<AnaliseJuridicaForm />} />
               <Route path="analise-juridica/:id" element={<AnaliseJuridicaForm />} />
               <Route path="analise-juridica/analista/:id" element={<AnaliseJuridicaDashboard />} />
-              
+
               {/* === MÓDULO DE RELATÓRIOS EXECUTIVOS === */}
               <Route path="relatorios-executivos" element={<RelatoriosExecutivosDashboard />} />
               <Route path="relatorios-executivos/dashboard" element={<RelatoriosExecutivosDashboard />} />
               <Route path="relatorios-executivos/novo" element={<RelatoriosExecutivosDashboard />} />
               <Route path="relatorios-executivos/:id" element={<RelatoriosExecutivosDashboard />} />
               <Route path="relatorios-executivos/usuario/:id" element={<RelatoriosExecutivosDashboard />} />
-              
+
               {/* === MÓDULO DE RECURSOS E DEFESAS === */}
               <Route path="recursos-defesas" element={<RecursosDefesasDashboard />} />
               <Route path="recursos-defesas/dashboard" element={<RecursosDefesasDashboard />} />
               <Route path="recursos-defesas/novo" element={<RecursoDefesaForm />} />
               <Route path="recursos-defesas/:id" element={<RecursoDefesaForm />} />
               <Route path="recursos-defesas/advogado/:id" element={<RecursosDefesasDashboard />} />
-              
+
               {/* === MÓDULO DE LEGISLAÇÃO === */}
               <Route path="legislacao" element={<LegislacaoDashboard />} />
               <Route path="legislacao/dashboard" element={<LegislacaoDashboard />} />
@@ -650,12 +658,15 @@ function App() {
               <Route path="legislacao/nova" element={<LegislacaoDashboard />} />
               <Route path="legislacao/categoria/:categoria" element={<LegislacaoDashboard />} />
               <Route path="legislacao/tipo/:tipo" element={<LegislacaoDashboard />} />
-              
+
               {/* === MÓDULO DE PROCESSOS === */}
               <Route path="processos" element={<ProcessoListPage />} />
               <Route path="processos/dashboard" element={<ProcessoDashboard />} />
               <Route path="processos/:id" element={<ProcessoDetailPage />} />
-              
+
+              {/* === TRAMITAÇÃO === */}
+              <Route path="tramitacao" element={<TramitacaoDashboard />} />
+
               {/* === MÓDULO JURÍDICO === */}
               <Route path="juridico" element={<DashboardJuridico />} />
               <Route path="juridico/dashboard" element={<DashboardJuridico />} />
@@ -671,7 +682,9 @@ function App() {
               <Route path="juridico/configuracoes" element={<ConfiguracoesJuridicas />} />
               <Route path="juridico/documentos" element={<DocumentosJuridicos />} />
               <Route path="juridico/historicos" element={<HistoricosJuridicos />} />
-              
+              <Route path="juridico/peticoes" element={<PeticoesJuridico1 />} />
+              <Route path="juridico/recursos" element={<PeticoesJuridico2 />} />
+
               {/* === OUTROS MÓDULOS === */}
               <Route path="multas" element={<MultasPage />} />
               <Route path="financeiro" element={<Financeiro />} />
@@ -684,19 +697,19 @@ function App() {
               <Route path="perfil" element={<PerfilPage />} />
               <Route path="ajuda" element={<AjudaPage />} />
               <Route path="demo/irregularidades" element={<IrregularidadesDemo />} />
-              
+
               {/* === REDIRECIONAMENTOS ÚTEIS === */}
               <Route path="fiscal" element={<Navigate to="/fiscalizacao" replace />} />
               <Route path="autos" element={<Navigate to="/fiscalizacao" replace />} />
-              
+
               {/* === ROTAS DE COMPATIBILIDADE (DEPRECATED) === */}
               <Route path="fiscalizacao/banco/*" element={<Navigate to="/fiscalizacao/bancos" replace />} />
               <Route path="fiscalizacao/supermercado/*" element={<Navigate to="/fiscalizacao/supermercados" replace />} />
               <Route path="fiscalizacao/posto/*" element={<Navigate to="/fiscalizacao/postos" replace />} />
               <Route path="fiscalizacao/infracao/*" element={<Navigate to="/fiscalizacao/infracoes" replace />} />
-              
+
             </Route>
-            
+
             <Route
               path="/portal-empresa/reclamacoes"
               element={
@@ -739,10 +752,10 @@ function App() {
             />
             {/* ===== PÁGINA 404 (DEVE SER A ÚLTIMA ROTA) ===== */}
             <Route path="*" element={<NotFoundPage />} />
-            
+
           </Routes>
         </Suspense>
-        
+
         {/* Monitor do Sistema */}
         <SystemMonitor />
       </Router>
@@ -751,4 +764,3 @@ function App() {
 }
 
 export default App;
-

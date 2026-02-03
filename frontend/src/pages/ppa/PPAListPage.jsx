@@ -24,6 +24,8 @@ import { ptBR } from "date-fns/locale";
 import ppaService from "../../services/ppaService";
 import "./PPAListPage.css";
 
+const SELECT_ALL_VALUE = "__all__";
+
 const STATUS_CONFIGS = {
   criado: { label: "Triagem inicial", color: "bg-indigo-100 text-indigo-800", dotColor: "bg-indigo-500" },
   em_analise: { label: "Em análise", color: "bg-blue-100 text-blue-800", dotColor: "bg-blue-500" },
@@ -59,6 +61,13 @@ export default function PPAListPage() {
     busca: "",
     vencidos: false,
   });
+
+  const handleSelectFiltro = (field) => (value) => {
+    setFiltros((prev) => ({
+      ...prev,
+      [field]: value === SELECT_ALL_VALUE ? "" : value,
+    }));
+  };
 
   const { data: lista = [], isLoading, refetch } = useQuery({
     queryKey: ["ppas", filtros.status, filtros.sigla, filtros.decisao_final],
@@ -221,12 +230,12 @@ export default function PPAListPage() {
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
               <div>
                 <label className="text-sm font-medium mb-2 block">Status</label>
-                <Select value={filtros.status} onValueChange={(val) => setFiltros({ ...filtros, status: val })}>
+                <Select value={filtros.status || undefined} onValueChange={handleSelectFiltro("status")}>
                   <SelectTrigger>
                     <SelectValue placeholder="Todos" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Todos</SelectItem>
+                    <SelectItem value={SELECT_ALL_VALUE}>Todos</SelectItem>
                     {Object.entries(STATUS_CONFIGS).map(([key, config]) => (
                       <SelectItem key={key} value={key}>
                         {config.label}
@@ -238,12 +247,12 @@ export default function PPAListPage() {
 
               <div>
                 <label className="text-sm font-medium mb-2 block">Tipo</label>
-                <Select value={filtros.sigla} onValueChange={(val) => setFiltros({ ...filtros, sigla: val })}>
+                <Select value={filtros.sigla || undefined} onValueChange={handleSelectFiltro("sigla")}>
                   <SelectTrigger>
                     <SelectValue placeholder="Todos" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Todos</SelectItem>
+                    <SelectItem value={SELECT_ALL_VALUE}>Todos</SelectItem>
                     <SelectItem value="BANCO">Banco</SelectItem>
                     <SelectItem value="POSTO">Posto</SelectItem>
                     <SelectItem value="SUPERMERCADO">Supermercado</SelectItem>
@@ -258,12 +267,15 @@ export default function PPAListPage() {
 
               <div>
                 <label className="text-sm font-medium mb-2 block">Decisão</label>
-                <Select value={filtros.decisao_final} onValueChange={(val) => setFiltros({ ...filtros, decisao_final: val })}>
+                <Select
+                  value={filtros.decisao_final || undefined}
+                  onValueChange={handleSelectFiltro("decisao_final")}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Todas" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Todas</SelectItem>
+                    <SelectItem value={SELECT_ALL_VALUE}>Todas</SelectItem>
                     <SelectItem value="pendente">Pendente</SelectItem>
                     <SelectItem value="arquivado">Arquivado</SelectItem>
                     <SelectItem value="auto_criado">Auto criado</SelectItem>

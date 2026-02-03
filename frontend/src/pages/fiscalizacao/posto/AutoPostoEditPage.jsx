@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { getAutoPostoById, atualizarAutoPosto } from '../../../services/fiscalizacaoService';
+import { getAutoPostoById, atualizarAutoPosto, consultarCNPJReceita } from '../../../services/fiscalizacaoService';
 
 function AutoPostoEditPage() {
   const { id } = useParams();
@@ -8,6 +8,8 @@ function AutoPostoEditPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+    const [cnpjStatus, setCnpjStatus] = useState(null);
+    const [cnpjLoading, setCnpjLoading] = useState(false);
   
   const [formData, setFormData] = useState({
     // Dados básicos
@@ -15,15 +17,18 @@ function AutoPostoEditPage() {
     data_fiscalizacao: '',
     hora_fiscalizacao: '',
     
-    // Dados do estabelecimento
-    razao_social: '',
-    nome_fantasia: '',
-    cnpj: '',
-    endereco: '',
-    municipio: '',
-    cep: '',
-    telefone: '',
-    email: '',
+      // Dados do estabelecimento
+      razao_social: '',
+      nome_fantasia: '',
+      atividade: '',
+      atuacao: '',
+      cnpj: '',
+      endereco: '',
+      municipio: '',
+      estado: 'AM',
+      cep: '',
+      telefone: '',
+      email: '',
     
     // Responsável legal
     responsavel_nome: '',
@@ -69,11 +74,14 @@ function AutoPostoEditPage() {
       const data = await getAutoPostoById(id);
       
       // Formatar dados para o formulário
-      const formattedData = {
-        ...data,
-        data_fiscalizacao: data.data_fiscalizacao || '',
-        hora_fiscalizacao: data.hora_fiscalizacao || '',
-        documentos_apresentados: Boolean(data.documentos_apresentados),
+        const formattedData = {
+          ...data,
+          data_fiscalizacao: data.data_fiscalizacao || '',
+          hora_fiscalizacao: data.hora_fiscalizacao || '',
+          atividade: data.atividade || '',
+          atuacao: data.atuacao || '',
+          estado: data.estado || 'AM',
+          documentos_apresentados: Boolean(data.documentos_apresentados),
         prazo_apresentacao: data.prazo_apresentacao?.toString() || '24',
         
         // Garantir que campos de preço sejam strings
@@ -102,10 +110,43 @@ function AutoPostoEditPage() {
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
+    if (name === 'cnpj') {
+      setCnpjStatus(null);
+    }
     setFormData(prev => ({
       ...prev,
       [name]: type === 'checkbox' ? checked : value
     }));
+  };
+
+  const handleConsultarCNPJ = async () => {
+    try {
+      setCnpjLoading(true);
+      setCnpjStatus(null);
+      const cleanCNPJ = formData.cnpj.replace(/\D/g, '');
+      const data = await consultarCNPJReceita(cleanCNPJ);
+        setFormData(prev => ({
+          ...prev,
+          razao_social: data.razao_social || prev.razao_social,
+          nome_fantasia: data.nome_fantasia || prev.nome_fantasia,
+          atividade: (data?.dados_brutos?.atividade_principal?.[0]?.text) || prev.atividade,
+          atuacao: data?.dados_brutos?.natureza_juridica || prev.atuacao,
+          endereco: data.endereco
+            ? `${data.endereco}${data.numero ? `, ${data.numero}` : ''}${data.bairro ? ` - ${data.bairro}` : ''}`
+            : prev.endereco,
+          municipio: data.cidade || prev.municipio,
+          estado: data.uf || prev.estado,
+          cep: data.cep || prev.cep,
+          telefone: data.telefone || prev.telefone,
+          email: data.email || prev.email,
+        }));
+      const detalhe = data.razao_social ? `Razao social: ${data.razao_social}` : 'CNPJ confirmado na Receita Federal.';
+      setCnpjStatus({ type: 'success', message: detalhe, cnpj: cleanCNPJ });
+    } catch (err) {
+      setCnpjStatus({ type: 'error', message: err.message || 'Erro ao consultar CNPJ.' });
+    } finally {
+      setCnpjLoading(false);
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -114,6 +155,37 @@ function AutoPostoEditPage() {
     try {
       setSaving(true);
       setError('');
+
+      const cleanCNPJ = (formData.cnpj || '').replace(/\D/g, '');
+      if (!cnpjStatus || cnpjStatus.type !== 'success' || cnpjStatus.cnpj !== cleanCNPJ) {
+        try {
+          setCnpjLoading(true);
+          const data = await consultarCNPJReceita(cleanCNPJ);
+          setFormData(prev => ({
+            ...prev,
+            razao_social: data.razao_social || prev.razao_social,
+            nome_fantasia: data.nome_fantasia || prev.nome_fantasia,
+            atividade: (data?.dados_brutos?.atividade_principal?.[0]?.text) || prev.atividade,
+            atuacao: data?.dados_brutos?.natureza_juridica || prev.atuacao,
+            endereco: data.endereco
+              ? `${data.endereco}${data.numero ? `, ${data.numero}` : ''}${data.bairro ? ` - ${data.bairro}` : ''}`
+              : prev.endereco,
+            municipio: data.cidade || prev.municipio,
+            estado: data.uf || prev.estado,
+            cep: data.cep || prev.cep,
+            telefone: data.telefone || prev.telefone,
+            email: data.email || prev.email,
+          }));
+          const detalhe = data.razao_social ? `Razao social: ${data.razao_social}` : 'CNPJ confirmado na Receita Federal.';
+          setCnpjStatus({ type: 'success', message: detalhe, cnpj: cleanCNPJ });
+        } catch (err) {
+          setError(`CNPJ: ${err.message || 'Erro ao consultar CNPJ.'}`);
+          setSaving(false);
+          return;
+        } finally {
+          setCnpjLoading(false);
+        }
+      }
       
       // Preparar dados para envio
       const dataToSend = {
@@ -146,6 +218,36 @@ function AutoPostoEditPage() {
       setSaving(false);
     }
   };
+
+  const estadoOptions = [
+    { value: 'AC', label: 'Acre' },
+    { value: 'AL', label: 'Alagoas' },
+    { value: 'AP', label: 'Amapa' },
+    { value: 'AM', label: 'Amazonas' },
+    { value: 'BA', label: 'Bahia' },
+    { value: 'CE', label: 'Ceara' },
+    { value: 'DF', label: 'Distrito Federal' },
+    { value: 'ES', label: 'Espirito Santo' },
+    { value: 'GO', label: 'Goias' },
+    { value: 'MA', label: 'Maranhao' },
+    { value: 'MT', label: 'Mato Grosso' },
+    { value: 'MS', label: 'Mato Grosso do Sul' },
+    { value: 'MG', label: 'Minas Gerais' },
+    { value: 'PA', label: 'Para' },
+    { value: 'PB', label: 'Paraiba' },
+    { value: 'PR', label: 'Parana' },
+    { value: 'PE', label: 'Pernambuco' },
+    { value: 'PI', label: 'Piaui' },
+    { value: 'RJ', label: 'Rio de Janeiro' },
+    { value: 'RN', label: 'Rio Grande do Norte' },
+    { value: 'RS', label: 'Rio Grande do Sul' },
+    { value: 'RO', label: 'Rondonia' },
+    { value: 'RR', label: 'Roraima' },
+    { value: 'SC', label: 'Santa Catarina' },
+    { value: 'SP', label: 'Sao Paulo' },
+    { value: 'SE', label: 'Sergipe' },
+    { value: 'TO', label: 'Tocantins' },
+  ];
 
   if (loading) {
     return (
@@ -281,17 +383,63 @@ function AutoPostoEditPage() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                CNPJ *
+                Atividade *
               </label>
               <input
                 type="text"
-                name="cnpj"
-                value={formData.cnpj}
+                name="atividade"
+                value={formData.atividade}
                 onChange={handleChange}
                 required
                 className="w-full p-2 border border-gray-300 rounded-md"
-                placeholder="00.000.000/0000-00"
+                placeholder="Atividade principal"
               />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Atuacao
+              </label>
+              <input
+                type="text"
+                name="atuacao"
+                value={formData.atuacao}
+                onChange={handleChange}
+                className="w-full p-2 border border-gray-300 rounded-md"
+                placeholder="Natureza juridica"
+              />
+            </div>
+
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                CNPJ *
+              </label>
+              <div className="mt-1 flex flex-col gap-2">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    name="cnpj"
+                    value={formData.cnpj}
+                    onChange={handleChange}
+                    required
+                    className="flex-1 p-2 border border-gray-300 rounded-md"
+                    placeholder="00.000.000/0000-00"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleConsultarCNPJ}
+                    disabled={cnpjLoading}
+                    className="px-3 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 disabled:bg-gray-400 text-sm font-medium"
+                  >
+                    {cnpjLoading ? 'Consultando...' : 'Consultar Receita'}
+                  </button>
+                </div>
+                {cnpjStatus && (
+                  <p className={`text-xs ${cnpjStatus.type === 'success' ? 'text-green-600' : 'text-red-600'}`}>
+                    {cnpjStatus.message}
+                  </p>
+                )}
+              </div>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -307,6 +455,26 @@ function AutoPostoEditPage() {
                 placeholder="Digite o município"
               />
             </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Estado *
+              </label>
+              <select
+                name="estado"
+                value={formData.estado}
+                onChange={handleChange}
+                required
+                className="w-full p-2 border border-gray-300 rounded-md"
+              >
+                {estadoOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Endereço

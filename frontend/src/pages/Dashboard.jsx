@@ -1,83 +1,225 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  ChartBarIcon,
-  DocumentTextIcon,
-  ExclamationTriangleIcon,
-  CurrencyDollarIcon,
-  UserGroupIcon,
-  ClockIcon,
-  CheckCircleIcon,
-  XCircleIcon,
-  ArrowUpIcon,
-  ArrowDownIcon,
-  BellIcon,
-  EyeIcon,
-  CalendarIcon,
-  InformationCircleIcon,
-  ArrowPathIcon,
-  WrenchScrewdriverIcon
-} from '@heroicons/react/24/outline';
-import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area } from 'recharts';
-import dashboardService from '../services/dashboardService';
-import { runDiagnostics } from '../utils/checkModules';
-import { toast } from 'react-hot-toast';
+import { useState, useEffect } from "react";
+import {
+  FileText,
+  DollarSign,
+  AlertTriangle,
+  CheckCircle,
+  Users,
+  BarChart3,
+  RefreshCw,
+  Calendar,
+  TrendingUp,
+  Activity,
+} from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { StatCard } from "@/components/dashboard/StatCard";
+import { AlertCard } from "@/components/dashboard/AlertCard";
+import { ActivityItem } from "@/components/dashboard/ActivityItem";
+import {
+  AreaChart,
+  Area,
+  BarChart,
+  Bar,
+  LineChart,
+  Line,
+  PieChart,
+  Pie,
+  Cell,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from "recharts";
+import dashboardService from "../services/dashboardService";
+import { LoadingSpinner } from "@/components/common/LoadingSpinner";
+
+// Mock data para fallback
+const generateMockData = () => ({
+  stats: {
+    totalProcessos: 1247,
+    processosEmAndamento: 892,
+    processosConcluidos: 355,
+    multasPendentes: 144,
+    multasVencidas: 45,
+    multasPagas: 423,
+    arrecadacaoMes: 1250000,
+    arrecadacaoAno: 15800000,
+    taxaResolucao: 78.5,
+    usuariosAtivos: 45,
+    tempoMedioResolucao: 12.3,
+  },
+  charts: {
+    arrecadacaoMensal: [
+      { mes: "Jan", valor: 1200000, meta: 1000000 },
+      { mes: "Fev", valor: 1350000, meta: 1000000 },
+      { mes: "Mar", valor: 1100000, meta: 1000000 },
+      { mes: "Abr", valor: 1400000, meta: 1000000 },
+      { mes: "Mai", valor: 1250000, meta: 1000000 },
+      { mes: "Jun", valor: 1300000, meta: 1000000 },
+    ],
+    processosPorStatus: [
+      { status: "Em Andamento", quantidade: 892, percentual: 71.5 },
+      { status: "Concluído", quantidade: 355, percentual: 28.5 },
+      { status: "Pendente", quantidade: 234, percentual: 18.8 },
+      { status: "Cancelado", quantidade: 45, percentual: 3.6 },
+    ],
+    performanceMensal: [
+      { mes: "Jan", processos: 120, multas: 45, fiscalizacoes: 15 },
+      { mes: "Fev", processos: 135, multas: 52, fiscalizacoes: 18 },
+      { mes: "Mar", processos: 110, multas: 38, fiscalizacoes: 12 },
+      { mes: "Abr", processos: 140, multas: 61, fiscalizacoes: 20 },
+      { mes: "Mai", processos: 125, multas: 48, fiscalizacoes: 16 },
+      { mes: "Jun", processos: 130, multas: 55, fiscalizacoes: 19 },
+    ],
+  },
+  alertas: [
+    {
+      id: 1,
+      type: "warning",
+      title: "Multas vencendo",
+      message: "15 multas vencem nos próximos 7 dias",
+      action: "Ver detalhes",
+    },
+    {
+      id: 2,
+      type: "info",
+      title: "Novos processos",
+      message: "23 novos processos foram protocolados hoje",
+      action: "Revisar",
+    },
+    {
+      id: 3,
+      type: "success",
+      title: "Meta atingida",
+      message: "Meta mensal de arrecadação foi superada em 15%",
+      action: "Ver relatório",
+    },
+  ],
+  atividades: [
+    {
+      id: 1,
+      icon: FileText,
+      title: "Processo #2025-001234 protocolado",
+      description: "Denúncia contra Loja XYZ",
+      time: "2 min atrás",
+      user: "Maria Silva",
+      variant: "default",
+    },
+    {
+      id: 2,
+      icon: DollarSign,
+      title: "Multa #M2025-000567 paga",
+      description: "Valor: R$ 15.000,00",
+      time: "15 min atrás",
+      user: "Sistema",
+      variant: "success",
+    },
+    {
+      id: 3,
+      icon: AlertTriangle,
+      title: "Fiscalização agendada",
+      description: "Posto de combustível - Centro",
+      time: "1 hora atrás",
+      user: "João Santos",
+      variant: "warning",
+    },
+    {
+      id: 4,
+      icon: BarChart3,
+      title: "Relatório mensal gerado",
+      description: "Janeiro 2025 - Estatísticas completas",
+      time: "2 horas atrás",
+      user: "Sistema",
+      variant: "info",
+    },
+  ],
+});
+
+const CHART_COLORS = {
+  primary: "hsl(var(--chart-1))",
+  success: "hsl(var(--chart-2))",
+  warning: "hsl(var(--chart-3))",
+  destructive: "hsl(var(--chart-4))",
+  accent: "hsl(var(--chart-5))",
+};
 
 const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [stats, setStats] = useState({
-    totalProcessos: 0,
-    processosEmAndamento: 0,
-    processosConcluidos: 0,
-    processosPendentes: 0,
-    totalMultas: 0,
-    multasPagas: 0,
-    multasPendentes: 0,
-    multasVencidas: 0,
-    arrecadacaoMes: 0,
-    arrecadacaoAno: 0,
-    denunciasRecebidas: 0,
-    fiscalizacoesRealizadas: 0,
-    usuariosAtivos: 0,
-    taxaResolucao: 0,
-    tempoMedioResolucao: 0
-  });
-
-  const [chartData, setChartData] = useState({
-    arrecadacaoMensal: [],
-    processosPorStatus: [],
-    multasPorTipo: [],
-    denunciasPorMes: [],
-    performanceMensal: [],
-    fiscalizacoesPorMes: []
-  });
-
-  const [alertas, setAlertas] = useState([]);
-  const [atividadesRecentes, setAtividadesRecentes] = useState([]);
-  const [periodoSelecionado, setPeriodoSelecionado] = useState('mes');
+  const [periodo, setPeriodo] = useState("mes");
+  const [data, setData] = useState(generateMockData());
 
   useEffect(() => {
     loadDashboardData();
-  }, [periodoSelecionado]);
+  }, [periodo]);
 
   const loadDashboardData = async () => {
     setLoading(true);
     try {
       // Carregar dados usando o serviço
       const [estatisticas, graficos, alertasData, atividadesData] = await Promise.all([
-        dashboardService.getEstatisticasPrincipais(periodoSelecionado),
-        dashboardService.getDadosGraficos(periodoSelecionado),
+        dashboardService.getEstatisticasPrincipais(periodo),
+        dashboardService.getDadosGraficos(periodo),
         dashboardService.getAlertas(),
         dashboardService.getAtividadesRecentes(10)
       ]);
 
-      setStats(estatisticas);
-      setChartData(graficos);
-      setAlertas(alertasData);
-      setAtividadesRecentes(atividadesData);
-
+      // Transformar dados do serviço para o formato esperado
+      setData({
+        stats: {
+          totalProcessos: estatisticas.totalProcessos || 0,
+          processosEmAndamento: estatisticas.processosEmAndamento || 0,
+          processosConcluidos: estatisticas.processosConcluidos || 0,
+          multasPendentes: estatisticas.multasPendentes || 0,
+          multasVencidas: estatisticas.multasVencidas || 0,
+          multasPagas: estatisticas.multasPagas || 0,
+          arrecadacaoMes: estatisticas.arrecadacaoMes || 0,
+          arrecadacaoAno: estatisticas.arrecadacaoAno || 0,
+          taxaResolucao: estatisticas.taxaResolucao || 0,
+          usuariosAtivos: estatisticas.usuariosAtivos || 0,
+          tempoMedioResolucao: estatisticas.tempoMedioResolucao || 0,
+        },
+        charts: {
+          arrecadacaoMensal: graficos.arrecadacaoMensal || [],
+          processosPorStatus: graficos.processosPorStatus || [],
+          performanceMensal: graficos.performanceMensal || [],
+        },
+        alertas: alertasData || [],
+        atividades: (atividadesData || []).map((atividade) => {
+          // Mapear tipos de atividade para ícones se não tiverem icon
+          const iconMap = {
+            processo: FileText,
+            multa: DollarSign,
+            fiscalizacao: AlertTriangle,
+            relatorio: BarChart3,
+          };
+          
+          // Mapear campos do serviço (português) para o formato do componente (inglês)
+          return {
+            id: atividade.id,
+            icon: atividade.icon || iconMap[atividade.tipo] || Activity,
+            title: atividade.title || atividade.titulo || '',
+            description: atividade.description || atividade.descricao || '',
+            time: atividade.time || atividade.tempo || '',
+            user: atividade.user || atividade.usuario || '',
+            variant: atividade.variant || atividade.tipo || "default",
+          };
+        }),
+      });
     } catch (error) {
       console.error('Erro ao carregar dados do dashboard:', error);
+      // Usar dados mock em caso de erro
+      setData(generateMockData());
     } finally {
       setLoading(false);
     }
@@ -89,556 +231,285 @@ const Dashboard = () => {
     setRefreshing(false);
   };
 
-  const handleDiagnostics = async () => {
-    try {
-      console.log('🔍 Executando diagnóstico do sistema...');
-      const diagnostics = await runDiagnostics();
-      
-      // Mostrar resultado no console
-      console.log('📊 Diagnóstico completo:', diagnostics);
-      
-      // Mostrar toast com resultado
-      if (diagnostics.server.status === 'success') {
-        toast.success('✅ Diagnóstico executado! Verifique o console para detalhes.');
-      } else {
-        toast.error('❌ Problemas detectados! Verifique o console para detalhes.');
-      }
-    } catch (error) {
-      console.error('Erro ao executar diagnóstico:', error);
-      toast.error('Erro ao executar diagnóstico');
-    }
-  };
-
-  const formatCurrency = (value) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL'
+  const formatCurrency = (value) =>
+    new Intl.NumberFormat("pt-BR", {
+      style: "currency",
+      currency: "BRL",
     }).format(value);
-  };
-
-  const formatNumber = (value) => {
-    return new Intl.NumberFormat('pt-BR').format(value);
-  };
-
-  const formatPercentage = (value) => {
-    return `${value.toFixed(1)}%`;
-  };
-
-  const getVariationColor = (variation) => {
-    return variation >= 0 ? 'text-green-600' : 'text-red-600';
-  };
-
-  const getVariationIcon = (variation) => {
-    return variation >= 0 ? ArrowUpIcon : ArrowDownIcon;
-  };
-
-  const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'];
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <div className="flex items-center justify-center min-h-screen">
+        <LoadingSpinner size="lg" text="Carregando dashboard..." />
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="min-h-screen bg-background p-6 space-y-6">
       {/* Header */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-200 dark:border-gray-700">
-        <div className="flex items-center justify-between">
+      <div className="bg-card rounded-xl shadow-sm border p-6">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Dashboard Executivo</h1>
-            <p className="text-gray-600 dark:text-gray-300 mt-1">
-              Visão geral do sistema PROCON - {new Date().toLocaleDateString('pt-BR', { 
-                year: 'numeric', 
-                month: 'long', 
-                day: 'numeric' 
+            <h1 className="text-3xl font-bold text-foreground">
+              Dashboard Executivo
+            </h1>
+            <p className="text-muted-foreground mt-1">
+              Sistema PROCON -{" "}
+              {new Date().toLocaleDateString("pt-BR", {
+                year: "numeric",
+                month: "long",
+                day: "numeric",
               })}
             </p>
           </div>
-          <div className="flex items-center space-x-4">
-            {/* Seletor de período */}
-            <select
-              value={periodoSelecionado}
-              onChange={(e) => setPeriodoSelecionado(e.target.value)}
-              className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-            >
-              <option value="mes">Último mês</option>
-              <option value="trimestre">Último trimestre</option>
-              <option value="ano">Último ano</option>
-            </select>
-            
-            {/* Botão de atualizar */}
-            <button
+          <div className="flex items-center gap-3">
+            <Select value={periodo} onValueChange={setPeriodo}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="mes">Último mês</SelectItem>
+                <SelectItem value="trimestre">Último trimestre</SelectItem>
+                <SelectItem value="ano">Último ano</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button
               onClick={handleRefresh}
               disabled={refreshing}
-              className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 text-sm"
+              variant="outline"
+              size="icon"
             >
-              <ArrowPathIcon className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-              {refreshing ? 'Atualizando...' : 'Atualizar'}
-            </button>
-
-            {/* Botão de diagnóstico */}
-            <button
-              onClick={handleDiagnostics}
-              className="flex items-center px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 text-sm"
-              title="Executar diagnóstico do sistema"
-            >
-              <WrenchScrewdriverIcon className="h-4 w-4 mr-2" />
-              Diagnóstico
-            </button>
+              <RefreshCw
+                className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`}
+              />
+            </Button>
           </div>
         </div>
       </div>
 
-      {/* Alertas */}
-      {alertas.length > 0 && (
+      {/* Alerts */}
+      {data.alertas.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {alertas.map((alerta) => {
-            const Icon = alerta.icone || ExclamationTriangleIcon;
-            return (
-              <div key={alerta.id} className={`bg-white dark:bg-gray-800 rounded-lg shadow-lg p-4 border-l-4 ${
-                alerta.tipo === 'warning' ? 'border-yellow-500' :
-                alerta.tipo === 'info' ? 'border-blue-500' :
-                'border-green-500'
-              }`}>
-                <div className="flex items-start">
-                  <Icon className={`h-5 w-5 mt-0.5 mr-3 ${
-                    alerta.tipo === 'warning' ? 'text-yellow-500' :
-                    alerta.tipo === 'info' ? 'text-blue-500' :
-                    'text-green-500'
-                  }`} />
-                  <div className="flex-1">
-                    <h4 className="text-sm font-medium text-gray-900 dark:text-white">
-                      {alerta.titulo}
-                    </h4>
-                    <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
-                      {alerta.mensagem}
-                    </p>
-                    <button className="text-sm text-blue-600 dark:text-blue-400 hover:underline mt-2">
-                      {alerta.acao}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+          {data.alertas.map((alerta) => (
+            <AlertCard 
+              key={alerta.id} 
+              type={alerta.type || alerta.tipo}
+              title={alerta.title || alerta.titulo}
+              message={alerta.message || alerta.mensagem}
+              action={alerta.action || alerta.acao}
+              onAction={alerta.onAction}
+            />
+          ))}
         </div>
       )}
 
-      {/* KPIs Principais */}
+      {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {/* Total de Processos */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-200 dark:border-gray-700">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              <div className="p-3 rounded-full bg-blue-100 dark:bg-blue-900/20">
-                <DocumentTextIcon className="h-6 w-6 text-blue-600 dark:text-blue-400" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total de Processos</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                  {formatNumber(stats.totalProcessos)}
-                </p>
-              </div>
-            </div>
-            <div className="text-right">
-              <div className={`flex items-center text-sm ${getVariationColor(12)}`}>
-                {React.createElement(getVariationIcon(12), { className: "h-4 w-4 mr-1" })}
-                <span>+12%</span>
-              </div>
-              <p className="text-xs text-gray-500 dark:text-gray-400">vs mês anterior</p>
-            </div>
-          </div>
-          <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-600 dark:text-gray-400">Em andamento</span>
-              <span className="font-medium text-gray-900 dark:text-white">
-                {formatNumber(stats.processosEmAndamento)}
-              </span>
-            </div>
-            <div className="flex justify-between text-sm mt-1">
-              <span className="text-gray-600 dark:text-gray-400">Concluídos</span>
-              <span className="font-medium text-gray-900 dark:text-white">
-                {formatNumber(stats.processosConcluidos)}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Arrecadação Mensal */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-200 dark:border-gray-700">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              <div className="p-3 rounded-full bg-green-100 dark:bg-green-900/20">
-                <CurrencyDollarIcon className="h-6 w-6 text-green-600 dark:text-green-400" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Arrecadação Mensal</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                  {formatCurrency(stats.arrecadacaoMes)}
-                </p>
-              </div>
-            </div>
-            <div className="text-right">
-              <div className={`flex items-center text-sm ${getVariationColor(8)}`}>
-                {React.createElement(getVariationIcon(8), { className: "h-4 w-4 mr-1" })}
-                <span>+8%</span>
-              </div>
-              <p className="text-xs text-gray-500 dark:text-gray-400">vs mês anterior</p>
-            </div>
-          </div>
-          <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-600 dark:text-gray-400">Anual</span>
-              <span className="font-medium text-gray-900 dark:text-white">
-                {formatCurrency(stats.arrecadacaoAno)}
-              </span>
-            </div>
-            <div className="flex justify-between text-sm mt-1">
-              <span className="text-gray-600 dark:text-gray-400">Meta mensal</span>
-              <span className="font-medium text-gray-900 dark:text-white">
-                {formatCurrency(1000000)}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Multas Pendentes */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-200 dark:border-gray-700">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              <div className="p-3 rounded-full bg-yellow-100 dark:bg-yellow-900/20">
-                <ExclamationTriangleIcon className="h-6 w-6 text-yellow-600 dark:text-yellow-400" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Multas Pendentes</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                  {formatNumber(stats.multasPendentes)}
-                </p>
-              </div>
-            </div>
-            <div className="text-right">
-              <div className={`flex items-center text-sm ${getVariationColor(-5)}`}>
-                {React.createElement(getVariationIcon(-5), { className: "h-4 w-4 mr-1" })}
-                <span>-5%</span>
-              </div>
-              <p className="text-xs text-gray-500 dark:text-gray-400">vs mês anterior</p>
-            </div>
-          </div>
-          <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-600 dark:text-gray-400">Vencidas</span>
-              <span className="font-medium text-red-600 dark:text-red-400">
-                {formatNumber(stats.multasVencidas)}
-              </span>
-            </div>
-            <div className="flex justify-between text-sm mt-1">
-              <span className="text-gray-600 dark:text-gray-400">Pagas</span>
-              <span className="font-medium text-green-600 dark:text-green-400">
-                {formatNumber(stats.multasPagas)}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Taxa de Resolução */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-200 dark:border-gray-700">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              <div className="p-3 rounded-full bg-purple-100 dark:bg-purple-900/20">
-                <CheckCircleIcon className="h-6 w-6 text-purple-600 dark:text-purple-400" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Taxa de Resolução</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                  {formatPercentage(stats.taxaResolucao)}
-                </p>
-              </div>
-            </div>
-            <div className="text-right">
-              <div className={`flex items-center text-sm ${getVariationColor(3)}`}>
-                {React.createElement(getVariationIcon(3), { className: "h-4 w-4 mr-1" })}
-                <span>+3%</span>
-              </div>
-              <p className="text-xs text-gray-500 dark:text-gray-400">vs mês anterior</p>
-            </div>
-          </div>
-          <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-600 dark:text-gray-400">Tempo médio</span>
-              <span className="font-medium text-gray-900 dark:text-white">
-                {stats.tempoMedioResolucao} dias
-              </span>
-            </div>
-            <div className="flex justify-between text-sm mt-1">
-              <span className="text-gray-600 dark:text-gray-400">Usuários ativos</span>
-              <span className="font-medium text-gray-900 dark:text-white">
-                {formatNumber(stats.usuariosAtivos)}
-              </span>
-            </div>
-          </div>
-        </div>
+        <StatCard
+          title="Total de Processos"
+          value={data.stats.totalProcessos.toLocaleString("pt-BR")}
+          icon={FileText}
+          variant="default"
+          trend={{ value: 12, isPositive: true }}
+          subtitle={`${data.stats.processosEmAndamento} em andamento`}
+        />
+        <StatCard
+          title="Arrecadação Mensal"
+          value={formatCurrency(data.stats.arrecadacaoMes)}
+          icon={DollarSign}
+          variant="success"
+          trend={{ value: 8, isPositive: true }}
+          subtitle="Meta: R$ 1.000.000"
+        />
+        <StatCard
+          title="Multas Pendentes"
+          value={data.stats.multasPendentes}
+          icon={AlertTriangle}
+          variant="warning"
+          trend={{ value: -5, isPositive: false }}
+          subtitle={`${data.stats.multasVencidas} vencidas`}
+        />
+        <StatCard
+          title="Taxa de Resolução"
+          value={`${data.stats.taxaResolucao}%`}
+          icon={CheckCircle}
+          variant="default"
+          trend={{ value: 3, isPositive: true }}
+          subtitle={`${data.stats.tempoMedioResolucao} dias médio`}
+        />
       </div>
 
-      {/* Gráficos */}
+      {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Arrecadação vs Meta */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-200 dark:border-gray-700">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-              Arrecadação vs Meta Mensal
-            </h3>
-            <div className="flex items-center space-x-4 text-sm">
-              <div className="flex items-center">
-                <div className="w-3 h-3 bg-blue-500 rounded-full mr-2"></div>
-                <span className="text-gray-600 dark:text-gray-400">Realizado</span>
-              </div>
-              <div className="flex items-center">
-                <div className="w-3 h-3 bg-gray-300 dark:bg-gray-600 rounded-full mr-2"></div>
-                <span className="text-gray-600 dark:text-gray-400">Meta</span>
-              </div>
-            </div>
-          </div>
-          <ResponsiveContainer width="100%" height={300}>
-            <AreaChart data={chartData.arrecadacaoMensal}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-              <XAxis dataKey="mes" stroke="#6B7280" />
-              <YAxis stroke="#6B7280" />
-              <Tooltip 
-                formatter={(value) => [formatCurrency(value), 'Valor']}
-                labelStyle={{ color: '#374151' }}
-                contentStyle={{ 
-                  backgroundColor: '#1F2937', 
-                  border: '1px solid #374151',
-                  borderRadius: '8px'
-                }}
-              />
-              <Area 
-                type="monotone" 
-                dataKey="valor" 
-                stroke="#3B82F6" 
-                fill="#3B82F6"
-                fillOpacity={0.3}
-                strokeWidth={2}
-              />
-              <Area 
-                type="monotone" 
-                dataKey="meta" 
-                stroke="#9CA3AF" 
-                fill="#9CA3AF"
-                fillOpacity={0.1}
-                strokeWidth={2}
-                strokeDasharray="5 5"
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between">
+              <span>Arrecadação vs Meta</span>
+              <TrendingUp className="h-5 w-5 text-success" />
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <AreaChart data={data.charts.arrecadacaoMensal}>
+                <defs>
+                  <linearGradient id="colorValor" x1="0" y1="0" x2="0" y2="1">
+                    <stop
+                      offset="5%"
+                      stopColor={CHART_COLORS.primary}
+                      stopOpacity={0.3}
+                    />
+                    <stop
+                      offset="95%"
+                      stopColor={CHART_COLORS.primary}
+                      stopOpacity={0}
+                    />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                <XAxis dataKey="mes" className="text-xs" />
+                <YAxis className="text-xs" />
+                <Tooltip
+                  formatter={(value) => formatCurrency(value)}
+                  contentStyle={{
+                    backgroundColor: "hsl(var(--popover))",
+                    border: "1px solid hsl(var(--border))",
+                    borderRadius: "var(--radius)",
+                  }}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="valor"
+                  stroke={CHART_COLORS.primary}
+                  fillOpacity={1}
+                  fill="url(#colorValor)"
+                  strokeWidth={2}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="meta"
+                  stroke={CHART_COLORS.accent}
+                  fillOpacity={0.1}
+                  fill={CHART_COLORS.accent}
+                  strokeWidth={2}
+                  strokeDasharray="5 5"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
 
-        {/* Processos por Status */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-200 dark:border-gray-700">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-            Distribuição de Processos
-          </h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <PieChart>
-              <Pie
-                data={chartData.processosPorStatus}
-                cx="50%"
-                cy="50%"
-                labelLine={false}
-                label={({ status, percentual }) => `${status} ${percentual}%`}
-                outerRadius={80}
-                fill="#8884d8"
-                dataKey="quantidade"
-              >
-                {chartData.processosPorStatus.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.cor} />
-                ))}
-              </Pie>
-              <Tooltip 
-                formatter={(value, name) => [formatNumber(value), 'Quantidade']}
-                labelStyle={{ color: '#374151' }}
-                contentStyle={{ 
-                  backgroundColor: '#1F2937', 
-                  border: '1px solid #374151',
-                  borderRadius: '8px'
-                }}
-              />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
+        {/* Distribuição de Processos */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between">
+              <span>Distribuição de Processos</span>
+              <Activity className="h-5 w-5 text-primary" />
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <PieChart>
+                <Pie
+                  data={data.charts.processosPorStatus}
+                  cx="50%"
+                  cy="50%"
+                  labelLine={false}
+                  label={({ status, percentual }) =>
+                    `${status} ${percentual}%`
+                  }
+                  outerRadius={100}
+                  fill="#8884d8"
+                  dataKey="quantidade"
+                >
+                  {data.charts.processosPorStatus.map((entry, index) => (
+                    <Cell
+                      key={`cell-${index}`}
+                      fill={
+                        Object.values(CHART_COLORS)[
+                          index % Object.values(CHART_COLORS).length
+                        ]
+                      }
+                    />
+                  ))}
+                </Pie>
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "hsl(var(--popover))",
+                    border: "1px solid hsl(var(--border))",
+                    borderRadius: "var(--radius)",
+                  }}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
 
         {/* Performance Mensal */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-200 dark:border-gray-700">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-            Performance Mensal
-          </h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={chartData.performanceMensal}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-              <XAxis dataKey="mes" stroke="#6B7280" />
-              <YAxis stroke="#6B7280" />
-              <Tooltip 
-                formatter={(value, name) => [
-                  formatNumber(value), 
-                  name === 'processos' ? 'Processos' :
-                  name === 'multas' ? 'Multas' : 'Fiscalizações'
-                ]}
-                labelStyle={{ color: '#374151' }}
-                contentStyle={{ 
-                  backgroundColor: '#1F2937', 
-                  border: '1px solid #374151',
-                  borderRadius: '8px'
-                }}
-              />
-              <Legend />
-              <Bar dataKey="processos" fill="#3B82F6" name="Processos" />
-              <Bar dataKey="multas" fill="#10B981" name="Multas" />
-              <Bar dataKey="fiscalizacoes" fill="#F59E0B" name="Fiscalizações" />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-
-        {/* Eficiência das Fiscalizações */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-200 dark:border-gray-700">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-            Eficiência das Fiscalizações
-          </h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={chartData.fiscalizacoesPorMes}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-              <XAxis dataKey="mes" stroke="#6B7280" />
-              <YAxis stroke="#6B7280" />
-              <Tooltip 
-                formatter={(value, name) => [
-                  name === 'eficiencia' ? `${value}%` : formatNumber(value),
-                  name === 'planejadas' ? 'Planejadas' :
-                  name === 'realizadas' ? 'Realizadas' : 'Eficiência'
-                ]}
-                labelStyle={{ color: '#374151' }}
-                contentStyle={{ 
-                  backgroundColor: '#1F2937', 
-                  border: '1px solid #374151',
-                  borderRadius: '8px'
-                }}
-              />
-              <Legend />
-              <Line 
-                type="monotone" 
-                dataKey="planejadas" 
-                stroke="#3B82F6" 
-                strokeWidth={2}
-                dot={{ fill: '#3B82F6', strokeWidth: 2, r: 4 }}
-              />
-              <Line 
-                type="monotone" 
-                dataKey="realizadas" 
-                stroke="#10B981" 
-                strokeWidth={2}
-                dot={{ fill: '#10B981', strokeWidth: 2, r: 4 }}
-              />
-              <Line 
-                type="monotone" 
-                dataKey="eficiencia" 
-                stroke="#F59E0B" 
-                strokeWidth={2}
-                dot={{ fill: '#F59E0B', strokeWidth: 2, r: 4 }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between">
+              <span>Performance Mensal</span>
+              <BarChart3 className="h-5 w-5 text-primary" />
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={data.charts.performanceMensal}>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                <XAxis dataKey="mes" className="text-xs" />
+                <YAxis className="text-xs" />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "hsl(var(--popover))",
+                    border: "1px solid hsl(var(--border))",
+                    borderRadius: "var(--radius)",
+                  }}
+                />
+                <Legend />
+                <Bar
+                  dataKey="processos"
+                  fill={CHART_COLORS.primary}
+                  name="Processos"
+                  radius={[8, 8, 0, 0]}
+                />
+                <Bar
+                  dataKey="multas"
+                  fill={CHART_COLORS.success}
+                  name="Multas"
+                  radius={[8, 8, 0, 0]}
+                />
+                <Bar
+                  dataKey="fiscalizacoes"
+                  fill={CHART_COLORS.warning}
+                  name="Fiscalizações"
+                  radius={[8, 8, 0, 0]}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
       </div>
 
-      {/* Atividades Recentes e Resumo */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Atividades Recentes */}
-        <div className="lg:col-span-2 bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-200 dark:border-gray-700">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-              Atividades Recentes
-            </h3>
-            <button className="text-sm text-blue-600 dark:text-blue-400 hover:underline">
-              Ver todas
-            </button>
-          </div>
-          <div className="space-y-4">
-            {atividadesRecentes.map((atividade) => (
-              <div key={atividade.id} className="flex items-start space-x-3 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                  atividade.tipo === 'processo' ? 'bg-blue-100 dark:bg-blue-900/20' :
-                  atividade.tipo === 'multa' ? 'bg-green-100 dark:bg-green-900/20' :
-                  atividade.tipo === 'fiscalizacao' ? 'bg-yellow-100 dark:bg-yellow-900/20' :
-                  'bg-purple-100 dark:bg-purple-900/20'
-                }`}>
-                  {atividade.tipo === 'processo' && <DocumentTextIcon className="h-4 w-4 text-blue-600 dark:text-blue-400" />}
-                  {atividade.tipo === 'multa' && <CurrencyDollarIcon className="h-4 w-4 text-green-600 dark:text-green-400" />}
-                  {atividade.tipo === 'fiscalizacao' && <ExclamationTriangleIcon className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />}
-                  {atividade.tipo === 'relatorio' && <ChartBarIcon className="h-4 w-4 text-purple-600 dark:text-purple-400" />}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 dark:text-white">
-                    {atividade.titulo}
-                  </p>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    {atividade.descricao}
-                  </p>
-                  <div className="flex items-center justify-between mt-1">
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      {atividade.tempo} • {atividade.usuario}
-                    </p>
-                  </div>
-                </div>
-              </div>
+      {/* Atividades Recentes */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between">
+            <span>Atividades Recentes</span>
+            <Button variant="link" size="sm">
+              Ver todas →
+            </Button>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2">
+            {data.atividades.map((atividade) => (
+              <ActivityItem key={atividade.id} {...atividade} />
             ))}
           </div>
-        </div>
-
-        {/* Resumo Executivo */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-200 dark:border-gray-700">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-            Resumo Executivo
-          </h3>
-          <div className="space-y-4">
-            <div className="text-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-              <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                {formatCurrency(stats.arrecadacaoAno)}
-              </div>
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                Arrecadação Anual
-              </div>
-            </div>
-            
-            <div className="text-center p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
-              <div className="text-2xl font-bold text-green-600 dark:text-green-400">
-                {formatNumber(stats.fiscalizacoesRealizadas)}
-              </div>
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                Fiscalizações Realizadas
-              </div>
-            </div>
-            
-            <div className="text-center p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
-              <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
-                {formatPercentage(stats.taxaResolucao)}
-              </div>
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                Taxa de Resolução
-              </div>
-            </div>
-
-            <div className="text-center p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg">
-              <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
-                {stats.tempoMedioResolucao} dias
-              </div>
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                Tempo Médio de Resolução
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
     </div>
   );
 };

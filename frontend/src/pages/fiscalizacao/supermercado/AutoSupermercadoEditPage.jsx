@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { getAutoSupermercadoById, atualizarAutoSupermercado } from '../../../services/fiscalizacaoService';
+import { getAutoSupermercadoById, atualizarAutoSupermercado, consultarCNPJReceita } from '../../../services/fiscalizacaoService';
+import IrregularidadesSelector from '../../../components/fiscalizacao/IrregularidadesSelector';
 
 function AutoSupermercadoEditPage() {
   const { id } = useParams();
@@ -8,66 +9,63 @@ function AutoSupermercadoEditPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+    const [cnpjStatus, setCnpjStatus] = useState(null);
+    const [cnpjLoading, setCnpjLoading] = useState(false);
   
   const [formData, setFormData] = useState({
-    // Dados básicos
     numero: '',
     data_fiscalizacao: '',
     hora_fiscalizacao: '',
-    
-    // Dados do estabelecimento
+
     razao_social: '',
     nome_fantasia: '',
+    porte: '',
+    atuacao: '',
+    atividade: '',
     cnpj: '',
     endereco: '',
     municipio: '',
+    estado: 'AM',
     cep: '',
     telefone: '',
     email: '',
-    
-    // Responsável legal
-    responsavel_nome: '',
-    responsavel_cpf: '',
-    responsavel_funcao: '',
-    
-    // Irregularidades relacionadas a produtos
-    produtos_vencidos: false,
-    produtos_vencidos_obs: '',
-    embalagem_violada: false,
-    embalagem_violada_obs: '',
-    lata_amassada: false,
-    lata_amassada_obs: '',
-    sem_validade: false,
-    sem_validade_obs: '',
-    validade_ilegivel: false,
-    validade_ilegivel_obs: '',
-    mal_armazenados: false,
-    mal_armazenados_obs: '',
-    produtos_descongelados: false,
-    produtos_descongelados_obs: '',
-    
-    // Irregularidades de publicidade e preços
+
+    origem: 'acao',
+    origem_outros: '',
+
+    nada_consta: false,
+    cominacao_legal: '',
+
+    comercializar_produtos_vencidos: false,
+    comercializar_embalagem_violada: false,
+    comercializar_lata_amassada: false,
+    comercializar_sem_validade: false,
+    comercializar_mal_armazenados: false,
+    comercializar_descongelados: false,
     publicidade_enganosa: false,
-    publicidade_enganosa_obs: '',
     obstrucao_monitor: false,
-    obstrucao_monitor_obs: '',
-    precos_fora_padrao: false,
-    precos_fora_padrao_obs: '',
-    ausencia_precos: false,
-    ausencia_precos_obs: '',
-    fracionados_fora_padrao: false,
-    fracionados_fora_padrao_obs: '',
-    ausencia_desconto_visibilidade: false,
-    ausencia_desconto_visibilidade_obs: '',
-    ausencia_placas_promocao: false,
-    ausencia_placas_promocao_obs: '',
-    
-    // Observações
-    observacoes: '',
-    
-    // Fiscais
-    fiscal_responsavel: '',
-    fiscal_apoio: ''
+    afixacao_precos_fora_padrao: false,
+    ausencia_afixacao_precos: false,
+    afixacao_precos_fracionados_fora_padrao: false,
+    ausencia_visibilidade_descontos: false,
+    ausencia_placas_promocao_vencimento: false,
+
+    prazo_cumprimento_dias: 5,
+    outras_irregularidades: '',
+    narrativa_fatos: '',
+    instrucoes_fiscalizado: '',
+
+    possui_anexo: false,
+    auto_apreensao: false,
+    auto_apreensao_numero: '',
+    necessita_pericia: false,
+    vicios_aparentes: false,
+    receita_bruta_notificada: true,
+
+    fiscal_nome_1: '',
+    fiscal_nome_2: '',
+    responsavel_nome: '',
+    responsavel_cpf: ''
   });
 
   useEffect(() => {
@@ -84,23 +82,38 @@ function AutoSupermercadoEditPage() {
         ...data,
         data_fiscalizacao: data.data_fiscalizacao || '',
         hora_fiscalizacao: data.hora_fiscalizacao || '',
-        
-        // Garantir que campos booleanos sejam boolean
-        produtos_vencidos: Boolean(data.produtos_vencidos),
-        embalagem_violada: Boolean(data.embalagem_violada),
-        lata_amassada: Boolean(data.lata_amassada),
-        sem_validade: Boolean(data.sem_validade),
-        validade_ilegivel: Boolean(data.validade_ilegivel),
-        mal_armazenados: Boolean(data.mal_armazenados),
-        produtos_descongelados: Boolean(data.produtos_descongelados),
+        porte: data.porte || '',
+        atuacao: data.atuacao || '',
+        atividade: data.atividade || '',
+        estado: data.estado || 'AM',
+        origem: data.origem || 'acao',
+        origem_outros: data.origem_outros || '',
+        prazo_cumprimento_dias: data.prazo_cumprimento_dias || 5,
+        nada_consta: Boolean(data.nada_consta),
+        comercializar_produtos_vencidos: Boolean(data.comercializar_produtos_vencidos),
+        comercializar_embalagem_violada: Boolean(data.comercializar_embalagem_violada),
+        comercializar_lata_amassada: Boolean(data.comercializar_lata_amassada),
+        comercializar_sem_validade: Boolean(data.comercializar_sem_validade),
+        comercializar_mal_armazenados: Boolean(data.comercializar_mal_armazenados),
+        comercializar_descongelados: Boolean(data.comercializar_descongelados),
         publicidade_enganosa: Boolean(data.publicidade_enganosa),
         obstrucao_monitor: Boolean(data.obstrucao_monitor),
-        precos_fora_padrao: Boolean(data.precos_fora_padrao),
-        ausencia_precos: Boolean(data.ausencia_precos),
-        fracionados_fora_padrao: Boolean(data.fracionados_fora_padrao),
-        ausencia_desconto_visibilidade: Boolean(data.ausencia_desconto_visibilidade),
-        ausencia_placas_promocao: Boolean(data.ausencia_placas_promocao)
-      };
+        afixacao_precos_fora_padrao: Boolean(data.afixacao_precos_fora_padrao),
+        ausencia_afixacao_precos: Boolean(data.ausencia_afixacao_precos),
+        afixacao_precos_fracionados_fora_padrao: Boolean(data.afixacao_precos_fracionados_fora_padrao),
+        ausencia_visibilidade_descontos: Boolean(data.ausencia_visibilidade_descontos),
+        ausencia_placas_promocao_vencimento: Boolean(data.ausencia_placas_promocao_vencimento),
+        possui_anexo: Boolean(data.possui_anexo),
+        auto_apreensao: Boolean(data.auto_apreensao),
+        necessita_pericia: Boolean(data.necessita_pericia),
+        vicios_aparentes: Boolean(data.vicios_aparentes),
+        receita_bruta_notificada: Boolean(data.receita_bruta_notificada),
+        cominacao_legal: data.cominacao_legal || '',
+        instrucoes_fiscalizado: data.instrucoes_fiscalizado || '',
+        outras_irregularidades: data.outras_irregularidades || '',
+        narrativa_fatos: data.narrativa_fatos || '',
+        auto_apreensao_numero: data.auto_apreensao_numero || '',
+      };;
       
       setFormData(formattedData);
     } catch (err) {
@@ -112,10 +125,43 @@ function AutoSupermercadoEditPage() {
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
+    if (name === 'cnpj') {
+      setCnpjStatus(null);
+    }
     setFormData(prev => ({
       ...prev,
       [name]: type === 'checkbox' ? checked : value
     }));
+  };
+
+  const handleConsultarCNPJ = async () => {
+    try {
+      setCnpjLoading(true);
+      setCnpjStatus(null);
+      const cleanCNPJ = formData.cnpj.replace(/\D/g, '');
+      const data = await consultarCNPJReceita(cleanCNPJ);
+        setFormData(prev => ({
+        ...prev,
+        razao_social: data.razao_social || prev.razao_social,
+        nome_fantasia: data.nome_fantasia || prev.nome_fantasia,
+        atividade: (data?.dados_brutos?.atividade_principal?.[0]?.text) || prev.atividade,
+        atuacao: data?.dados_brutos?.natureza_juridica || prev.atuacao,
+        endereco: data.endereco
+          ? `${data.endereco}${data.numero ? `, ${data.numero}` : ''}${data.bairro ? ` - ${data.bairro}` : ''}`
+          : prev.endereco,
+        municipio: data.cidade || prev.municipio,
+        estado: data.uf || prev.estado,
+        cep: data.cep || prev.cep,
+        telefone: data.telefone || prev.telefone,
+        email: data.email || prev.email,
+      }));
+      const detalhe = data.razao_social ? `Razao social: ${data.razao_social}` : 'CNPJ confirmado na Receita Federal.';
+      setCnpjStatus({ type: 'success', message: detalhe, cnpj: cleanCNPJ });
+    } catch (err) {
+      setCnpjStatus({ type: 'error', message: err.message || 'Erro ao consultar CNPJ.' });
+    } finally {
+      setCnpjLoading(false);
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -124,6 +170,37 @@ function AutoSupermercadoEditPage() {
     try {
       setSaving(true);
       setError('');
+
+      const cleanCNPJ = (formData.cnpj || '').replace(/\D/g, '');
+      if (!cnpjStatus || cnpjStatus.type !== 'success' || cnpjStatus.cnpj !== cleanCNPJ) {
+        try {
+          setCnpjLoading(true);
+          const data = await consultarCNPJReceita(cleanCNPJ);
+          setFormData(prev => ({
+            ...prev,
+            razao_social: data.razao_social || prev.razao_social,
+            nome_fantasia: data.nome_fantasia || prev.nome_fantasia,
+            atividade: (data?.dados_brutos?.atividade_principal?.[0]?.text) || prev.atividade,
+        atuacao: data?.dados_brutos?.natureza_juridica || prev.atuacao,
+            endereco: data.endereco
+              ? `${data.endereco}${data.numero ? `, ${data.numero}` : ''}${data.bairro ? ` - ${data.bairro}` : ''}`
+              : prev.endereco,
+            municipio: data.cidade || prev.municipio,
+            estado: data.uf || prev.estado,
+            cep: data.cep || prev.cep,
+            telefone: data.telefone || prev.telefone,
+            email: data.email || prev.email,
+          }));
+          const detalhe = data.razao_social ? `Razao social: ${data.razao_social}` : 'CNPJ confirmado na Receita Federal.';
+          setCnpjStatus({ type: 'success', message: detalhe, cnpj: cleanCNPJ });
+        } catch (err) {
+          setError(`CNPJ: ${err.message || 'Erro ao consultar CNPJ.'}`);
+          setSaving(false);
+          return;
+        } finally {
+          setCnpjLoading(false);
+        }
+      }
       
       await atualizarAutoSupermercado(id, formData);
       navigate(`/fiscalizacao/supermercados/${id}`, { 
@@ -136,33 +213,51 @@ function AutoSupermercadoEditPage() {
     }
   };
 
-  const IrregularidadeField = ({ name, label, obsName }) => (
-    <div className="border border-gray-200 rounded-lg p-4">
-      <div className="flex items-center mb-2">
-        <input
-          type="checkbox"
-          name={name}
-          checked={formData[name]}
-          onChange={handleChange}
-          className="mr-2"
-          id={name}
-        />
-        <label htmlFor={name} className="text-sm font-medium text-gray-700">
-          {label}
-        </label>
-      </div>
-      {formData[name] && (
-        <textarea
-          name={obsName}
-          value={formData[obsName] || ''}
-          onChange={handleChange}
-          placeholder="Descreva os detalhes..."
-          className="w-full p-2 border border-gray-300 rounded-md text-sm"
-          rows={2}
-        />
-      )}
-    </div>
-  );
+
+
+  const estadoOptions = [
+    { value: 'AC', label: 'Acre' },
+    { value: 'AL', label: 'Alagoas' },
+    { value: 'AP', label: 'Amapa' },
+    { value: 'AM', label: 'Amazonas' },
+    { value: 'BA', label: 'Bahia' },
+    { value: 'CE', label: 'Ceara' },
+    { value: 'DF', label: 'Distrito Federal' },
+    { value: 'ES', label: 'Espirito Santo' },
+    { value: 'GO', label: 'Goias' },
+    { value: 'MA', label: 'Maranhao' },
+    { value: 'MT', label: 'Mato Grosso' },
+    { value: 'MS', label: 'Mato Grosso do Sul' },
+    { value: 'MG', label: 'Minas Gerais' },
+    { value: 'PA', label: 'Para' },
+    { value: 'PB', label: 'Paraiba' },
+    { value: 'PR', label: 'Parana' },
+    { value: 'PE', label: 'Pernambuco' },
+    { value: 'PI', label: 'Piaui' },
+    { value: 'RJ', label: 'Rio de Janeiro' },
+    { value: 'RN', label: 'Rio Grande do Norte' },
+    { value: 'RS', label: 'Rio Grande do Sul' },
+    { value: 'RO', label: 'Rondonia' },
+    { value: 'RR', label: 'Roraima' },
+    { value: 'SC', label: 'Santa Catarina' },
+    { value: 'SP', label: 'Sao Paulo' },
+    { value: 'SE', label: 'Sergipe' },
+    { value: 'TO', label: 'Tocantins' },
+  ];
+
+  const porteOptions = [
+    { value: 'microempresa', label: 'Microempresa' },
+    { value: 'pequeno', label: 'Pequeno Porte' },
+    { value: 'medio', label: 'Medio Porte' },
+    { value: 'grande', label: 'Grande Porte' },
+  ];
+
+  const prazoOptions = [
+    { value: 5, label: '5 dias' },
+    { value: 10, label: '10 dias' },
+    { value: 15, label: '15 dias' },
+    { value: 30, label: '30 dias' },
+  ];
 
   if (loading) {
     return (
@@ -223,7 +318,7 @@ function AutoSupermercadoEditPage() {
         {/* Dados básicos */}
         <div className="bg-white p-6 rounded-lg shadow">
           <h2 className="text-xl font-semibold text-green-800 mb-4">Dados Básicos</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Número do Auto
@@ -265,6 +360,36 @@ function AutoSupermercadoEditPage() {
           </div>
         </div>
 
+
+
+        {/* Cominacao Legal */}
+        <div className="bg-white p-6 rounded-lg shadow">
+          <h2 className="text-xl font-semibold text-green-800 mb-4">Cominacao Legal</h2>
+          <div className="mt-4 p-4 bg-green-50 rounded-lg border border-green-200">
+            <p className="text-sm text-green-800">
+              <strong>Cominacao Legal:</strong> às <strong>{formData.hora_fiscalizacao || '__:__'}</strong> horas do dia{' '}
+              <strong>
+                {formData.data_fiscalizacao
+                  ? new Date(formData.data_fiscalizacao + 'T00:00:00').toLocaleDateString('pt-BR')
+                  : '__/__/____'}
+              </strong>, no exercício das competências dispostas no art. 55 e seguintes da Lei Federal nº 8.078/90,
+              legalmente atribuídas ao Instituto de Defesa do Consumidor - PROCON AMAZONAS, neste ato fiscalizatório, constatamos que:
+            </p>
+          </div>
+          <div className="mt-4">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Texto principal da cominacao legal
+            </label>
+            <textarea
+              name="cominacao_legal"
+              value={formData.cominacao_legal}
+              onChange={handleChange}
+              rows={4}
+              className="w-full p-2 border border-gray-300 rounded-md"
+            />
+          </div>
+        </div>
+
         {/* Dados do estabelecimento */}
         <div className="bg-white p-6 rounded-lg shadow">
           <h2 className="text-xl font-semibold text-green-800 mb-4">Dados do Estabelecimento</h2>
@@ -298,17 +423,80 @@ function AutoSupermercadoEditPage() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                CNPJ *
+                Porte
+              </label>
+              <select
+                name="porte"
+                value={formData.porte}
+                onChange={handleChange}
+                className="w-full p-2 border border-gray-300 rounded-md"
+              >
+                <option value="">Selecione...</option>
+                {porteOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Atuacao
               </label>
               <input
                 type="text"
-                name="cnpj"
-                value={formData.cnpj}
+                name="atuacao"
+                value={formData.atuacao}
+                onChange={handleChange}
+                className="w-full p-2 border border-gray-300 rounded-md"
+                placeholder="Natureza juridica"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Atividade *
+              </label>
+              <input
+                type="text"
+                name="atividade"
+                value={formData.atividade}
                 onChange={handleChange}
                 required
                 className="w-full p-2 border border-gray-300 rounded-md"
-                placeholder="00.000.000/0000-00"
+                placeholder="Atividade principal"
               />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                CNPJ *
+              </label>
+              <div className="mt-1 flex flex-col gap-2">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    name="cnpj"
+                    value={formData.cnpj}
+                    onChange={handleChange}
+                    required
+                    className="flex-1 p-2 border border-gray-300 rounded-md"
+                    placeholder="00.000.000/0000-00"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleConsultarCNPJ}
+                    disabled={cnpjLoading}
+                    className="px-3 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-gray-400 text-sm font-medium"
+                  >
+                    {cnpjLoading ? 'Consultando...' : 'Consultar Receita'}
+                  </button>
+                </div>
+                {cnpjStatus && (
+                  <p className={`text-xs ${cnpjStatus.type === 'success' ? 'text-green-600' : 'text-red-600'}`}>
+                    {cnpjStatus.message}
+                  </p>
+                )}
+              </div>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -324,6 +512,25 @@ function AutoSupermercadoEditPage() {
                 placeholder="Digite o município"
               />
             </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Estado *
+              </label>
+              <select
+                name="estado"
+                value={formData.estado}
+                onChange={handleChange}
+                required
+                className="w-full p-2 border border-gray-300 rounded-md"
+              >
+                {estadoOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Endereço
@@ -379,10 +586,49 @@ function AutoSupermercadoEditPage() {
           </div>
         </div>
 
+
+
+        {/* Origem da Fiscalização */}
+        <div className="bg-white p-6 rounded-lg shadow">
+          <h2 className="text-xl font-semibold text-green-800 mb-4">Origem da Fiscalização</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Origem
+              </label>
+              <select
+                name="origem"
+                value={formData.origem}
+                onChange={handleChange}
+                className="w-full p-2 border border-gray-300 rounded-md"
+              >
+                <option value="acao">Ação Fiscalizatória</option>
+                <option value="denuncia">Denúncia</option>
+                <option value="forca_tarefa">Força Tarefa</option>
+                <option value="outros">Outros</option>
+              </select>
+            </div>
+            {formData.origem === 'outros' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Especificar Outros
+                </label>
+                <input
+                  type="text"
+                  name="origem_outros"
+                  value={formData.origem_outros}
+                  onChange={handleChange}
+                  className="w-full p-2 border border-gray-300 rounded-md"
+                />
+              </div>
+            )}
+          </div>
+        </div>
+
         {/* Responsável legal */}
         <div className="bg-white p-6 rounded-lg shadow">
           <h2 className="text-xl font-semibold text-green-800 mb-4">Responsável Legal</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Nome do Responsável
@@ -409,103 +655,179 @@ function AutoSupermercadoEditPage() {
                 placeholder="000.000.000-00"
               />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Função
-              </label>
-              <input
-                type="text"
-                name="responsavel_funcao"
-                value={formData.responsavel_funcao}
-                onChange={handleChange}
-                className="w-full p-2 border border-gray-300 rounded-md"
-                placeholder="Ex: Gerente, Proprietário"
-              />
+          </div>
+        </div>
+
+
+        {/* Irregularidades Constatadas */}
+        <div className="bg-white p-6 rounded-lg shadow">
+          <h2 className="text-xl font-semibold text-green-800 mb-4">Irregularidades Constatadas</h2>
+          <IrregularidadesSelector
+            tipo="supermercado"
+            irregularidades={{
+              comercializar_produtos_vencidos: formData.comercializar_produtos_vencidos,
+              comercializar_embalagem_violada: formData.comercializar_embalagem_violada,
+              comercializar_lata_amassada: formData.comercializar_lata_amassada,
+              comercializar_sem_validade: formData.comercializar_sem_validade,
+              comercializar_mal_armazenados: formData.comercializar_mal_armazenados,
+              comercializar_descongelados: formData.comercializar_descongelados,
+              publicidade_enganosa: formData.publicidade_enganosa,
+              obstrucao_monitor: formData.obstrucao_monitor,
+              afixacao_precos_fora_padrao: formData.afixacao_precos_fora_padrao,
+              ausencia_afixacao_precos: formData.ausencia_afixacao_precos,
+              afixacao_precos_fracionados_fora_padrao: formData.afixacao_precos_fracionados_fora_padrao,
+              ausencia_visibilidade_descontos: formData.ausencia_visibilidade_descontos,
+              ausencia_placas_promocao_vencimento: formData.ausencia_placas_promocao_vencimento,
+              nada_consta: formData.nada_consta
+            }}
+            onChange={(irregularidades) => {
+              setFormData(prev => ({
+                ...prev,
+                comercializar_produtos_vencidos: irregularidades.comercializar_produtos_vencidos || false,
+                comercializar_embalagem_violada: irregularidades.comercializar_embalagem_violada || false,
+                comercializar_lata_amassada: irregularidades.comercializar_lata_amassada || false,
+                comercializar_sem_validade: irregularidades.comercializar_sem_validade || false,
+                comercializar_mal_armazenados: irregularidades.comercializar_mal_armazenados || false,
+                comercializar_descongelados: irregularidades.comercializar_descongelados || false,
+                publicidade_enganosa: irregularidades.publicidade_enganosa || false,
+                obstrucao_monitor: irregularidades.obstrucao_monitor || false,
+                afixacao_precos_fora_padrao: irregularidades.afixacao_precos_fora_padrao || false,
+                ausencia_afixacao_precos: irregularidades.ausencia_afixacao_precos || false,
+                afixacao_precos_fracionados_fora_padrao: irregularidades.afixacao_precos_fracionados_fora_padrao || false,
+                ausencia_visibilidade_descontos: irregularidades.ausencia_visibilidade_descontos || false,
+                ausencia_placas_promocao_vencimento: irregularidades.ausencia_placas_promocao_vencimento || false,
+                nada_consta: irregularidades.nada_consta || false
+              }));
+            }}
+            showDetails={true}
+          />
+        </div>
+
+        {/* Prazo e Outras Informações */}
+        <div className="bg-white p-6 rounded-lg shadow">
+          <h2 className="text-xl font-semibold text-green-800 mb-4">Prazo e Outras Informações</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Prazo para cumprimento da obrigação (dias)</label>
+                <select
+                  name="prazo_cumprimento_dias"
+                  value={formData.prazo_cumprimento_dias}
+                  onChange={handleChange}
+                  className="w-full p-2 border border-gray-300 rounded-md"
+                >
+                  {prazoOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-3">
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    name="possui_anexo"
+                    checked={formData.possui_anexo}
+                    onChange={handleChange}
+                    className="mr-2"
+                  />
+                  <span className="text-sm font-medium text-gray-700">Possui anexo</span>
+                </label>
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    name="auto_apreensao"
+                    checked={formData.auto_apreensao}
+                    onChange={handleChange}
+                    className="mr-2"
+                  />
+                  <span className="text-sm font-medium text-gray-700">Possui auto de apreensão/inutilização</span>
+                </label>
+                {formData.auto_apreensao && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Número do Auto de Apreensão/Inutilização</label>
+                    <input
+                      type="text"
+                      name="auto_apreensao_numero"
+                      value={formData.auto_apreensao_numero}
+                      onChange={handleChange}
+                      className="w-full p-2 border border-gray-300 rounded-md"
+                    />
+                  </div>
+                )}
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    name="necessita_pericia"
+                    checked={formData.necessita_pericia}
+                    onChange={handleChange}
+                    className="mr-2"
+                  />
+                  <span className="text-sm font-medium text-gray-700">Os itens apreendidos e ou descartados necessitam de perícia</span>
+                </label>
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    name="vicios_aparentes"
+                    checked={formData.vicios_aparentes}
+                    onChange={handleChange}
+                    className="mr-2"
+                  />
+                  <span className="text-sm font-medium text-gray-700">Todos os vícios estavam aparentes</span>
+                </label>
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    name="receita_bruta_notificada"
+                    checked={formData.receita_bruta_notificada}
+                    onChange={handleChange}
+                    className="mr-2"
+                  />
+                  <span className="text-sm font-medium text-gray-700">Receita Bruta Notificada</span>
+                </label>
+              </div>
             </div>
-          </div>
-        </div>
-
-        {/* Irregularidades relacionadas a produtos */}
-        <div className="bg-white p-6 rounded-lg shadow">
-          <h2 className="text-xl font-semibold text-green-800 mb-4">Irregularidades - Produtos</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <IrregularidadeField
-              name="produtos_vencidos"
-              label="Produtos com validade vencida"
-              obsName="produtos_vencidos_obs"
-            />
-            <IrregularidadeField
-              name="embalagem_violada"
-              label="Produtos com embalagem violada"
-              obsName="embalagem_violada_obs"
-            />
-            <IrregularidadeField
-              name="lata_amassada"
-              label="Latas amassadas"
-              obsName="lata_amassada_obs"
-            />
-            <IrregularidadeField
-              name="sem_validade"
-              label="Produtos sem data de validade"
-              obsName="sem_validade_obs"
-            />
-            <IrregularidadeField
-              name="validade_ilegivel"
-              label="Validade ilegível"
-              obsName="validade_ilegivel_obs"
-            />
-            <IrregularidadeField
-              name="mal_armazenados"
-              label="Produtos mal armazenados"
-              obsName="mal_armazenados_obs"
-            />
-            <IrregularidadeField
-              name="produtos_descongelados"
-              label="Produtos descongelados inadequadamente"
-              obsName="produtos_descongelados_obs"
-            />
-          </div>
-        </div>
-
-        {/* Irregularidades de publicidade e preços */}
-        <div className="bg-white p-6 rounded-lg shadow">
-          <h2 className="text-xl font-semibold text-green-800 mb-4">Irregularidades - Publicidade e Preços</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <IrregularidadeField
-              name="publicidade_enganosa"
-              label="Publicidade enganosa"
-              obsName="publicidade_enganosa_obs"
-            />
-            <IrregularidadeField
-              name="obstrucao_monitor"
-              label="Obstrução de monitor de preços"
-              obsName="obstrucao_monitor_obs"
-            />
-            <IrregularidadeField
-              name="precos_fora_padrao"
-              label="Preços fora do padrão"
-              obsName="precos_fora_padrao_obs"
-            />
-            <IrregularidadeField
-              name="ausencia_precos"
-              label="Ausência de preços"
-              obsName="ausencia_precos_obs"
-            />
-            <IrregularidadeField
-              name="fracionados_fora_padrao"
-              label="Produtos fracionados fora do padrão"
-              obsName="fracionados_fora_padrao_obs"
-            />
-            <IrregularidadeField
-              name="ausencia_desconto_visibilidade"
-              label="Falta de visibilidade em descontos"
-              obsName="ausencia_desconto_visibilidade_obs"
-            />
-            <IrregularidadeField
-              name="ausencia_placas_promocao"
-              label="Ausência de placas de promoção"
-              obsName="ausencia_placas_promocao_obs"
-            />
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Outras irregularidades constatadas/outras cominações legais</label>
+                <textarea
+                  name="outras_irregularidades"
+                  value={formData.outras_irregularidades}
+                  onChange={handleChange}
+                  rows={4}
+                  className="w-full p-2 border border-gray-300 rounded-md"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Narrativa dos fatos</label>
+                <textarea
+                  name="narrativa_fatos"
+                  value={formData.narrativa_fatos}
+                  onChange={handleChange}
+                  rows={4}
+                  className="w-full p-2 border border-gray-300 rounded-md"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Instruções ao fiscalizado</label>
+                <textarea
+                  name="instrucoes_fiscalizado"
+                  value={formData.instrucoes_fiscalizado}
+                  onChange={handleChange}
+                  rows={3}
+                  className="w-full p-2 border border-gray-300 rounded-md"
+                />
+              </div>
+              <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <p className="text-sm text-yellow-800">
+                  <strong>Importante:</strong> O autuado deverá encaminhar, no prazo de 05 (cinco) dias corridos,
+                  documento oficial que indique a receita bruta anual do estabelecimento fiscalizado, referente aos 12 (doze) meses
+                  anteriores à lavratura deste auto, sob pena de o valor ser estimado quando do cálculo da multa,
+                  nos termos do Decreto Estadual do Amazonas nº 43.614/2021.
+                </p>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -519,8 +841,8 @@ function AutoSupermercadoEditPage() {
               </label>
               <input
                 type="text"
-                name="fiscal_responsavel"
-                value={formData.fiscal_responsavel}
+                name="fiscal_nome_1"
+                value={formData.fiscal_nome_1}
                 onChange={handleChange}
                 className="w-full p-2 border border-gray-300 rounded-md"
                 placeholder="Nome do fiscal responsável"
@@ -528,35 +850,17 @@ function AutoSupermercadoEditPage() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Fiscal de Apoio
+                Fiscal Secundário
               </label>
               <input
                 type="text"
-                name="fiscal_apoio"
-                value={formData.fiscal_apoio}
+                name="fiscal_nome_2"
+                value={formData.fiscal_nome_2}
                 onChange={handleChange}
                 className="w-full p-2 border border-gray-300 rounded-md"
-                placeholder="Nome do fiscal de apoio"
+                placeholder="Nome do fiscal secundário"
               />
             </div>
-          </div>
-        </div>
-
-        {/* Observações */}
-        <div className="bg-white p-6 rounded-lg shadow">
-          <h2 className="text-xl font-semibold text-green-800 mb-4">Observações</h2>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Observações Gerais
-            </label>
-            <textarea
-              name="observacoes"
-              value={formData.observacoes}
-              onChange={handleChange}
-              rows={4}
-              className="w-full p-2 border border-gray-300 rounded-md"
-              placeholder="Observações adicionais..."
-            />
           </div>
         </div>
 

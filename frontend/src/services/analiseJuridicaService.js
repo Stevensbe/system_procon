@@ -2,7 +2,7 @@ import api from './api';
 
 class AnaliseJuridicaService {
   constructor() {
-    this.baseURL = '/api/analise-juridica/';
+    this.baseURL = '/analise-juridica/';
   }
 
   // ===== ESTATÍSTICAS E DASHBOARD =====
@@ -546,7 +546,7 @@ class AnaliseJuridicaService {
    */
   async listarProcessos() {
     try {
-      const response = await api.get('/api/processos/');
+      const response = await api.get('/processos/');
       return response.data.results || response.data || [];
     } catch (error) {
       console.error('Erro ao listar processos:', error);

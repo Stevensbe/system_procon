@@ -1,5 +1,6 @@
 import axios from 'axios';
 import api from './api';
+import { getToken } from '../utils/token';
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || (import.meta.env.DEV ? 'http://localhost:8000' : 'http://localhost:8000');
@@ -8,6 +9,18 @@ const portalPublicApi = axios.create({
   baseURL: `${API_BASE_URL}/api`,
   timeout: 30000,
 });
+
+// Garantir que requisições públicas também enviem o token quando disponível
+portalPublicApi.interceptors.request.use(
+  (config) => {
+    const token = getToken();
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
 
 const portalCidadaoService = {
   // Consulta pÃºblica
@@ -67,10 +80,12 @@ const portalCidadaoService = {
     }
   },
 
-  getTiposPeticaoPortal: async () => {
+  getTiposPeticaoPortal: async (numeroProcesso) => {
     try {
-      const response = await api.get('/portal/api/tipos-peticao/');
-      return response.data?.tipos ?? response.data ?? [];
+      const response = await api.get('/portal/api/tipos-peticao/', {
+        params: numeroProcesso ? { numero_processo: numeroProcesso } : undefined,
+      });
+      return response.data;
     } catch (error) {
       console.error('Erro ao carregar tipos de petiÃ§Ã£o:', error);
       throw error;
@@ -106,28 +121,59 @@ const portalCidadaoService = {
     }
   },
 
+  consultarDenuncia: async (dados) => {
+    try {
+      const response = await portalPublicApi.post('/portal/api/denuncia/consulta/', dados);
+      return response.data;
+    } catch (error) {
+      console.error('Erro ao consultar denuncia:', error);
+      if (error.response?.data) {
+        return {
+          encontrado: false,
+          ...(error.response.data || {}),
+          statusCode: error.response.status,
+        };
+      }
+      throw error;
+    }
+  },
+
   // Enviar petiÃ§Ã£o
   enviarPeticao: async (dados) => {
     try {
-      const formData = new FormData();
+      // Se já é FormData, usar diretamente
+      let formData;
+      if (dados instanceof FormData) {
+        formData = dados;
+      } else {
+        // Se não é FormData, criar um novo
+        formData = new FormData();
+        Object.entries(dados).forEach(([chave, valor]) => {
+          if (chave === 'documentos') {
+            return;
+          }
+          if (valor !== undefined && valor !== null && valor !== '') {
+            formData.append(chave, valor);
+          }
+        });
 
-      Object.entries(dados).forEach(([chave, valor]) => {
-        if (chave === 'documentos') {
-          return;
+        if (dados.documentos && dados.documentos.length > 0) {
+          dados.documentos.forEach((file) => {
+            formData.append('documentos', file);
+          });
         }
-        if (valor !== undefined && valor !== null) {
-          formData.append(chave, valor);
-        }
-      });
-
-      if (dados.tipo_peticao_codigo) {
-        formData.set('tipo_peticao_codigo', dados.tipo_peticao_codigo);
       }
 
-      if (dados.documentos && dados.documentos.length > 0) {
-        dados.documentos.forEach((file) => {
-          formData.append('documentos', file);
-        });
+      // Debug: log dos dados sendo enviados (apenas em desenvolvimento)
+      if (import.meta.env.DEV) {
+        console.log('Enviando petição com os seguintes dados:');
+        for (const [key, value] of formData.entries()) {
+          if (value instanceof File) {
+            console.log(`  ${key}: [Arquivo] ${value.name} (${value.size} bytes)`);
+          } else {
+            console.log(`  ${key}: ${value}`);
+          }
+        }
       }
 
       const response = await api.post('/portal/api/peticao-juridica/', formData, {
@@ -138,6 +184,14 @@ const portalCidadaoService = {
       return response;
     } catch (error) {
       console.error('Erro ao enviar petiÃ§Ã£o:', error);
+      // Log detalhado do erro em desenvolvimento
+      if (import.meta.env.DEV && error.response) {
+        console.error('Detalhes do erro:', {
+          status: error.response.status,
+          data: error.response.data,
+          headers: error.response.headers
+        });
+      }
       throw error;
     }
   },
@@ -155,9 +209,12 @@ const portalCidadaoService = {
   },
 
   // Acompanhar processo
-  acompanharProcesso: async (numeroProtocolo) => {
+  acompanharProcesso: async (numeroProtocolo, documento = '') => {
     try {
       const params = new URLSearchParams({ numero_protocolo: numeroProtocolo });
+      if (documento) {
+        params.append('documento', documento);
+      }
       const response = await api.get('/portal/api/acompanhar-processo/?' + params.toString());
       return response.data;
     } catch (error) {
@@ -363,6 +420,17 @@ const portalCidadaoService = {
       return response;
     } catch (error) {
       console.error('Erro ao verificar token:', error);
+      throw error;
+    }
+  },
+
+  // Obter histórico de atividades
+  obterHistoricoAtividades: async () => {
+    try {
+      const response = await api.get('/portal/api/historico-atividades/');
+      return response;
+    } catch (error) {
+      console.error('Erro ao obter histórico de atividades:', error);
       throw error;
     }
   }

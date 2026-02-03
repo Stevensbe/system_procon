@@ -308,7 +308,7 @@ export default function PPACreatePage() {
               <span>ℹ️</span> Informações:
             </h6>
             <ul className="space-y-1 text-sm text-gray-700">
-              <li>• O número do PPA será gerado automaticamente no formato PPA-001/2025</li>
+              <li>• O número do PPA será gerado automaticamente no formato 001/2025</li>
               <li>• Após criar o PPA, você poderá anexar documentos (AC, AI, Notificações, etc)</li>
               <li>• O PPA é a capa do processo onde ficam registradas todas as movimentações</li>
               <li>• Você pode adicionar pareceres técnicos e concluir o PPA posteriormente</li>

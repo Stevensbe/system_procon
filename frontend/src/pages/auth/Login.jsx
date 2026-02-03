@@ -1,12 +1,36 @@
 import React, { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { ShieldCheck, LockKeyhole, UserRound, Sparkles, Loader2 } from 'lucide-react';
+import {
+  Building2,
+  Eye,
+  EyeOff,
+  Lock,
+  LogIn,
+  Mail,
+  Phone,
+  User,
+  Loader2,
+} from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import manausBackground from '../../assets/manaus-background.jpg';
+import logoPrefeitura from '../../assets/logo-prefeitura.png';
 
-const HERO_GRADIENT = 'from-slate-900 via-slate-950 to-slate-900';
-const CARD_GRADIENT = 'from-slate-900/90 via-slate-900/80 to-slate-900/60';
 const REMEMBER_KEY = 'auth:last-username';
+
+function ProconLogo() {
+  return (
+    <div className="flex flex-col items-center gap-3">
+      <img
+        src={logoPrefeitura}
+        alt="Prefeitura de Manaus - PROCON"
+        className="h-16 w-auto object-contain"
+      />
+      <p className="text-xs text-primary-foreground/80 text-center max-w-xs">
+        Protecao e Defesa do Consumidor
+      </p>
+    </div>
+  );
+}
 
 function Login() {
   const navigate = useNavigate();
@@ -18,6 +42,7 @@ function Login() {
   });
   const [feedback, setFeedback] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
     const storedUsername = localStorage.getItem(REMEMBER_KEY);
@@ -72,142 +97,158 @@ function Login() {
   const isBusy = submitting || isLoading;
 
   return (
-    <div className={`relative flex min-h-screen flex-col overflow-hidden bg-gradient-to-br ${HERO_GRADIENT} py-12`}>
-      <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.25),transparent_60%)]" />
-      <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_bottom_right,rgba(16,185,129,0.2),transparent_55%)]" />
+    <div className="procon-login min-h-screen relative flex items-center justify-center p-4">
+      <div
+        className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+        style={{ backgroundImage: `url(${manausBackground})` }}
+      >
+        <div className="absolute inset-0 bg-gradient-to-br from-[hsl(var(--overlay-dark))]/80 via-[hsl(var(--overlay-dark))]/70 to-[hsl(var(--procon-blue-dark))]/60" />
+      </div>
 
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-10 px-6 lg:flex-row lg:items-center lg:justify-between lg:px-10">
-        <motion.section
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-          className="max-w-xl text-slate-50"
-        >
-          <div className="inline-flex items-center gap-2 rounded-full bg-slate-900/60 px-4 py-1 text-xs font-semibold uppercase tracking-[0.35em] text-slate-300">
-            <Sparkles className="h-3.5 w-3.5" />
-            Atendimento PROCON
-          </div>
-          <h1 className="mt-6 text-4xl font-bold leading-tight text-white sm:text-5xl">
-            Acesse o painel de gestao e atendimento do PROCON
-          </h1>
-          <p className="mt-4 text-base text-slate-300/90">
-            Realize triagens, acompanhe protocolos, gerencie filas de atendimento e monitore indicadores criticos em um unico ambiente seguro.
-          </p>
-          <ul className="mt-6 space-y-3 text-sm text-slate-300/80">
-            <li className="flex items-center gap-3">
-              <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-blue-500/20 text-blue-200">1</span>
-              Autenticacao unificada para equipes internas e parceiros.
-            </li>
-            <li className="flex items-center gap-3">
-              <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-blue-500/20 text-blue-200">2</span>
-              Redirecionamento automatico conforme perfil de acesso (admin, empresa ou consumidor).
-            </li>
-            <li className="flex items-center gap-3">
-              <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-blue-500/20 text-blue-200">3</span>
-              Seguranca reforcada com tokens JWT e monitoramento em tempo real.
-            </li>
-          </ul>
-        </motion.section>
-
-        <motion.section
-          initial={{ opacity: 0, y: 40 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1, duration: 0.6 }}
-          className={`w-full max-w-md rounded-3xl border border-slate-800/70 bg-gradient-to-br ${CARD_GRADIENT} p-8 shadow-[0_30px_120px_-40px_rgba(59,130,246,0.45)] backdrop-blur`}
-        >
-          <div className="flex items-center gap-3 text-slate-200">
-            <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-600/20 text-blue-200">
-              <ShieldCheck className="h-7 w-7" />
-            </span>
-            <div>
-              <p className="text-xs uppercase tracking-[0.45em] text-blue-200/80">Area segura</p>
-              <h2 className="text-2xl font-semibold text-white">Entrar no sistema</h2>
-            </div>
+      <div className="relative z-10 w-full max-w-md">
+        <div className="login-card rounded-xl overflow-hidden">
+          <div className="procon-header py-8 px-6">
+            <ProconLogo />
           </div>
 
-          <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-            <div className="space-y-2">
-              <label htmlFor="username" className="flex items-center gap-2 text-sm font-medium text-slate-200">
-                <UserRound className="h-4 w-4 text-blue-300" />
-                Usuario
-              </label>
-              <input
-                id="username"
-                name="username"
-                type="text"
-                autoComplete="username"
-                value={formData.username}
-                onChange={handleChange('username')}
-                className="w-full rounded-2xl border border-slate-800 bg-slate-900/80 px-4 py-3 text-sm text-slate-100 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/40"
-                placeholder="seu.email@procon.gov"
-              />
+          <div className="procon-accent-bar" />
+
+          <div className="p-8">
+            <div className="mb-6 text-center">
+              <h2 className="text-xl font-semibold text-foreground">Acesso ao Sistema</h2>
+              <p className="text-sm text-muted-foreground mt-1">
+                Entre com suas credenciais para acessar
+              </p>
             </div>
 
-            <div className="space-y-2">
-              <label htmlFor="password" className="flex items-center gap-2 text-sm font-medium text-slate-200">
-                <LockKeyhole className="h-4 w-4 text-blue-300" />
-                Senha
-              </label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                autoComplete="current-password"
-                value={formData.password}
-                onChange={handleChange('password')}
-                className="w-full rounded-2xl border border-slate-800 bg-slate-900/80 px-4 py-3 text-sm text-slate-100 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/40"
-                placeholder="********"
-              />
-            </div>
+            <form onSubmit={handleSubmit} className="space-y-5">
+              <div className="space-y-2">
+                <label htmlFor="username" className="text-sm font-medium text-foreground">
+                  Usuario
+                </label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <input
+                    id="username"
+                    name="username"
+                    type="text"
+                    autoComplete="username"
+                    value={formData.username}
+                    onChange={handleChange('username')}
+                    className="input-procon w-full rounded-md bg-white/95 px-4 py-3 pl-10 text-sm text-foreground placeholder:text-muted-foreground"
+                    placeholder="seu.email@procon.gov"
+                  />
+                </div>
+              </div>
 
-            <div className="flex items-center justify-between text-sm text-slate-400">
-              <label className="inline-flex cursor-pointer items-center gap-2">
-                <input
-                  type="checkbox"
-                  className="h-4 w-4 rounded border-slate-700 bg-slate-900 text-blue-500 focus:ring-blue-500"
-                  checked={formData.remember}
-                  onChange={handleChange('remember')}
-                />
-                Lembrar usuario
-              </label>
-              <span className="text-xs text-slate-500">Precisa de ajuda? Contate o suporte interno.</span>
-            </div>
+              <div className="space-y-2">
+                <label htmlFor="password" className="text-sm font-medium text-foreground">
+                  Senha
+                </label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <input
+                    id="password"
+                    name="password"
+                    type={showPassword ? 'text' : 'password'}
+                    autoComplete="current-password"
+                    value={formData.password}
+                    onChange={handleChange('password')}
+                    className="input-procon w-full rounded-md bg-white/95 px-4 py-3 pl-10 pr-10 text-sm text-foreground placeholder:text-muted-foreground"
+                    placeholder="Digite sua senha"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((prev) => !prev)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                    aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
 
-            <button
-              type="submit"
-              disabled={isBusy}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-500 px-4 py-3 text-sm font-semibold text-white shadow-lg transition hover:bg-blue-400 disabled:cursor-not-allowed disabled:bg-blue-500/60"
-            >
-              {isBusy ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Autenticando...
-                </>
-              ) : (
-                'Entrar no sistema'
-              )}
-            </button>
-          </form>
+              <div className="flex items-center justify-between text-sm">
+                <label className="flex items-center gap-2 cursor-pointer text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    className="rounded border-input text-primary focus:ring-primary"
+                    checked={formData.remember}
+                    onChange={handleChange('remember')}
+                  />
+                  <span>Lembrar-me</span>
+                </label>
+                <button
+                  type="button"
+                  className="text-primary hover:text-primary/80 font-medium transition-colors"
+                >
+                  Esqueci minha senha
+                </button>
+              </div>
 
-          <div className="mt-6 min-h-[48px] text-sm">
-            {feedback && (
-              <div
-                className={`rounded-xl border px-4 py-3 text-sm ${
-                  feedback.type === 'success'
-                    ? 'border-emerald-400/60 bg-emerald-500/10 text-emerald-200'
-                    : 'border-rose-500/60 bg-rose-500/10 text-rose-200'
-                }`}
+              <button
+                type="submit"
+                data-testid="login-button"
+                disabled={isBusy}
+                className="btn-procon w-full h-11 rounded-md flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
               >
-                {feedback.message}
-              </div>
-            )}
-            {!feedback && error && (
-              <div className="rounded-xl border border-rose-500/60 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
-                {error}
-              </div>
-            )}
+                {isBusy ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Entrando...
+                  </>
+                ) : (
+                  <>
+                    <LogIn className="h-4 w-4" />
+                    Entrar
+                  </>
+                )}
+              </button>
+            </form>
+
+            <div className="mt-6 min-h-[48px] text-sm">
+              {feedback && (
+                <div
+                  className={`rounded-md border px-4 py-3 text-sm ${
+                    feedback.type === 'success'
+                      ? 'border-emerald-300/70 bg-emerald-100/50 text-emerald-700'
+                      : 'border-rose-300/70 bg-rose-100/50 text-rose-700'
+                  }`}
+                >
+                  {feedback.message}
+                </div>
+              )}
+              {!feedback && error && (
+                <div className="rounded-md border border-rose-300/70 bg-rose-100/50 px-4 py-3 text-sm text-rose-700">
+                  {error}
+                </div>
+              )}
+            </div>
           </div>
-        </motion.section>
+
+          <div className="bg-muted/50 px-6 py-4 border-t border-border">
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 text-xs text-muted-foreground">
+              <div className="flex items-center gap-1">
+                <Building2 className="h-3 w-3" />
+                <span>Prefeitura de Manaus</span>
+              </div>
+              <div className="hidden sm:block w-1 h-1 bg-muted-foreground/50 rounded-full" />
+              <div className="flex items-center gap-1">
+                <Phone className="h-3 w-3" />
+                <span>151</span>
+              </div>
+              <div className="hidden sm:block w-1 h-1 bg-muted-foreground/50 rounded-full" />
+              <div className="flex items-center gap-1">
+                <Mail className="h-3 w-3" />
+                <span>procon@manaus.am.gov.br</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <p className="text-center text-xs text-white/70 mt-6">
+          (c) {new Date().getFullYear()} PROCON Manaus Municipal - Todos os direitos reservados
+        </p>
       </div>
     </div>
   );

@@ -317,6 +317,12 @@ function ProcessoDashboard() {
                                                 >
                                                     Ver Dossiê
                                                 </Link>
+                                                <Link
+                                                    to={`/processos/${processo.id}?tramitar=1`}
+                                                    className="text-emerald-600 hover:text-emerald-800 ml-3"
+                                                >
+                                                    Tramitar
+                                                </Link>
                                             </td>
                                         </tr>
                                     ))}

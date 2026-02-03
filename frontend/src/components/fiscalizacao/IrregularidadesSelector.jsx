@@ -64,7 +64,7 @@ const IRREGULARIDADES_CONFIG = {
         key: 'obstrucao_monitor',
         label: 'Obstrução do monitor',
         description: 'Monitor de preços obstruído ou não visível',
-        baseLegal: 'Lei nº 10.962/2004'
+        baseLegal: 'Lei nº 7355/2025'
       },
       {
         key: 'afixacao_precos_fora_padrao',

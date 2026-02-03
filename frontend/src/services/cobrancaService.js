@@ -444,6 +444,69 @@ class CobrancaService {
     }
   }
 
+  // ===== GRM =====
+  async getGrms(params = {}) {
+    try {
+      const queryParams = new URLSearchParams();
+      if (params.page) queryParams.append('page', params.page);
+      if (params.search) queryParams.append('search', params.search);
+      if (params.filters) {
+        Object.keys(params.filters).forEach(key => {
+          if (params.filters[key]) queryParams.append(key, params.filters[key]);
+        });
+      }
+      const response = await this.makeRequest(`${this.baseURL}/grm/?${queryParams}`);
+      if (!response.ok) throw new Error('Erro ao carregar GRMs');
+      return await response.json();
+    } catch (error) {
+      console.error('Erro ao carregar GRMs:', error);
+      return { results: [], count: 0 };
+    }
+  }
+
+  async getGrm(id) {
+    try {
+      const response = await this.makeRequest(`${this.baseURL}/grm/${id}/`);
+      if (!response.ok) throw new Error('Erro ao carregar GRM');
+      return await response.json();
+    } catch (error) {
+      console.error('Erro ao carregar GRM:', error);
+      throw error;
+    }
+  }
+
+  async createGrm(payload) {
+    try {
+      const response = await this.makeRequest(`${this.baseURL}/grm/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || 'Erro ao criar GRM');
+      }
+      return await response.json();
+    } catch (error) {
+      console.error('Erro ao criar GRM:', error);
+      throw error;
+    }
+  }
+
+  async gerarGrmDocx(id) {
+    try {
+      const response = await this.makeRequest(`${this.baseURL}/grm/${id}/gerar_docx/`, {
+        method: 'GET'
+      });
+      if (!response.ok) throw new Error('Erro ao gerar DOCX da GRM');
+      const blob = await response.blob();
+      return blob;
+    } catch (error) {
+      console.error('Erro ao gerar DOCX da GRM:', error);
+      throw error;
+    }
+  }
+
   // ===== RELATORIOS =====
   async gerarRelatorio(params) {
     try {

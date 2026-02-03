@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { obterAutoInfracao, deletarAutoInfracao } from '../../../services/fiscalizacaoService';
+import { obterAutoInfracao, deletarAutoInfracao, validarAutoInfracaoFormal } from '../../../services/fiscalizacaoService';
 
 function AutoInfracaoDetailPage() {
     const { id } = useParams();
@@ -9,10 +9,20 @@ function AutoInfracaoDetailPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [showDeleteModal, setShowDeleteModal] = useState(false);
+    const [validacaoMotivo, setValidacaoMotivo] = useState('');
+    const [validacaoLoading, setValidacaoLoading] = useState(false);
+    const [mostrarMotivo, setMostrarMotivo] = useState(false);
 
     useEffect(() => {
         carregarAuto();
     }, [id]);
+    
+    useEffect(() => {
+        if (auto) {
+            setValidacaoMotivo(auto.validacao_formal_motivo || '');
+            setMostrarMotivo(auto.validacao_formal_status === 'erro');
+        }
+    }, [auto]);
 
     const carregarAuto = async () => {
         try {
@@ -38,6 +48,27 @@ function AutoInfracaoDetailPage() {
         }
         setShowDeleteModal(false);
     };
+    
+    const handleValidacao = async (status) => {
+        if (status === 'erro' && !validacaoMotivo.trim()) {
+            alert('Informe o motivo do erro formal.');
+            return;
+        }
+        try {
+            setValidacaoLoading(true);
+            const response = await validarAutoInfracaoFormal(id, {
+                status,
+                motivo: status === 'erro' ? validacaoMotivo : ''
+            });
+            setAuto(response);
+            setMostrarMotivo(status === 'erro');
+        } catch (err) {
+            console.error('❌ Erro ao validar formalmente:', err);
+            alert('Erro ao registrar validação formal.');
+        } finally {
+            setValidacaoLoading(false);
+        }
+    };
 
     const getStatusColor = (status) => {
         const colors = {
@@ -61,6 +92,24 @@ function AutoInfracaoDetailPage() {
             cancelado: 'Cancelado',
         };
         return labels[status] || status;
+    };
+    
+    const getValidacaoColor = (status) => {
+        const colors = {
+            pendente: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+            valido: 'bg-green-100 text-green-800 border-green-200',
+            erro: 'bg-red-100 text-red-800 border-red-200',
+        };
+        return colors[status] || 'bg-gray-100 text-gray-800 border-gray-200';
+    };
+    
+    const getValidacaoLabel = (status) => {
+        const labels = {
+            pendente: 'Pendente',
+            valido: 'Válido',
+            erro: 'Erro Formal',
+        };
+        return labels[status] || status || 'Pendente';
     };
 
     const renderField = (label, value, className = '') => (
@@ -201,19 +250,27 @@ function AutoInfracaoDetailPage() {
                                     {renderField('Nome Fantasia', auto.nome_fantasia)}
                                     {renderField('CNPJ', auto.cnpj)}
                                     {renderField('Telefone', auto.telefone)}
+                                    {renderField('CEP', auto.cep)}
                                 </div>
                                 {renderField('Atividade', auto.atividade)}
                                 {renderField('Endereço', auto.endereco)}
                             </div>
                         ), '🏢')}
 
-                        {/* Parecer Prévio */}
-                        {(auto.parecer_numero || auto.parecer_origem) && renderSection('Parecer Prévio', (
+                        {/* Origem do Auto */}
+                        {(auto.auto_constatacao_numero || auto.notificacao_numero || auto.parecer_numero || auto.parecer_origem) && renderSection('Origem do Auto', (
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {renderField('Auto de Constatação Nº', auto.auto_constatacao_numero)}
+                                {renderField('Notificação Nº', auto.notificacao_numero)}
                                 {renderField('Número do Parecer', auto.parecer_numero)}
-                                {renderField('Origem', auto.parecer_origem)}
+                                {renderField('Origem do Parecer', auto.parecer_origem)}
                             </div>
                         ), '📋')}
+                        {auto.texto_origem && renderSection('Texto de Origem', (
+                            <div className="bg-gray-50 p-4 rounded-lg">
+                                <p className="text-gray-900 whitespace-pre-wrap">{auto.texto_origem}</p>
+                            </div>
+                        ), '🧾')}
 
                         {/* Relatório */}
                         {renderSection('Relatório da Fiscalização', (
@@ -330,6 +387,65 @@ function AutoInfracaoDetailPage() {
 
                     {/* Sidebar */}
                     <div className="space-y-6">
+                        {/* Validação Formal */}
+                        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                            <h3 className="text-lg font-semibold text-gray-900 mb-4">✅ Validação Formal</h3>
+                            <div className="space-y-4">
+                                <div>
+                                    <span className={`inline-flex px-3 py-1 text-sm font-semibold rounded-full border ${getValidacaoColor(auto.validacao_formal_status)}`}>
+                                        {getValidacaoLabel(auto.validacao_formal_status)}
+                                    </span>
+                                </div>
+                                {auto.validado_em && (
+                                    <div className="text-sm text-gray-600">
+                                        <p>Validado em: {new Date(auto.validado_em).toLocaleString('pt-BR')}</p>
+                                        {(auto.validado_por_nome || auto.validado_por) && (
+                                            <p>Validado por: {auto.validado_por_nome || auto.validado_por}</p>
+                                        )}
+                                    </div>
+                                )}
+                                {(mostrarMotivo || auto.validacao_formal_status === 'erro') && (
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                            Motivo do Erro Formal
+                                        </label>
+                                        <textarea
+                                            value={validacaoMotivo}
+                                            onChange={(e) => setValidacaoMotivo(e.target.value)}
+                                            rows={4}
+                                            className="w-full border border-gray-300 rounded-md p-3 text-sm"
+                                            placeholder="Descreva o erro formal encontrado..."
+                                        />
+                                    </div>
+                                )}
+                                <div className="flex flex-col gap-2">
+                                    <button
+                                        onClick={() => {
+                                            setMostrarMotivo(false);
+                                            handleValidacao('valido');
+                                        }}
+                                        disabled={validacaoLoading}
+                                        className="w-full inline-flex items-center justify-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-60"
+                                    >
+                                        Aprovar Validação
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            if (!mostrarMotivo) {
+                                                setMostrarMotivo(true);
+                                                return;
+                                            }
+                                            handleValidacao('erro');
+                                        }}
+                                        disabled={validacaoLoading}
+                                        className="w-full inline-flex items-center justify-center px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-60"
+                                    >
+                                        Registrar Erro Formal
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
                         {/* Informações da Multa */}
                         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
                             <h3 className="text-lg font-semibold text-gray-900 mb-4">💰 Penalidade</h3>

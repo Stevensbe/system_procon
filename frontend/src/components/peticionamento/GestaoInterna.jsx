@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { 
+import {
   FunnelIcon,
   MagnifyingGlassIcon,
   DocumentTextIcon,
@@ -15,10 +15,17 @@ import {
   PaperClipIcon
 } from '@heroicons/react/24/outline';
 import peticionamentoService from '../../services/peticionamentoService';
+import { useAuth } from '../../context/SupabaseAuthContext';
 
-const GestaoInterna = ({ onPeticaoSelect }) => {
+const GestaoInterna = ({ onPeticaoSelect, setorDestino = '' }) => {
+  const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [peticoes, setPeticoes] = useState([]);
+  const [usuarios, setUsuarios] = useState([]);
+  const [usuariosLoading, setUsuariosLoading] = useState(false);
+  const [showDistribuirModal, setShowDistribuirModal] = useState(false);
+  const [peticaoDistribuir, setPeticaoDistribuir] = useState(null);
+  const [usuarioDestinoId, setUsuarioDestinoId] = useState('');
   const [filtros, setFiltros] = useState({
     status: '',
     categoria: '',
@@ -38,7 +45,7 @@ const GestaoInterna = ({ onPeticaoSelect }) => {
 
   useEffect(() => {
     carregarPeticoes();
-  }, [filtros, ordenacao, paginacao.pagina_atual]);
+  }, [filtros, ordenacao, paginacao.pagina_atual, setorDestino]);
 
   const carregarPeticoes = async () => {
     setLoading(true);
@@ -49,7 +56,11 @@ const GestaoInterna = ({ onPeticaoSelect }) => {
         page: paginacao.pagina_atual,
         page_size: paginacao.items_por_pagina
       };
-      
+
+      if (setorDestino) {
+        params.setor_destino = setorDestino;
+      }
+
       const response = await peticionamentoService.listarPeticoes(params);
       setPeticoes(response.results || []);
       setPaginacao(prev => ({
@@ -141,7 +152,7 @@ const GestaoInterna = ({ onPeticaoSelect }) => {
       'FINALIZADA': { label: 'Finalizada', color: 'green', icon: CheckCircleIcon },
       'INDEFERIDA': { label: 'Indeferida', color: 'red', icon: ExclamationTriangleIcon },
     };
-    
+
     return statusMap[status] || { label: status, color: 'gray', icon: ExclamationTriangleIcon };
   };
 
@@ -153,7 +164,7 @@ const GestaoInterna = ({ onPeticaoSelect }) => {
       'SUGESTAO': { label: 'Sugestão', color: 'green', icon: '💡' },
       'RECURSO': { label: 'Recurso', color: 'purple', icon: '⚖️' },
     };
-    
+
     return categoriaMap[categoria] || { label: categoria, color: 'gray', icon: '📄' };
   };
 
@@ -164,8 +175,70 @@ const GestaoInterna = ({ onPeticaoSelect }) => {
       'ALTA': { label: 'Alta', color: 'orange', icon: '🟠' },
       'URGENTE': { label: 'Urgente', color: 'red', icon: '🔴' },
     };
-    
+
     return prioridadeMap[prioridade] || { label: 'Normal', color: 'blue', icon: '🔵' };
+  };
+
+  const obterNomeResponsavel = (responsavel) => {
+    if (!responsavel) {
+      return '—';
+    }
+    const nome = `${responsavel.first_name || ''} ${responsavel.last_name || ''}`.trim();
+    return nome || responsavel.username || responsavel.email || '—';
+  };
+
+  const handleAssumir = async (peticaoId) => {
+    try {
+      await peticionamentoService.atribuirResponsavel(peticaoId);
+      await carregarPeticoes();
+    } catch (error) {
+      console.error('Erro ao assumir petição:', error);
+      alert('Não foi possível assumir a petição. Tente novamente.');
+    }
+  };
+
+  const carregarUsuarios = async () => {
+    if (usuarios.length > 0) {
+      return;
+    }
+    setUsuariosLoading(true);
+    try {
+      const lista = await peticionamentoService.listarUsuariosAtivos(true, setorDestino);
+      setUsuarios(lista || []);
+    } catch (error) {
+      console.error('Erro ao carregar usuários:', error);
+      alert('Não foi possível carregar usuários para distribuição.');
+    } finally {
+      setUsuariosLoading(false);
+    }
+  };
+
+  const abrirDistribuir = async (peticao) => {
+    setPeticaoDistribuir(peticao);
+    setUsuarioDestinoId('');
+    setShowDistribuirModal(true);
+    await carregarUsuarios();
+  };
+
+  const fecharDistribuir = () => {
+    setShowDistribuirModal(false);
+    setPeticaoDistribuir(null);
+    setUsuarioDestinoId('');
+  };
+
+  const confirmarDistribuir = async () => {
+    if (!peticaoDistribuir || !usuarioDestinoId) {
+      alert('Selecione um usuário para distribuir.');
+      return;
+    }
+    try {
+      await peticionamentoService.atribuirResponsavel(peticaoDistribuir.id, usuarioDestinoId);
+      await carregarPeticoes();
+      fecharDistribuir();
+    } catch (error) {
+      console.error('Erro ao distribuir petição:', error);
+      alert('Não foi possível distribuir a petição. Tente novamente.');
+    }
   };
 
   return (
@@ -369,7 +442,7 @@ const GestaoInterna = ({ onPeticaoSelect }) => {
                   const prioridade = formatarPrioridade(peticao.prioridade);
                   const diasAnalise = calcularDiasAnalise(peticao.criado_em);
                   const prazoRestante = calcularPrazoRestante(peticao.criado_em, peticao.prazo_resposta);
-                  
+
                   return (
                     <tr key={peticao.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => onPeticaoSelect(peticao)}>
                       <td className="px-6 py-4">
@@ -412,22 +485,19 @@ const GestaoInterna = ({ onPeticaoSelect }) => {
                         <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-${status.color}-100 text-${status.color}-800`}>
                           {status.label}
                         </span>
-                        {peticao.analista_responsavel && (
-                          <div className="text-xs text-gray-500 mt-1">
-                            {peticao.analista_responsavel.nome}
-                          </div>
-                        )}
+                        <div className="text-xs text-gray-500 mt-1">
+                          Resp.: {obterNomeResponsavel(peticao.responsavel_atual)}
+                        </div>
                       </td>
                       <td className="px-6 py-4">
                         <div className="text-sm">
-                          <div className={`font-medium ${
-                            prazoRestante < 0 ? 'text-red-600' :
-                            prazoRestante <= 5 ? 'text-orange-600' :
-                            'text-green-600'
-                          }`}>
+                          <div className={`font-medium ${prazoRestante < 0 ? 'text-red-600' :
+                              prazoRestante <= 5 ? 'text-orange-600' :
+                                'text-green-600'
+                            }`}>
                             {prazoRestante < 0 ? `${Math.abs(prazoRestante)} dias em atraso` :
-                             prazoRestante === 0 ? 'Vence hoje' :
-                             `${prazoRestante} dias restantes`}
+                              prazoRestante === 0 ? 'Vence hoje' :
+                                `${prazoRestante} dias restantes`}
                           </div>
                           <div className="text-xs text-gray-500">
                             {diasAnalise} dias em análise
@@ -452,6 +522,32 @@ const GestaoInterna = ({ onPeticaoSelect }) => {
                             className="text-blue-600 hover:text-blue-900"
                           >
                             <EyeIcon className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const responsavelId = peticao.responsavel_atual?.id;
+                              const usuarioId = user?.id;
+                              if (responsavelId && responsavelId !== usuarioId) {
+                                const confirmar = window.confirm('Esta petição já possui responsável. Deseja assumir mesmo assim?');
+                                if (!confirmar) {
+                                  return;
+                                }
+                              }
+                              handleAssumir(peticao.id);
+                            }}
+                            className="text-indigo-600 hover:text-indigo-900 text-xs font-medium"
+                          >
+                            {peticao.responsavel_atual ? 'Assumir' : 'Assumir'}
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              abrirDistribuir(peticao);
+                            }}
+                            className="text-amber-600 hover:text-amber-900 text-xs font-medium"
+                          >
+                            Distribuir
                           </button>
                           <button
                             onClick={(e) => {
@@ -481,7 +577,7 @@ const GestaoInterna = ({ onPeticaoSelect }) => {
                 {Math.min(paginacao.pagina_atual * paginacao.items_por_pagina, paginacao.total_items)} de{' '}
                 {paginacao.total_items} resultados
               </div>
-              
+
               <div className="flex items-center space-x-2">
                 <button
                   onClick={() => setPaginacao(prev => ({ ...prev, pagina_atual: prev.pagina_atual - 1 }))}
@@ -490,11 +586,11 @@ const GestaoInterna = ({ onPeticaoSelect }) => {
                 >
                   Anterior
                 </button>
-                
+
                 <span className="text-sm text-gray-700">
                   Página {paginacao.pagina_atual} de {paginacao.total_paginas}
                 </span>
-                
+
                 <button
                   onClick={() => setPaginacao(prev => ({ ...prev, pagina_atual: prev.pagina_atual + 1 }))}
                   disabled={paginacao.pagina_atual === paginacao.total_paginas}
@@ -507,6 +603,51 @@ const GestaoInterna = ({ onPeticaoSelect }) => {
           </div>
         )}
       </div>
+
+      {showDistribuirModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
+            <h4 className="text-lg font-semibold text-gray-900 mb-2">Distribuir Petição</h4>
+            <p className="text-sm text-gray-600 mb-4">
+              Selecione o usuário responsável para a petição {peticaoDistribuir?.numero_peticao}.
+            </p>
+
+            {usuariosLoading ? (
+              <div className="flex items-center justify-center py-6">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+              </div>
+            ) : (
+              <select
+                value={usuarioDestinoId}
+                onChange={(e) => setUsuarioDestinoId(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Selecione um usuário</option>
+                {usuarios.map((usuario) => (
+                  <option key={usuario.id} value={usuario.id}>
+                    {`${usuario.first_name || ''} ${usuario.last_name || ''}`.trim() || usuario.username || usuario.email}
+                  </option>
+                ))}
+              </select>
+            )}
+
+            <div className="flex justify-end space-x-2 mt-6">
+              <button
+                onClick={fecharDistribuir}
+                className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmarDistribuir}
+                className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
+              >
+                Distribuir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

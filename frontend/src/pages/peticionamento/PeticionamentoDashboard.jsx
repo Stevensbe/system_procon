@@ -564,6 +564,7 @@ const PeticionamentoDashboard = () => {
       {activeTab === 'gestao' && (
         <GestaoInterna 
           onPeticaoSelect={(peticao) => setPeticaoSelecionada(peticao)}
+          setorDestino="JURIDICO_1"
         />
       )}
       

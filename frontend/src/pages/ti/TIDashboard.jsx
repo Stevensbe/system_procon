@@ -7,9 +7,17 @@ const TIDashboard = () => {
   const [usuarios, setUsuarios] = useState([]);
   const [modulos, setModulos] = useState([]);
   const [permissoes, setPermissoes] = useState([]);
+  const [setores, setSetores] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterSetor, setFilterSetor] = useState('');
+  const [filterRole, setFilterRole] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
+  const [capturadoresAtivos, setCapturadoresAtivos] = useState(false);
+  const [capturadoresLoading, setCapturadoresLoading] = useState(false);
+  const [capturadoresErro, setCapturadoresErro] = useState('');
   const [formData, setFormData] = useState({
     nome: '',
     email: '',
@@ -18,6 +26,7 @@ const TIDashboard = () => {
     matricula: '',
     cargo: '',
     departamento: '',
+    setor: '',
     role: 'usuario',
     status: 'ativo',
     senha: '',
@@ -29,19 +38,31 @@ const TIDashboard = () => {
     loadData();
   }, []);
 
+  const parseBool = (value) => {
+    if (value === true || value === 1) return true;
+    const texto = String(value ?? '').trim().toLowerCase();
+    return ['true', '1', 'yes', 'sim', 'on', 'ativo'].includes(texto);
+  };
+
   const loadData = async () => {
     setLoading(true);
     try {
       // Carregar dados reais da API
-      const [usuariosData, modulosData, cargosData] = await Promise.all([
+      const [usuariosData, modulosData, cargosData, setoresData, capturadoresConfig] = await Promise.all([
         tiService.listarUsuarios(),
         tiService.listarModulos(),
-        tiService.listarCargos()
+        tiService.listarCargos(),
+        tiService.listarSetores(),
+        tiService.obterConfiguracao('triagem_capturadores_ativos').catch(() => null)
       ]);
       
       setUsuarios(usuariosData);
       setModulos(modulosData);
       setPermissoes(cargosData);
+      setSetores(setoresData || []);
+      if (capturadoresConfig) {
+        setCapturadoresAtivos(parseBool(capturadoresConfig.valor));
+      }
       
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
@@ -147,6 +168,22 @@ const TIDashboard = () => {
     }
   };
 
+  const handleToggleCapturadores = async () => {
+    setCapturadoresLoading(true);
+    setCapturadoresErro('');
+    try {
+      const novoValor = !capturadoresAtivos;
+      const payload = { valor: novoValor };
+      const atualizado = await tiService.atualizarConfiguracao('triagem_capturadores_ativos', payload);
+      setCapturadoresAtivos(parseBool(atualizado.valor));
+    } catch (error) {
+      console.error('Erro ao atualizar capturadores:', error);
+      setCapturadoresErro('Nao foi possivel atualizar o toggle.');
+    } finally {
+      setCapturadoresLoading(false);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     
@@ -181,6 +218,7 @@ const TIDashboard = () => {
         matricula: formData.matricula,
         cargo: formData.cargo,
         departamento: formData.departamento,
+        setor: formData.setor || formData.departamento,
         role: formData.role,
         status: formData.status,
         senha: formData.senha,
@@ -204,37 +242,39 @@ const TIDashboard = () => {
   };
 
   const resetForm = () => {
-    setFormData({
-      nome: '',
-      email: '',
-      telefone: '',
-      cpf: '',
-      matricula: '',
-      cargo: '',
-      departamento: '',
-      role: 'usuario',
-      status: 'ativo',
-      senha: '',
-      confirmarSenha: '',
-      permissoesModulos: {}
-    });
+      setFormData({
+        nome: '',
+        email: '',
+        telefone: '',
+        cpf: '',
+        matricula: '',
+        cargo: '',
+        departamento: '',
+        setor: '',
+        role: 'usuario',
+        status: 'ativo',
+        senha: '',
+        confirmarSenha: '',
+        permissoesModulos: {}
+      });
   };
 
-  const editUsuario = (usuario) => {
-    setFormData({
-      nome: usuario.nome || '',
-      email: usuario.email || '',
-      telefone: usuario.telefone || '',
-      cpf: usuario.cpf || '',
-      matricula: usuario.matricula || '',
-      cargo: usuario.cargo || '',
-      departamento: usuario.departamento || '',
-      role: usuario.role || 'usuario',
-      status: usuario.status || 'ativo',
-      senha: '',
-      confirmarSenha: '',
-      permissoesModulos: usuario.permissoesModulos || {}
-    });
+    const editUsuario = (usuario) => {
+      setFormData({
+        nome: usuario.nome || '',
+        email: usuario.email || '',
+        telefone: usuario.telefone || '',
+        cpf: usuario.cpf || '',
+        matricula: usuario.matricula || '',
+        cargo: usuario.cargo || '',
+        departamento: usuario.departamento || '',
+        setor: usuario.setor || usuario.departamento || '',
+        role: usuario.role || 'usuario',
+        status: usuario.status || 'ativo',
+        senha: '',
+        confirmarSenha: '',
+        permissoesModulos: usuario.permissoesModulos || {}
+      });
     setEditingUser(usuario);
     setShowModal(true);
   };
@@ -247,6 +287,7 @@ const TIDashboard = () => {
         atendimento: { visualizar: true, criar: true, editar: true, excluir: true, aprovar: true, rejeitar: true, exportar: true, imprimir: true },
         'portal-empresa': { visualizar: true, criar: true, editar: true, excluir: true, aprovar: true, rejeitar: true, exportar: true, imprimir: true },
         'portal-consumidor': { visualizar: true, criar: true, editar: true, excluir: true, aprovar: true, rejeitar: true, exportar: true, imprimir: true },
+        processos: { visualizar: true, criar: true, editar: true, excluir: true, aprovar: true, rejeitar: true, exportar: true, imprimir: true },
         cobranca: { visualizar: true, criar: true, editar: true, excluir: true, aprovar: true, rejeitar: true, exportar: true, imprimir: true },
         juridico: { visualizar: true, criar: true, editar: true, excluir: true, aprovar: true, rejeitar: true, exportar: true, imprimir: true },
         relatorios: { visualizar: true, criar: true, editar: true, excluir: true, aprovar: true, rejeitar: true, exportar: true, imprimir: true },
@@ -259,6 +300,7 @@ const TIDashboard = () => {
         atendimento: { visualizar: true, criar: true, editar: true, excluir: false, aprovar: true, rejeitar: true, exportar: true, imprimir: true },
         'portal-empresa': { visualizar: true, criar: false, editar: false, excluir: false, aprovar: true, rejeitar: true, exportar: true, imprimir: true },
         'portal-consumidor': { visualizar: true, criar: false, editar: false, excluir: false, aprovar: true, rejeitar: true, exportar: true, imprimir: true },
+        processos: { visualizar: true, criar: true, editar: true, excluir: false, aprovar: true, rejeitar: true, exportar: true, imprimir: true },
         cobranca: { visualizar: true, criar: true, editar: true, excluir: false, aprovar: true, rejeitar: true, exportar: true, imprimir: true },
         juridico: { visualizar: true, criar: false, editar: false, excluir: false, aprovar: true, rejeitar: true, exportar: true, imprimir: true },
         relatorios: { visualizar: true, criar: true, editar: true, excluir: false, aprovar: true, rejeitar: true, exportar: true, imprimir: true },
@@ -271,6 +313,7 @@ const TIDashboard = () => {
         atendimento: { visualizar: false, criar: false, editar: false, excluir: false, aprovar: false, rejeitar: false, exportar: false, imprimir: false },
         'portal-empresa': { visualizar: false, criar: false, editar: false, excluir: false, aprovar: false, rejeitar: false, exportar: false, imprimir: false },
         'portal-consumidor': { visualizar: true, criar: false, editar: false, excluir: false, aprovar: false, rejeitar: false, exportar: true, imprimir: true },
+        processos: { visualizar: true, criar: true, editar: true, excluir: false, aprovar: false, rejeitar: false, exportar: true, imprimir: true },
         cobranca: { visualizar: true, criar: false, editar: false, excluir: false, aprovar: false, rejeitar: false, exportar: true, imprimir: true },
         juridico: { visualizar: false, criar: false, editar: false, excluir: false, aprovar: false, rejeitar: false, exportar: false, imprimir: false },
         relatorios: { visualizar: true, criar: false, editar: false, excluir: false, aprovar: false, rejeitar: false, exportar: true, imprimir: true },
@@ -283,6 +326,7 @@ const TIDashboard = () => {
         atendimento: { visualizar: true, criar: true, editar: true, excluir: false, aprovar: false, rejeitar: false, exportar: true, imprimir: true },
         'portal-empresa': { visualizar: false, criar: false, editar: false, excluir: false, aprovar: false, rejeitar: false, exportar: false, imprimir: false },
         'portal-consumidor': { visualizar: true, criar: false, editar: false, excluir: false, aprovar: false, rejeitar: false, exportar: true, imprimir: true },
+        processos: { visualizar: true, criar: false, editar: false, excluir: false, aprovar: false, rejeitar: false, exportar: false, imprimir: false },
         cobranca: { visualizar: false, criar: false, editar: false, excluir: false, aprovar: false, rejeitar: false, exportar: false, imprimir: false },
         juridico: { visualizar: false, criar: false, editar: false, excluir: false, aprovar: false, rejeitar: false, exportar: false, imprimir: false },
         relatorios: { visualizar: false, criar: false, editar: false, excluir: false, aprovar: false, rejeitar: false, exportar: false, imprimir: false },
@@ -295,6 +339,7 @@ const TIDashboard = () => {
         atendimento: { visualizar: true, criar: false, editar: false, excluir: false, aprovar: false, rejeitar: false, exportar: true, imprimir: true },
         'portal-empresa': { visualizar: true, criar: false, editar: false, excluir: false, aprovar: false, rejeitar: false, exportar: true, imprimir: true },
         'portal-consumidor': { visualizar: true, criar: false, editar: false, excluir: false, aprovar: false, rejeitar: false, exportar: true, imprimir: true },
+        processos: { visualizar: true, criar: false, editar: false, excluir: false, aprovar: false, rejeitar: false, exportar: true, imprimir: true },
         cobranca: { visualizar: true, criar: false, editar: false, excluir: false, aprovar: false, rejeitar: false, exportar: true, imprimir: true },
         juridico: { visualizar: true, criar: false, editar: false, excluir: false, aprovar: false, rejeitar: false, exportar: true, imprimir: true },
         relatorios: { visualizar: true, criar: true, editar: true, excluir: false, aprovar: false, rejeitar: false, exportar: true, imprimir: true },
@@ -307,6 +352,7 @@ const TIDashboard = () => {
         atendimento: { visualizar: false, criar: false, editar: false, excluir: false, aprovar: false, rejeitar: false, exportar: false, imprimir: false },
         'portal-empresa': { visualizar: false, criar: false, editar: false, excluir: false, aprovar: false, rejeitar: false, exportar: false, imprimir: false },
         'portal-consumidor': { visualizar: false, criar: false, editar: false, excluir: false, aprovar: false, rejeitar: false, exportar: false, imprimir: false },
+        processos: { visualizar: false, criar: false, editar: false, excluir: false, aprovar: false, rejeitar: false, exportar: false, imprimir: false },
         cobranca: { visualizar: false, criar: false, editar: false, excluir: false, aprovar: false, rejeitar: false, exportar: false, imprimir: false },
         juridico: { visualizar: false, criar: false, editar: false, excluir: false, aprovar: false, rejeitar: false, exportar: false, imprimir: false },
         relatorios: { visualizar: false, criar: false, editar: false, excluir: false, aprovar: false, rejeitar: false, exportar: false, imprimir: false },
@@ -348,6 +394,22 @@ const TIDashboard = () => {
       : 'bg-red-100 text-red-800';
   };
 
+  const filteredUsuarios = usuarios.filter((usuario) => {
+    const termo = searchTerm.trim().toLowerCase();
+    const matchTermo =
+      !termo ||
+      (usuario.nome || '').toLowerCase().includes(termo) ||
+      (usuario.email || '').toLowerCase().includes(termo) ||
+      (usuario.cpf || '').toLowerCase().includes(termo) ||
+      (usuario.matricula || '').toLowerCase().includes(termo);
+
+    const matchSetor = !filterSetor || (usuario.setor || usuario.departamento || '') === filterSetor;
+    const matchRole = !filterRole || (usuario.role || '') === filterRole;
+    const matchStatus = !filterStatus || (usuario.status || '') === filterStatus;
+
+    return matchTermo && matchSetor && matchRole && matchStatus;
+  });
+
   return (
     <div className="p-6">
       <div className="mb-6">
@@ -356,6 +418,39 @@ const TIDashboard = () => {
       </div>
 
       {/* Estatísticas */}
+      <div className="bg-white p-6 rounded-lg shadow mb-6">
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <div>
+            <h3 className="text-lg font-medium text-gray-900">Capturadores de Demanda</h3>
+            <p className="text-sm text-gray-600">Ativa as entradas por email, telefone e presencial.</p>
+          </div>
+          <div className="flex items-center gap-4">
+            <span
+              className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                capturadoresAtivos ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+              }`}
+            >
+              {capturadoresAtivos ? 'Ativo' : 'Stand by'}
+            </span>
+            <button
+              type="button"
+              onClick={handleToggleCapturadores}
+              disabled={capturadoresLoading}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                capturadoresAtivos
+                  ? 'bg-red-600 text-white hover:bg-red-700'
+                  : 'bg-blue-600 text-white hover:bg-blue-700'
+              } ${capturadoresLoading ? 'opacity-60 cursor-not-allowed' : ''}`}
+            >
+              {capturadoresLoading ? 'Salvando...' : capturadoresAtivos ? 'Desativar' : 'Ativar'}
+            </button>
+          </div>
+        </div>
+        {capturadoresErro && (
+          <p className="text-sm text-red-600 mt-2">{capturadoresErro}</p>
+        )}
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
         <div className="bg-white p-6 rounded-lg shadow">
           <div className="flex items-center">
@@ -428,6 +523,64 @@ const TIDashboard = () => {
         <div className="px-6 py-4 border-b border-gray-200">
           <h3 className="text-lg font-medium text-gray-900">Usuários do Sistema</h3>
         </div>
+
+        <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Buscar</label>
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Nome, email, CPF ou matrícula"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Setor</label>
+              <select
+                value={filterSetor}
+                onChange={(e) => setFilterSetor(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Todos</option>
+                {setores.map((setor) => (
+                  <option key={setor.id} value={setor.nome}>
+                    {setor.sigla ? `${setor.sigla} - ${setor.nome}` : setor.nome}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Role</label>
+              <select
+                value={filterRole}
+                onChange={(e) => setFilterRole(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Todos</option>
+                <option value="usuario">Usuário</option>
+                <option value="atendente">Atendente</option>
+                <option value="fiscal">Fiscal</option>
+                <option value="analista">Analista</option>
+                <option value="coordenador">Coordenador</option>
+                <option value="admin">Administrador</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Status</label>
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Todos</option>
+                <option value="ativo">Ativo</option>
+                <option value="inativo">Inativo</option>
+              </select>
+            </div>
+          </div>
+        </div>
         
         {loading ? (
           <div className="p-6 text-center">
@@ -449,6 +602,9 @@ const TIDashboard = () => {
                     Cargo
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Setor
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Role
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -463,7 +619,7 @@ const TIDashboard = () => {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {usuarios.map((usuario) => (
+                {filteredUsuarios.map((usuario) => (
                   <tr key={usuario.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
@@ -487,6 +643,9 @@ const TIDashboard = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {usuario.cargo}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {usuario.setor || usuario.departamento || '-'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getRoleBadge(usuario.role)}`}>
@@ -627,17 +786,26 @@ const TIDashboard = () => {
                     />
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Departamento
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.departamento}
-                      onChange={(e) => setFormData({...formData, departamento: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Setor
+                      </label>
+                      <select
+                        value={formData.setor}
+                        onChange={(e) => setFormData({ ...formData, setor: e.target.value, departamento: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">Selecione o setor</option>
+                        {setores.map((setor) => (
+                          <option key={setor.id} value={setor.nome}>
+                            {setor.sigla ? `${setor.sigla} - ${setor.nome}` : setor.nome}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="mt-1 text-xs text-gray-500">
+                        O setor define as permissões e a caixa de entrada do usuário.
+                      </p>
+                    </div>
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">

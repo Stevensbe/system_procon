@@ -3,8 +3,6 @@ import React from 'react';
 const menuItems = [
   // Itens do tipo 'main'
   { path: '/dashboard', name: 'Dashboard', icon: '🏠', type: 'main' },
-  { path: '/protocolo', name: 'Protocolo', icon: '📄', type: 'main' },
-  { path: '/tramitacao', name: 'Tramitação', icon: '📤', type: 'main' },
   { path: '/fiscalizacao', name: 'Fiscalização', icon: '🔍', type: 'main' },
   { path: '/juridico', name: 'Jurídico', icon: '⚖️', type: 'main' },
   { path: '/processos', name: 'Processos', icon: '📋', type: 'main' },
@@ -40,18 +38,6 @@ const menuItems = [
   { path: '/atendimento/configuracoes', name: 'Prazos do Atendimento', icon: '🕒', type: 'atendimento' },
   { path: '/atendimento/reclamacoes/nova', name: 'Nova Reclamação', icon: '➕', type: 'atendimento' },
   { path: '/atendimento/reclamacoes', name: 'Lista de Reclamações', icon: '📋', type: 'atendimento' },
-  
-  // Itens do tipo 'protocolo'
-  { path: '/protocolo/lista', name: 'Lista de Protocolos', icon: '📋', type: 'protocolo' },
-  { path: '/protocolo/novo', name: 'Novo Protocolo', icon: '➕', type: 'protocolo' },
-  { path: '/protocolo/dashboard', name: 'Dashboard Protocolo', icon: '📊', type: 'protocolo' },
-  
-  // Itens do tipo 'tramitacao'
-  { path: '/tramitacao/lista', name: 'Lista de Tramitações', icon: '📤', type: 'tramitacao' },
-  { path: '/tramitacao/tramitar', name: 'Tramitar Documento', icon: '📋', type: 'tramitacao' },
-  { path: '/tramitacao/nova', name: 'Nova Tramitação', icon: '➕', type: 'tramitacao' },
-  { path: '/tramitacao/dashboard', name: 'Dashboard Tramitação', icon: '📊', type: 'tramitacao' },
-  { path: '/tramitacao/pendencias', name: 'Pendências', icon: '⏰', type: 'tramitacao' },
   
   // Itens do tipo 'admin'
   { path: '/auditoria', name: 'Auditoria', icon: '🔒', type: 'admin' },

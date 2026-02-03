@@ -28,10 +28,12 @@ import ConsultaResultado from '../components/portal/ConsultaResultado';
 import AvaliacaoServico from '../components/portal/AvaliacaoServico';
 import DenunciaForm from '../components/portal/DenunciaForm';
 import AcompanhamentoProcesso from '../components/portal/AcompanhamentoProcesso';
+import AcompanhamentoDenuncia from '../components/portal/AcompanhamentoDenuncia';
 import NotificationContainer from '../components/ui/NotificationContainer';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import useNotification from '../hooks/useNotification';
 import PortalAI from '../components/portal/PortalAI';
+import '../styles/portal-cidadao.css';
 // Importar apenas PWA Manager - Auditoria desabilitada para economizar memória
 import { pwaManager } from '../utils/pwa';
 import { auditSystem } from '../utils/audit';
@@ -155,9 +157,15 @@ const PortalCidadao = () => {
       if (response.data) {
         showSuccess(
           'Denúncia enviada com sucesso!', 
-          `Protocolo: ${response.data.numero_protocolo}. Você receberá uma confirmação por email.`,
+          `Protocolo: ${response.data.numero_denuncia || response.data.numero_protocolo}. Você receberá uma confirmação por email.`,
           8000
         );
+        
+        // Recarregar histórico se usuário estiver autenticado
+        if (isAuthenticated) {
+          await carregarHistorico();
+        }
+        
         setActiveTab('consulta');
       }
     } catch (error) {
@@ -376,6 +384,21 @@ const PortalCidadao = () => {
     showSuccess('Logout realizado', 'Você saiu da sua conta.');
   };
 
+  // Carregar histórico de atividades
+  const carregarHistorico = async () => {
+    if (!isAuthenticated) return;
+    
+    try {
+      const response = await portalCidadaoService.obterHistoricoAtividades();
+      if (response.data?.success && response.data?.atividades) {
+        setHistoricoAtividades(response.data.atividades);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar histórico:', error);
+      // Não mostrar erro ao usuário, apenas logar
+    }
+  };
+
   // Verificar token ao carregar
   useEffect(() => {
     const token = getToken();
@@ -428,8 +451,16 @@ const PortalCidadao = () => {
     setTimeout(initializeAdvancedSystems, 2000);
   }, []);
 
+  // Carregar histórico quando usuário estiver autenticado
+  useEffect(() => {
+    if (isAuthenticated) {
+      carregarHistorico();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated]);
+
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="portal-cidadao min-h-screen bg-gray-50">
       {/* Sistema de Notificações */}
       <NotificationContainer 
         notifications={notifications} 
@@ -654,6 +685,12 @@ const PortalCidadao = () => {
                   Consultar
                 </button>
                 <button 
+                  onClick={() => { setActiveTab('denuncia-resposta'); setMobileMenuOpen(false); }}
+                  className="text-blue-200 hover:text-white transition-colors text-left py-2"
+                >
+                  Resposta da Denuncia
+                </button>
+                <button 
                   onClick={() => { setActiveTab('denuncia'); setMobileMenuOpen(false); }}
                   className="text-blue-200 hover:text-white transition-colors text-left py-2"
                 >
@@ -824,6 +861,7 @@ const PortalCidadao = () => {
             {[
               { id: 'consulta', label: 'Consulta Pública', icon: MagnifyingGlassIcon },
               { id: 'acompanhamento', label: 'Acompanhar Processo', icon: ClockIcon },
+              { id: 'denuncia-resposta', label: 'Resposta da Denuncia', icon: ChatBubbleLeftRightIcon },
               { id: 'denuncia', label: 'Nova Denúncia', icon: ExclamationTriangleIcon },
               { id: 'peticao', label: 'Nova Petição', icon: DocumentTextIcon },
               { id: 'orientacoes', label: 'Orientações', icon: InformationCircleIcon },
@@ -951,6 +989,14 @@ const PortalCidadao = () => {
               <AcompanhamentoProcesso
                 onSuccess={() => showSuccess('Processo encontrado', 'Dados do processo carregados com sucesso!')}
                 onError={(mensagem) => showError('Erro ao buscar processo', mensagem)}
+              />
+            )}
+
+            {/* RESPOSTA DA DENUNCIA */}
+            {activeTab === 'denuncia-resposta' && (
+              <AcompanhamentoDenuncia
+                onSuccess={() => showSuccess('Resposta encontrada', 'Resposta da denuncia carregada com sucesso!')}
+                onError={(mensagem) => showError('Erro ao buscar denuncia', mensagem)}
               />
             )}
 

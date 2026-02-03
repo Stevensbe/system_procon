@@ -1,80 +1,25 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
-import { getToken, isTokenValid } from '../../utils/token';
+import { useAuth, AuthState } from '../../context/SupabaseAuthContext';
 import LoadingSpinner from '../common/LoadingSpinner';
 
-const ProtectedRoute = ({ children, requiredPermissions = [] }) => {
-  const [isAuthenticated, setIsAuthenticated] = useState(null); // null = carregando
-  const [user, setUser] = useState(null);
+const ProtectedRoute = ({ children, allowedRoles = [], requiredPermissions = [] }) => {
+  const { user, role, status, isLoading, isAuthenticated, hasRole, hasPermission } = useAuth();
   const location = useLocation();
 
-  useEffect(() => {
-    const checkAuthentication = async () => {
-      try {
-        const token = getToken();
-        
-        if (!token) {
-          setIsAuthenticated(false);
-          return;
-        }
+  // Debug: mostrar status atual
+  console.debug('[ProtectedRoute]', {
+    path: location.pathname,
+    isLoading,
+    isAuthenticated,
+    status,
+    role,
+    userEmail: user?.email,
+    allowedRoles
+  });
 
-        // Verifica se o token é válido
-        if (!isTokenValid(token)) {
-          setIsAuthenticated(false);
-          return;
-        }
-
-        // Aqui você pode fazer uma chamada para validar o token no servidor
-        // e obter informações do usuário
-        try {
-          const response = await fetch('/api/auth/me', {
-            headers: {
-              'Authorization': `Bearer ${token}`
-            }
-          });
-
-          if (response.ok) {
-            const userData = await response.json();
-            setUser(userData);
-            setIsAuthenticated(true);
-          } else {
-            // Token inválido no servidor
-            localStorage.removeItem('token');
-            setIsAuthenticated(false);
-          }
-        } catch (error) {
-          // Se não conseguir validar no servidor, assume que está autenticado
-          // se o token existe e não expirou (para funcionar offline)
-          console.warn('Não foi possível validar token no servidor:', error);
-          setIsAuthenticated(true);
-        }
-
-      } catch (error) {
-        console.error('Erro ao verificar autenticação:', error);
-        setIsAuthenticated(false);
-      }
-    };
-
-    checkAuthentication();
-  }, []);
-
-  // Verifica permissões
-  const hasRequiredPermissions = (userPermissions, requiredPermissions) => {
-    if (!requiredPermissions || requiredPermissions.length === 0) {
-      return true;
-    }
-
-    if (!userPermissions || userPermissions.length === 0) {
-      return false;
-    }
-
-    return requiredPermissions.every(permission => 
-      userPermissions.includes(permission)
-    );
-  };
-
-  // Ainda carregando
-  if (isAuthenticated === null) {
+  // Ainda carregando estado de autenticação
+  if (isLoading || status === AuthState?.LOADING) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
@@ -85,46 +30,55 @@ const ProtectedRoute = ({ children, requiredPermissions = [] }) => {
     );
   }
 
-  // Não autenticado
+  // Não autenticado - redireciona para login
   if (!isAuthenticated) {
+    console.debug('[ProtectedRoute] Usuário não autenticado, redirecionando para login');
     return (
-      <Navigate 
-        to="/login" 
+      <Navigate
+        to="/auth/login"
         state={{ from: location.pathname }}
-        replace 
+        replace
       />
     );
   }
 
-  // Verificar permissões se necessário
-  if (requiredPermissions.length > 0 && user) {
-    if (!hasRequiredPermissions(user.permissions, requiredPermissions)) {
+  // Verificar roles (se especificado)
+  if (allowedRoles.length > 0) {
+    const effectiveRole = role || user?.role || user?.profile?.role || 'guest';
+    const isAllowed = allowedRoles.includes(effectiveRole);
+
+    console.debug('[ProtectedRoute] Verificando role:', { effectiveRole, allowedRoles, isAllowed });
+
+    if (!isAllowed) {
       return (
         <div className="min-h-screen flex items-center justify-center bg-gray-50">
           <div className="text-center max-w-md mx-auto">
             <div className="w-20 h-20 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-6">
-              <svg 
-                className="w-10 h-10 text-yellow-600" 
-                fill="none" 
-                stroke="currentColor" 
+              <svg
+                className="w-10 h-10 text-yellow-600"
+                fill="none"
+                stroke="currentColor"
                 viewBox="0 0 24 24"
               >
-                <path 
-                  strokeLinecap="round" 
-                  strokeLinejoin="round" 
-                  strokeWidth="2" 
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
                   d="M12 15v2m-6 0h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
                 />
               </svg>
             </div>
-            
+
             <h2 className="text-xl font-bold text-gray-900 mb-4">
               Acesso Negado
             </h2>
-            <p className="text-gray-600 mb-6">
+            <p className="text-gray-600 mb-2">
               Você não tem permissão para acessar esta página.
             </p>
-            
+            <p className="text-xs text-gray-400 mb-6">
+              Seu role: {effectiveRole} | Roles permitidos: {allowedRoles.join(', ')}
+            </p>
+
             <div className="space-y-3">
               <button
                 onClick={() => window.history.back()}
@@ -134,7 +88,52 @@ const ProtectedRoute = ({ children, requiredPermissions = [] }) => {
               </button>
               <Navigate to="/dashboard" replace />
             </div>
-            
+          </div>
+        </div>
+      );
+    }
+  }
+
+  // Verificar permissões específicas (se especificado)
+  if (requiredPermissions.length > 0) {
+    const hasAllPermissions = requiredPermissions.every(permission => hasPermission(permission));
+
+    if (!hasAllPermissions) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-gray-50">
+          <div className="text-center max-w-md mx-auto">
+            <div className="w-20 h-20 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-6">
+              <svg
+                className="w-10 h-10 text-yellow-600"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M12 15v2m-6 0h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                />
+              </svg>
+            </div>
+
+            <h2 className="text-xl font-bold text-gray-900 mb-4">
+              Acesso Negado
+            </h2>
+            <p className="text-gray-600 mb-6">
+              Você não tem as permissões necessárias para acessar esta página.
+            </p>
+
+            <div className="space-y-3">
+              <button
+                onClick={() => window.history.back()}
+                className="w-full flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+              >
+                Voltar
+              </button>
+            </div>
+
             <div className="mt-6 text-xs text-gray-500">
               <p>Permissões necessárias:</p>
               <ul className="mt-2">
@@ -151,7 +150,7 @@ const ProtectedRoute = ({ children, requiredPermissions = [] }) => {
     }
   }
 
-  // Usuário autenticado e com permissões adequadas
+  // Usuário autenticado e autorizado
   return children;
 };
 

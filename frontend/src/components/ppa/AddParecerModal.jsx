@@ -19,6 +19,7 @@ export default function AddParecerModal({ ppaId, onClose }) {
   const [formData, setFormData] = useState({
     numero_parecer: "",
     titulo: "",
+    sintese_fatica: "",
     relatorio: "",
     fundamentacao: "",
     conclusao: "procedente",
@@ -33,6 +34,14 @@ export default function AddParecerModal({ ppaId, onClose }) {
       queryClient.invalidateQueries(['ppa', ppaId]);
       onClose();
     },
+    onError: (error) => {
+      console.error('Erro ao adicionar parecer:', error);
+      const errorMessage = error?.response?.data?.detail || 
+                          error?.response?.data?.message ||
+                          Object.values(error?.response?.data || {}).flat().join(', ') ||
+                          'Erro ao salvar parecer. Verifique os dados e tente novamente.';
+      alert(errorMessage);
+    },
   });
 
   const handleSubmit = (e) => {
@@ -41,7 +50,12 @@ export default function AddParecerModal({ ppaId, onClose }) {
       alert("Por favor, preencha todos os campos obrigatórios");
       return;
     }
-    createMutation.mutate(formData);
+    // Remover campos que serão definidos automaticamente pelo backend
+    const { numero_parecer, elaborado_por, ...dataToSend } = formData;
+    // Garantir que campos opcionais vazios sejam null ao invés de string vazia
+    if (!dataToSend.sintese_fatica) dataToSend.sintese_fatica = "";
+    if (!dataToSend.recomendacoes) dataToSend.recomendacoes = "";
+    createMutation.mutate(dataToSend);
   };
 
   return (
@@ -54,50 +68,62 @@ export default function AddParecerModal({ ppaId, onClose }) {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="numero_parecer">Número do Parecer</Label>
+              <Label htmlFor="titulo">Título *</Label>
               <Input
-                id="numero_parecer"
-                value={formData.numero_parecer}
-                onChange={(e) => setFormData({...formData, numero_parecer: e.target.value})}
-                placeholder="Ex: PAR-001/2025"
+                id="titulo"
+                value={formData.titulo}
+                onChange={(e) => setFormData({...formData, titulo: e.target.value})}
+                placeholder="Título do parecer"
+                required
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="conclusao">Conclusão *</Label>
+              <Label htmlFor="conclusao">III - Decisão *</Label>
               <Select value={formData.conclusao} onValueChange={(val) => setFormData({...formData, conclusao: val})}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="procedente">Procedente</SelectItem>
-                  <SelectItem value="improcedente">Improcedente</SelectItem>
+                  <SelectItem value="procedente">Procedente - Criar AI</SelectItem>
+                  <SelectItem value="improcedente">Improcedente - Arquivar</SelectItem>
+                  <SelectItem value="mais_informacoes">Necessita Mais Informações</SelectItem>
+                  <SelectItem value="encaminhar">Encaminhar para Outro Órgão</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="titulo">Título *</Label>
-            <Input
-              id="titulo"
-              value={formData.titulo}
-              onChange={(e) => setFormData({...formData, titulo: e.target.value})}
-              placeholder="Título do parecer"
-              required
+            <Label htmlFor="sintese_fatica">
+              I - Síntese Fática
+              <span className="text-xs text-gray-500 ml-2">(Relato cronológico completo dos fatos)</span>
+            </Label>
+            <Textarea
+              id="sintese_fatica"
+              value={formData.sintese_fatica}
+              onChange={(e) => setFormData({...formData, sintese_fatica: e.target.value})}
+              placeholder="Descreva cronologicamente os fatos que deram origem ao caso, incluindo histórico de tentativas, eventos, audiências e posicionamento das partes..."
+              rows={6}
             />
+            <p className="text-xs text-gray-500">
+              {formData.sintese_fatica.length} caracteres
+            </p>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="relatorio">Relatório *</Label>
+            <Label htmlFor="relatorio">II - Parecer *</Label>
             <Textarea
               id="relatorio"
               value={formData.relatorio}
               onChange={(e) => setFormData({...formData, relatorio: e.target.value})}
-              placeholder="Relatório detalhado do parecer..."
-              rows={4}
+              placeholder="Análise jurídica e técnica do caso, identificação de violações legais, citações de artigos do CDC..."
+              rows={6}
               required
             />
+            <p className="text-xs text-gray-500">
+              {formData.relatorio.length} caracteres
+            </p>
           </div>
 
           <div className="space-y-2">

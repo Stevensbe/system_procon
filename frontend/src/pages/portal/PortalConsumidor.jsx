@@ -14,7 +14,7 @@ import {
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import ErrorFallback from '../../components/common/ErrorFallback';
 import portalConsumidorService from '../../services/portalConsumidorService';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../context/SupabaseAuthContext';
 
 const ListaVazia = ({ mensagem }) => (
   <li className="px-4 py-6 text-center text-sm text-gray-500">{mensagem}</li>
@@ -70,7 +70,7 @@ function PortalConsumidor() {
     );
   }
 
-const {
+  const {
     notificacoesRecentes = [],
     feedbacksRecentes = [],
     feedbacksPendentes = 0,
@@ -120,7 +120,7 @@ const {
             </>
           )}
           <Link
-            to="/caixa-entrada/pessoal"
+            to="/caixa-entrada"
             className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-500"
           >
             <i className="fa fa-inbox" />
@@ -271,11 +271,10 @@ function TicketWidgetItem({ item }) {
 function FeedbackWidgetItem({ item, mostrarStatus }) {
   const statusPill = mostrarStatus ? (
     <span
-      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${
-        item.revisado
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${item.revisado
           ? 'bg-emerald-100 text-emerald-700'
           : 'bg-amber-100 text-amber-700'
-      }`}
+        }`}
     >
       {item.revisado ? 'Revisado' : 'Pendente'}
     </span>
@@ -325,11 +324,10 @@ function FeedbackWidgetItem({ item, mostrarStatus }) {
 function ResumoCard({ icon, value, label, subtitle, highlight = false }) {
   return (
     <div
-      className={`rounded-xl border px-4 py-3 shadow-sm transition ${
-        highlight
+      className={`rounded-xl border px-4 py-3 shadow-sm transition ${highlight
           ? 'border-amber-400 bg-amber-50'
           : 'border-gray-200 bg-white'
-      }`}
+        }`}
     >
       <div className="flex items-center justify-between">
         <div>
@@ -399,11 +397,11 @@ function PriorityList({ data, pendentes = {} }) {
         return (
           <li key={prioridade}>
             <div className="flex items-center justify-between text-xs text-gray-500">
-          <span>{label}</span>
-          <span className="font-semibold text-gray-700">
-            {count} {pendentes[prioridade] ? `• Pendentes ${pendentes[prioridade]}` : ''}
-          </span>
-        </div>
+              <span>{label}</span>
+              <span className="font-semibold text-gray-700">
+                {count} {pendentes[prioridade] ? `• Pendentes ${pendentes[prioridade]}` : ''}
+              </span>
+            </div>
             <div className="mt-1 h-2 rounded-full bg-gray-200">
               <div
                 className="h-2 rounded-full bg-gradient-to-r from-orange-400 to-orange-600"

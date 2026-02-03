@@ -308,6 +308,44 @@ function AutoPostoDetailPage() {
         </div>
       </div>
 
+      {(auto.assinatura_fiscal_1 || auto.assinatura_fiscal_2 || auto.assinatura_representante) && (
+        <div className="bg-white p-6 rounded-lg shadow mb-6">
+          <h2 className="text-xl font-semibold mb-4 text-orange-700">Assinaturas</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {auto.assinatura_fiscal_1 && (
+              <div className="text-center">
+                <h4 className="font-medium text-gray-800 mb-2">Fiscal Principal</h4>
+                <img
+                  src={auto.assinatura_fiscal_1}
+                  alt="Assinatura do Fiscal Principal"
+                  className="border border-gray-300 rounded max-h-32 mx-auto"
+                />
+              </div>
+            )}
+            {auto.assinatura_fiscal_2 && (
+              <div className="text-center">
+                <h4 className="font-medium text-gray-800 mb-2">Fiscal Secundário</h4>
+                <img
+                  src={auto.assinatura_fiscal_2}
+                  alt="Assinatura do Fiscal Secundário"
+                  className="border border-gray-300 rounded max-h-32 mx-auto"
+                />
+              </div>
+            )}
+            {auto.assinatura_representante && (
+              <div className="text-center">
+                <h4 className="font-medium text-gray-800 mb-2">Representante</h4>
+                <img
+                  src={auto.assinatura_representante}
+                  alt="Assinatura do Representante"
+                  className="border border-gray-300 rounded max-h-32 mx-auto"
+                />
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* BOTÕES DE AÇÃO - ATUALIZADO COM BOTÃO GERAR INFRAÇÃO */}
       <div className="flex gap-4 mt-8 pt-4 border-t">
         <Link

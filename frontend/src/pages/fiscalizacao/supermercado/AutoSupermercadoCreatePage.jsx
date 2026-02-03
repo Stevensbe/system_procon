@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { criarAutoSupermercado } from '../../../services/fiscalizacaoService';
+import { criarAutoSupermercado, consultarCNPJReceita } from '../../../services/fiscalizacaoService';
 import SignaturePad from "../../../components/shared/SignaturePad";
 import FileUpload from "../../../components/shared/FileUpload";
 import IrregularidadesSelector from "../../../components/fiscalizacao/IrregularidadesSelector";
@@ -9,11 +9,15 @@ function AutoSupermercadoCreatePage() {
     const navigate = useNavigate();
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const [cnpjStatus, setCnpjStatus] = useState(null);
+    const [cnpjLoading, setCnpjLoading] = useState(false);
 
     const [autoData, setAutoData] = useState({
         // === CAMPOS DA CLASSE BASE (AutoConstatacaoBase) ===
         razao_social: '',
         nome_fantasia: '',
+        porte: '',
+        atuacao: '',
         atividade: '',
         endereco: '',
         cep: '',
@@ -35,6 +39,7 @@ function AutoSupermercadoCreatePage() {
         // === CAMPOS ESPECÍFICOS DO AutoSupermercado ===
         // Cominação Legal
         nada_consta: false,
+        cominacao_legal: '',
         // REMOVIDO: sem_irregularidades (não existe no backend)
         
         // Irregularidades específicas de supermercados (nomes exatos do backend)
@@ -56,12 +61,13 @@ function AutoSupermercadoCreatePage() {
         prazo_cumprimento_dias: 5,
         outras_irregularidades: '',
         narrativa_fatos: '',
+        instrucoes_fiscalizado: '',
         possui_anexo: false,
         auto_apreensao: false,
         auto_apreensao_numero: '',
         necessita_pericia: false,
+        vicios_aparentes: false,
         receita_bruta_notificada: true,
-        observacoes: ''
     });
 
     // Estados para assinaturas e arquivos
@@ -229,7 +235,39 @@ function AutoSupermercadoCreatePage() {
             const numValue = value === '' ? '' : parseInt(value);
             setAutoData(prev => ({ ...prev, [name]: numValue }));
         } else {
+            if (name === 'cnpj') {
+                setCnpjStatus(null);
+            }
             setAutoData(prev => ({ ...prev, [name]: value }));
+        }
+    };
+
+    const handleConsultarCNPJ = async () => {
+        try {
+            setCnpjLoading(true);
+            setCnpjStatus(null);
+            const cleanCNPJ = autoData.cnpj.replace(/\D/g, '');
+            const data = await consultarCNPJReceita(cleanCNPJ);
+            setAutoData(prev => ({
+                ...prev,
+                razao_social: data.razao_social || prev.razao_social,
+                nome_fantasia: data.nome_fantasia || prev.nome_fantasia,
+                atividade: (data?.dados_brutos?.atividade_principal?.[0]?.text) || prev.atividade,
+                atuacao: data?.dados_brutos?.natureza_juridica || prev.atuacao,
+                endereco: data.endereco
+                    ? `${data.endereco}${data.numero ? `, ${data.numero}` : ''}${data.bairro ? ` - ${data.bairro}` : ''}`
+                    : prev.endereco,
+                municipio: data.cidade || prev.municipio,
+                estado: data.uf || prev.estado,
+                cep: data.cep || prev.cep,
+                telefone: data.telefone || prev.telefone,
+            }));
+            const detalhe = data.razao_social ? `Razao social: ${data.razao_social}` : 'CNPJ confirmado na Receita Federal.';
+            setCnpjStatus({ type: 'success', message: detalhe, cnpj: cleanCNPJ });
+        } catch (err) {
+            setCnpjStatus({ type: 'error', message: err.message || 'Erro ao consultar CNPJ.' });
+        } finally {
+            setCnpjLoading(false);
         }
     };
 
@@ -299,6 +337,36 @@ function AutoSupermercadoCreatePage() {
         }
 
         try {
+            const cleanCNPJ = (autoData.cnpj || '').replace(/\D/g, '');
+            if (!cnpjStatus || cnpjStatus.type !== 'success' || cnpjStatus.cnpj !== cleanCNPJ) {
+                try {
+                    setCnpjLoading(true);
+                    const data = await consultarCNPJReceita(cleanCNPJ);
+                    setAutoData(prev => ({
+                        ...prev,
+                        razao_social: data.razao_social || prev.razao_social,
+                        nome_fantasia: data.nome_fantasia || prev.nome_fantasia,
+                        atividade: (data?.dados_brutos?.atividade_principal?.[0]?.text) || prev.atividade,
+                atuacao: data?.dados_brutos?.natureza_juridica || prev.atuacao,
+                        endereco: data.endereco
+                            ? `${data.endereco}${data.numero ? `, ${data.numero}` : ''}${data.bairro ? ` - ${data.bairro}` : ''}`
+                            : prev.endereco,
+                        municipio: data.cidade || prev.municipio,
+                        estado: data.uf || prev.estado,
+                        cep: data.cep || prev.cep,
+                        telefone: data.telefone || prev.telefone,
+                    }));
+                    const detalhe = data.razao_social ? `Razao social: ${data.razao_social}` : 'CNPJ confirmado na Receita Federal.';
+                    setCnpjStatus({ type: 'success', message: detalhe, cnpj: cleanCNPJ });
+                } catch (err) {
+                    setError(`CNPJ: ${err.message || 'Erro ao consultar CNPJ.'}`);
+                    setLoading(false);
+                    return;
+                } finally {
+                    setCnpjLoading(false);
+                }
+            }
+
             const formData = new FormData();
             
             // === MAPEAMENTO CORRETO PARA BACKEND DJANGO ===
@@ -306,6 +374,8 @@ function AutoSupermercadoCreatePage() {
                 // Campos básicos obrigatórios
                 razao_social: autoData.razao_social || '',
                 nome_fantasia: autoData.nome_fantasia || '',
+                porte: autoData.porte || '',
+                atuacao: autoData.atuacao || '',
                 atividade: autoData.atividade || '',
                 endereco: autoData.endereco || '',
                 cep: autoData.cep || '',
@@ -317,26 +387,26 @@ function AutoSupermercadoCreatePage() {
                 hora_fiscalizacao: autoData.hora_fiscalizacao || '',
                 origem: autoData.origem || 'acao',
                 origem_outros: autoData.origem_outros || '',
-                
-                // Responsáveis (SEM matrícula - backend não tem este campo)
+
+                // Responsáveis
                 fiscal_nome_1: autoData.fiscal_nome_1 || '',
                 fiscal_nome_2: autoData.fiscal_nome_2 || '',
                 responsavel_nome: autoData.responsavel_nome || '',
                 responsavel_cpf: autoData.responsavel_cpf || '',
-                
+
                 // Cominação Legal
                 nada_consta: autoData.nada_consta || false,
-                // REMOVIDO: sem_irregularidades (não existe no backend)
-                
-                // Irregularidades de produtos com nomes exatos do backend
+                cominacao_legal: autoData.cominacao_legal || '',
+
+                // Irregularidades de produtos
                 comercializar_produtos_vencidos: autoData.comercializar_produtos_vencidos || false,
                 comercializar_embalagem_violada: autoData.comercializar_embalagem_violada || false,
                 comercializar_lata_amassada: autoData.comercializar_lata_amassada || false,
                 comercializar_sem_validade: autoData.comercializar_sem_validade || false,
                 comercializar_mal_armazenados: autoData.comercializar_mal_armazenados || false,
                 comercializar_descongelados: autoData.comercializar_descongelados || false,
-                
-                // Irregularidades de preços e publicidade com nomes exatos do backend
+
+                // Irregularidades de preços e publicidade
                 publicidade_enganosa: autoData.publicidade_enganosa || false,
                 obstrucao_monitor: autoData.obstrucao_monitor || false,
                 afixacao_precos_fora_padrao: autoData.afixacao_precos_fora_padrao || false,
@@ -344,18 +414,19 @@ function AutoSupermercadoCreatePage() {
                 afixacao_precos_fracionados_fora_padrao: autoData.afixacao_precos_fracionados_fora_padrao || false,
                 ausencia_visibilidade_descontos: autoData.ausencia_visibilidade_descontos || false,
                 ausencia_placas_promocao_vencimento: autoData.ausencia_placas_promocao_vencimento || false,
-                
-                // Campos específicos do backend
+
+                // Prazos e informações
                 prazo_cumprimento_dias: parseInt(autoData.prazo_cumprimento_dias) || 5,
                 outras_irregularidades: autoData.outras_irregularidades || '',
                 narrativa_fatos: autoData.narrativa_fatos || 'Narrativa dos fatos constatados durante a fiscalização.',
+                instrucoes_fiscalizado: autoData.instrucoes_fiscalizado || '',
                 possui_anexo: autoData.possui_anexo || false,
                 auto_apreensao: autoData.auto_apreensao || false,
                 auto_apreensao_numero: autoData.auto_apreensao_numero || '',
                 necessita_pericia: autoData.necessita_pericia || false,
-                receita_bruta_notificada: autoData.receita_bruta_notificada || true, // Obrigatório
-                observacoes: autoData.observacoes || ''
-            };
+                vicios_aparentes: autoData.vicios_aparentes || false,
+                receita_bruta_notificada: autoData.receita_bruta_notificada || true
+            };;
             
             // Enviar campos um por um com conversão adequada
             Object.keys(fieldsToSend).forEach(key => {
@@ -498,6 +569,44 @@ function AutoSupermercadoCreatePage() {
         { value: 'outros', label: 'Outros' }
     ];
 
+    const estadoOptions = [
+        { value: 'AC', label: 'Acre' },
+        { value: 'AL', label: 'Alagoas' },
+        { value: 'AP', label: 'Amapa' },
+        { value: 'AM', label: 'Amazonas' },
+        { value: 'BA', label: 'Bahia' },
+        { value: 'CE', label: 'Ceara' },
+        { value: 'DF', label: 'Distrito Federal' },
+        { value: 'ES', label: 'Espirito Santo' },
+        { value: 'GO', label: 'Goias' },
+        { value: 'MA', label: 'Maranhao' },
+        { value: 'MT', label: 'Mato Grosso' },
+        { value: 'MS', label: 'Mato Grosso do Sul' },
+        { value: 'MG', label: 'Minas Gerais' },
+        { value: 'PA', label: 'Para' },
+        { value: 'PB', label: 'Paraiba' },
+        { value: 'PR', label: 'Parana' },
+        { value: 'PE', label: 'Pernambuco' },
+        { value: 'PI', label: 'Piaui' },
+        { value: 'RJ', label: 'Rio de Janeiro' },
+        { value: 'RN', label: 'Rio Grande do Norte' },
+        { value: 'RS', label: 'Rio Grande do Sul' },
+        { value: 'RO', label: 'Rondonia' },
+        { value: 'RR', label: 'Roraima' },
+        { value: 'SC', label: 'Santa Catarina' },
+        { value: 'SP', label: 'Sao Paulo' },
+        { value: 'SE', label: 'Sergipe' },
+        { value: 'TO', label: 'Tocantins' },
+    ];
+
+    const porteOptions = [
+        { value: 'microempresa', label: 'Microempresa' },
+        { value: 'pequeno', label: 'Pequeno Porte' },
+        { value: 'medio', label: 'Medio Porte' },
+        { value: 'grande', label: 'Grande Porte' }
+    ];
+
+
     const prazoOptions = [
         { value: 5, label: '5 dias' },
         { value: 10, label: '10 dias' },
@@ -527,21 +636,46 @@ function AutoSupermercadoCreatePage() {
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                 {renderTextField('razao_social', 'Razão Social', 'text', true, 255)}
                                 {renderTextField('nome_fantasia', 'Nome Fantasia', 'text', false, 255)}
-                                {renderTextField('cnpj', 'CNPJ', 'text', true, 18)}
+                                {renderSelect('porte', 'Porte', porteOptions, false)}
+                                {renderTextField('atuacao', 'Atua‡Æo', 'text', false, 100)}
+                                <div>
+                                    <label htmlFor="cnpj" className="block text-sm font-medium text-gray-700">
+                                        CNPJ <span className="text-red-500">*</span>
+                                    </label>
+                                    <div className="mt-1 flex flex-col gap-2">
+                                        <div className="flex gap-2">
+                                            <input
+                                                type="text"
+                                                id="cnpj"
+                                                name="cnpj"
+                                                value={autoData.cnpj}
+                                                onChange={handleAutoChange}
+                                                required
+                                                maxLength={18}
+                                                className="flex-1 p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={handleConsultarCNPJ}
+                                                disabled={cnpjLoading}
+                                                className="px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 text-sm font-medium"
+                                            >
+                                                {cnpjLoading ? 'Consultando...' : 'Consultar Receita'}
+                                            </button>
+                                        </div>
+                                        {cnpjStatus && (
+                                            <p className={`text-xs ${cnpjStatus.type === 'success' ? 'text-green-600' : 'text-red-600'}`}>
+                                                {cnpjStatus.message}
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
                                 {renderTextField('atividade', 'Atividade', 'text', true, 255)}
                                 {renderTextField('endereco', 'Endereço', 'text', true, 255)}
                                 {renderTextField('municipio', 'Município', 'text', true, 100)}
                                 {renderTextField('cep', 'CEP', 'text', false, 10)}
                                 {renderTextField('telefone', 'Telefone', 'tel', false, 20)}
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700">Estado</label>
-                                    <input 
-                                        type="text" 
-                                        value="AM" 
-                                        disabled 
-                                        className="mt-1 block w-full p-2 bg-gray-100 border border-gray-300 rounded-md text-gray-500" 
-                                    />
-                                </div>
+{renderSelect('estado', 'Estado', estadoOptions, true)}
                             </div>
                         </div>
 
@@ -579,6 +713,10 @@ function AutoSupermercadoCreatePage() {
                                     legalmente atribuídas ao Instituto de Defesa do Consumidor – PROCON AMAZONAS, neste ato fiscalizatório, constatamos que:
                                 </p>
                             </div>
+            <div className="mt-4">
+                {renderTextArea('cominacao_legal', 'Texto principal da cominacao legal', 4)}
+            </div>
+
                         </div>
 
                         {/* === IRREGULARIDADES CONSTATADAS === */}
@@ -646,11 +784,13 @@ function AutoSupermercadoCreatePage() {
                                         {renderCheckboxField('auto_apreensao', 'Possui auto de apreensão/inutilização')}
                                         {autoData.auto_apreensao && renderTextField('auto_apreensao_numero', 'Número do Auto de Apreensão/Inutilização', 'text', false, 50)}
                                         {renderCheckboxField('necessita_pericia', 'Os itens apreendidos e ou descartados necessitam de perícia')}
+                                        {renderCheckboxField('vicios_aparentes', 'Todos os vicios estavam aparentes')}
                                         {renderCheckboxField('receita_bruta_notificada', 'Receita Bruta Notificada')}
                                     </div>
                                 </div>
                                 <div>
                                     {renderTextArea('outras_irregularidades', 'Outras irregularidades constatadas/outras cominações legais', 4)}
+                                    {renderTextArea('instrucoes_fiscalizado', 'Instrucoes ao fiscalizado', 3)}
                                 </div>
                             </div>
                         </div>
@@ -762,8 +902,7 @@ function AutoSupermercadoCreatePage() {
                                 <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-sm mr-2">11</span>
                                 Observações
                             </h2>
-                            {renderTextArea('observacoes', 'Observações adicionais', 4)}
-                            <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                                                        <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                                 <p className="text-sm text-yellow-800">
                                     <strong>Importante:</strong> O autuado deverá encaminhar, no prazo de 05 (cinco) dias corridos, 
                                     documento oficial que indique a receita bruta anual do estabelecimento fiscalizado, referente aos 12 (doze) meses 

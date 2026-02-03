@@ -89,12 +89,29 @@ function AutoBancoDetailPage() {
             <p className="font-medium">Município/UF:</p>
             <p>{auto.municipio}/{auto.estado}</p>
           </div>
+          <div>
+            <p className="font-medium">Relogio exposto:</p>
+            <p>
+              {auto.relogio_exposto === null || auto.relogio_exposto === undefined
+                ? 'N/A'
+                : auto.relogio_exposto
+                  ? 'Sim'
+                  : 'Nao'}
+            </p>
+          </div>
         </div>
 
         {auto.observacoes && (
           <div className="mt-4">
             <p className="font-medium">Observações:</p>
             <p className="whitespace-pre-wrap">{auto.observacoes}</p>
+          </div>
+        )}
+
+        {auto.cominacao_legal && (
+          <div className="mt-4">
+            <p className="font-medium">Cominacao Legal:</p>
+            <p className="whitespace-pre-wrap">{auto.cominacao_legal}</p>
           </div>
         )}
       </div>
@@ -108,6 +125,8 @@ function AutoBancoDetailPage() {
                 <th className="text-left py-2">Senha</th>
                 <th className="text-left py-2">Chegada</th>
                 <th className="text-left py-2">Atendimento</th>
+                <th className="text-left py-2">Tipo</th>
+                <th className="text-left py-2">Limite</th>
                 <th className="text-left py-2">Tempo de Espera</th>
               </tr>
             </thead>
@@ -117,11 +136,51 @@ function AutoBancoDetailPage() {
                   <td className="py-2">{atendimento.letra_senha}</td>
                   <td className="py-2">{atendimento.horario_chegada}</td>
                   <td className="py-2">{atendimento.horario_atendimento}</td>
+                  <td className="py-2">{atendimento.tipo_servico || '-'}</td>
+                  <td className="py-2">{atendimento.limite_tempo ? `${atendimento.limite_tempo} min` : '-'}</td>
                   <td className="py-2">{atendimento.tempo_espera_formatado}</td>
                 </tr>
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {(auto.assinatura_fiscal_1 || auto.assinatura_fiscal_2 || auto.assinatura_representante) && (
+        <div className="bg-white p-6 rounded-lg shadow mb-6">
+          <h2 className="text-xl font-semibold mb-4">Assinaturas</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {auto.assinatura_fiscal_1 && (
+              <div className="text-center">
+                <h4 className="font-medium text-gray-800 mb-2">Fiscal Principal</h4>
+                <img
+                  src={auto.assinatura_fiscal_1}
+                  alt="Assinatura do Fiscal Principal"
+                  className="border border-gray-300 rounded max-h-32 mx-auto"
+                />
+              </div>
+            )}
+            {auto.assinatura_fiscal_2 && (
+              <div className="text-center">
+                <h4 className="font-medium text-gray-800 mb-2">Fiscal Secundário</h4>
+                <img
+                  src={auto.assinatura_fiscal_2}
+                  alt="Assinatura do Fiscal Secundário"
+                  className="border border-gray-300 rounded max-h-32 mx-auto"
+                />
+              </div>
+            )}
+            {auto.assinatura_representante && (
+              <div className="text-center">
+                <h4 className="font-medium text-gray-800 mb-2">Representante</h4>
+                <img
+                  src={auto.assinatura_representante}
+                  alt="Assinatura do Representante"
+                  className="border border-gray-300 rounded max-h-32 mx-auto"
+                />
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -151,7 +210,7 @@ function AutoBancoDetailPage() {
         {/* Botão para Gerar Infração */}
         <Link
           to={`/fiscalizacao/infracoes/novo`} // ✅ PLURAL
-         state={{ autoConstatacao: auto }}
+         state={{ autoConstatacao: auto, tipoAuto: 'banco' }}
           className="px-4 py-2 bg-red-700 text-white rounded hover:bg-red-800 font-bold"
 >
         ⚖️ Gerar Infração

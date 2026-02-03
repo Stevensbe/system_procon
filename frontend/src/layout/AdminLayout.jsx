@@ -59,6 +59,20 @@ export default function AdminLayout() {
       iconSolid: ScaleSolid,
       description: 'Processos e análises jurídicas'
     },
+    {
+      name: 'Jurídico 1 - Petições',
+      path: '/juridico/peticoes',
+      icon: DocumentTextIcon,
+      iconSolid: DocumentSolid,
+      description: 'Fila de petições jurídicas'
+    },
+    {
+      name: 'Jurídico 2 - Recursos',
+      path: '/juridico/recursos',
+      icon: DocumentTextIcon,
+      iconSolid: DocumentSolid,
+      description: 'Fila de recursos administrativos'
+    },
           {
         name: 'Recursos',
         path: '/recursos/dashboard',
@@ -79,13 +93,6 @@ export default function AdminLayout() {
       icon: CurrencyDollarIcon, 
       iconSolid: CurrencySolid,
       description: 'Controle de multas e arrecadação'
-    },
-    { 
-      name: 'Protocolo', 
-      path: '/protocolo', 
-      icon: DocumentTextIcon, 
-      iconSolid: DocumentSolid,
-      description: 'Tramitação de documentos'
     },
     { 
       name: 'Peticionamento', 

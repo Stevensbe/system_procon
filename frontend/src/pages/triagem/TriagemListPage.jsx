@@ -15,6 +15,7 @@ import {
   TrendingUp,
   AlertTriangle,
   Paperclip,
+  MessageSquare,
 } from 'lucide-react';
 import triagemService from '../../services/triagemService';
 
@@ -161,6 +162,7 @@ const QueueSection = ({
   onSolicitarComplemento,
   onArquivar,
   onRegistrarForaCompetencia,
+  onResponderDenuncia,
   updatingId,
 }) => {
   const getOriginConfig = (value) => ORIGENS_CONFIG[value] ?? ORIGENS_CONFIG.TELEFONE;
@@ -325,6 +327,15 @@ const QueueSection = ({
                             <AlertTriangle className="w-4 h-4" />
                             <span>Fora do PROCON</span>
                           </button>
+                          {triagem.denuncia_portal && (
+                            <button
+                              onClick={() => onResponderDenuncia(triagem)}
+                              className="flex items-center space-x-1 px-3 py-2 bg-emerald-100 text-emerald-700 text-sm rounded-lg hover:bg-emerald-200 transition-colors font-medium"
+                            >
+                              <MessageSquare className="w-4 h-4" />
+                              <span>Responder</span>
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -334,6 +345,102 @@ const QueueSection = ({
             </table>
           </div>
         )}
+      </div>
+    </div>
+  );
+};
+
+const RespostaDenunciaModal = ({
+  open,
+  triagem,
+  formState,
+  onChange,
+  onClose,
+  onSubmit,
+  isSubmitting,
+  isLoading,
+  error,
+}) => {
+  if (!open) {
+    return null;
+  }
+
+  const numeroPortal = triagem?.denuncia_portal_numero || '-';
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl">
+        <div className="p-6 border-b border-gray-100">
+          <h3 className="text-xl font-semibold text-slate-900">Responder denuncia do portal</h3>
+          <p className="text-sm text-slate-500 mt-1">
+            Protocolo: {triagem?.numero_protocolo || '-'} · Portal: {numeroPortal}
+          </p>
+        </div>
+
+        <div className="p-6 space-y-4">
+          {isLoading ? (
+            <div className="text-sm text-slate-500">Carregando dados da denuncia...</div>
+          ) : (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Competencia do PROCON</label>
+                <select
+                  value={formState.competencia_procon}
+                  onChange={(event) => onChange('competencia_procon', event.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="">Selecione</option>
+                  <option value="true">Sim</option>
+                  <option value="false">Nao</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Resposta do fiscal</label>
+                <textarea
+                  value={formState.resposta_fiscal}
+                  onChange={(event) => onChange('resposta_fiscal', event.target.value)}
+                  rows={4}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Descreva a analise e a resposta ao denunciante."
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Orientacao sugerida</label>
+                <textarea
+                  value={formState.orientacao_destino}
+                  onChange={(event) => onChange('orientacao_destino', event.target.value)}
+                  rows={3}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Orgao competente, contatos ou orientacoes adicionais."
+                />
+              </div>
+
+              {error && (
+                <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                  {error}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        <div className="p-6 border-t border-gray-100 flex justify-end gap-3">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={onSubmit}
+            disabled={isSubmitting || isLoading}
+            className="px-4 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60"
+          >
+            {isSubmitting ? 'Salvando...' : 'Salvar resposta'}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -709,6 +816,16 @@ function TriagemListPage() {
   const [submitting, setSubmitting] = useState(false);
   const [updatingId, setUpdatingId] = useState(null);
   const [erro, setErro] = useState(null);
+  const [respostaModalOpen, setRespostaModalOpen] = useState(false);
+  const [respostaTriagem, setRespostaTriagem] = useState(null);
+  const [respostaForm, setRespostaForm] = useState({
+    competencia_procon: '',
+    orientacao_destino: '',
+    resposta_fiscal: '',
+  });
+  const [respostaErro, setRespostaErro] = useState(null);
+  const [respostaLoading, setRespostaLoading] = useState(false);
+  const [respostaSubmitting, setRespostaSubmitting] = useState(false);
 
   const loadTriagens = async () => {
     try {
@@ -726,6 +843,91 @@ function TriagemListPage() {
   useEffect(() => {
     loadTriagens();
   }, []);
+
+  const resetRespostaForm = () => {
+    setRespostaForm({
+      competencia_procon: '',
+      orientacao_destino: '',
+      resposta_fiscal: '',
+    });
+    setRespostaErro(null);
+  };
+
+  const handleAbrirResposta = (triagem) => {
+    setRespostaTriagem(triagem);
+    resetRespostaForm();
+    setRespostaModalOpen(true);
+  };
+
+  const handleFecharResposta = () => {
+    setRespostaModalOpen(false);
+    setRespostaTriagem(null);
+  };
+
+  const handleRespostaChange = (field, value) => {
+    setRespostaForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  useEffect(() => {
+    const carregarResposta = async () => {
+      if (!respostaModalOpen || !respostaTriagem?.denuncia_portal) {
+        return;
+      }
+      setRespostaLoading(true);
+      setRespostaErro(null);
+      try {
+        const dados = await triagemService.obterRespostaDenuncia(respostaTriagem.denuncia_portal);
+        if (dados) {
+          setRespostaForm({
+            competencia_procon:
+              dados.competencia_procon === true ? 'true' : dados.competencia_procon === false ? 'false' : '',
+            orientacao_destino: dados.orientacao_destino || '',
+            resposta_fiscal: dados.resposta_fiscal || '',
+          });
+        }
+      } catch (error) {
+        console.error('Erro ao carregar resposta:', error);
+        setRespostaErro('Nao foi possivel carregar a resposta atual.');
+      } finally {
+        setRespostaLoading(false);
+      }
+    };
+
+    carregarResposta();
+  }, [respostaModalOpen, respostaTriagem]);
+
+  const handleSalvarResposta = async () => {
+    if (!respostaTriagem?.denuncia_portal) {
+      setRespostaErro('Denuncia do portal nao encontrada.');
+      return;
+    }
+    if (!respostaForm.competencia_procon) {
+      setRespostaErro('Informe se a demanda e competencia do PROCON.');
+      return;
+    }
+    if (!respostaForm.resposta_fiscal.trim()) {
+      setRespostaErro('Informe a resposta do fiscal.');
+      return;
+    }
+
+    setRespostaSubmitting(true);
+    setRespostaErro(null);
+    try {
+      const payload = {
+        competencia_procon: respostaForm.competencia_procon === 'true',
+        resposta_fiscal: respostaForm.resposta_fiscal,
+        orientacao_destino: respostaForm.orientacao_destino,
+      };
+      await triagemService.responderDenuncia(respostaTriagem.denuncia_portal, payload);
+      handleFecharResposta();
+      await loadTriagens();
+    } catch (error) {
+      console.error('Erro ao salvar resposta:', error);
+      setRespostaErro('Nao foi possivel registrar a resposta.');
+    } finally {
+      setRespostaSubmitting(false);
+    }
+  };
   const handleCreateTriagem = async (formState) => {
     try {
       setSubmitting(true);
@@ -865,6 +1067,7 @@ function TriagemListPage() {
               onSolicitarComplemento={handleSolicitarComplemento}
               onArquivar={handleArquivar}
               onRegistrarForaCompetencia={handleRegistrarForaCompetencia}
+              onResponderDenuncia={handleAbrirResposta}
               updatingId={updatingId}
             />
             <NewComplaintForm onSubmit={handleCreateTriagem} isSubmitting={submitting} />
@@ -873,6 +1076,18 @@ function TriagemListPage() {
             <QuickSummary triagens={triagens} />
           </div>
         </div>
+
+        <RespostaDenunciaModal
+          open={respostaModalOpen}
+          triagem={respostaTriagem}
+          formState={respostaForm}
+          onChange={handleRespostaChange}
+          onClose={handleFecharResposta}
+          onSubmit={handleSalvarResposta}
+          isSubmitting={respostaSubmitting}
+          isLoading={respostaLoading}
+          error={respostaErro}
+        />
       </div>
     </div>
   );

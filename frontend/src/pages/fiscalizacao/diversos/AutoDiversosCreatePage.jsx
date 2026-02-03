@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { criarAutoDiversos } from '../../../services/fiscalizacaoService';
+import { criarAutoDiversos, consultarCNPJReceita } from '../../../services/fiscalizacaoService';
 import SignaturePad from "../../../components/shared/SignaturePad";
 import FileUpload from "../../../components/shared/FileUpload";
 import IrregularidadesSelector from "../../../components/fiscalizacao/IrregularidadesSelector";
@@ -9,6 +9,8 @@ function AutoDiversosCreatePage() {
     const navigate = useNavigate();
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const [cnpjStatus, setCnpjStatus] = useState(null);
+    const [cnpjLoading, setCnpjLoading] = useState(false);
 
     const [autoData, setAutoData] = useState({
         // === CAMPOS DA CLASSE BASE (AutoConstatacaoBase) ===
@@ -193,6 +195,35 @@ function AutoDiversosCreatePage() {
         }
     };
 
+    const handleConsultarCNPJ = async () => {
+        try {
+            setCnpjLoading(true);
+            setCnpjStatus(null);
+            const cleanCNPJ = autoData.cnpj.replace(/\D/g, '');
+            const data = await consultarCNPJReceita(cleanCNPJ);
+            setAutoData(prev => ({
+                ...prev,
+                razao_social: data.razao_social || prev.razao_social,
+                nome_fantasia: data.nome_fantasia || prev.nome_fantasia,
+                atividade: (data?.dados_brutos?.atividade_principal?.[0]?.text) || prev.atividade,
+                atuacao: data?.dados_brutos?.natureza_juridica || prev.atuacao,
+                endereco: data.endereco
+                    ? `${data.endereco}${data.numero ? `, ${data.numero}` : ''}${data.bairro ? ` - ${data.bairro}` : ''}`
+                    : prev.endereco,
+                municipio: data.cidade || prev.municipio,
+                estado: data.uf || prev.estado,
+                cep: data.cep || prev.cep,
+                telefone: data.telefone || prev.telefone,
+            }));
+            const detalhe = data.razao_social ? `Razao social: ${data.razao_social}` : 'CNPJ confirmado na Receita Federal.';
+            setCnpjStatus({ type: 'success', message: detalhe, cnpj: cleanCNPJ });
+        } catch (err) {
+            setCnpjStatus({ type: 'error', message: err.message || 'Erro ao consultar CNPJ.' });
+        } finally {
+            setCnpjLoading(false);
+        }
+    };
+
     // Handlers para assinaturas
     const handleSignatureChange = (name, signatureData) => {
         console.log('Assinatura recebida:', name, signatureData ? 'SIM' : 'NÃO');
@@ -261,6 +292,36 @@ function AutoDiversosCreatePage() {
         }
 
         try {
+            const cleanCNPJ = (autoData.cnpj || '').replace(/\D/g, '');
+            if (!cnpjStatus || cnpjStatus.type !== 'success' || cnpjStatus.cnpj !== cleanCNPJ) {
+                try {
+                    setCnpjLoading(true);
+                    const data = await consultarCNPJReceita(cleanCNPJ);
+                    setAutoData(prev => ({
+                        ...prev,
+                        razao_social: data.razao_social || prev.razao_social,
+                        nome_fantasia: data.nome_fantasia || prev.nome_fantasia,
+                        atividade: (data?.dados_brutos?.atividade_principal?.[0]?.text) || prev.atividade,
+                        atuacao: data?.dados_brutos?.natureza_juridica || prev.atuacao,
+                        endereco: data.endereco
+                            ? `${data.endereco}${data.numero ? `, ${data.numero}` : ''}${data.bairro ? ` - ${data.bairro}` : ''}`
+                            : prev.endereco,
+                        municipio: data.cidade || prev.municipio,
+                        estado: data.uf || prev.estado,
+                        cep: data.cep || prev.cep,
+                        telefone: data.telefone || prev.telefone,
+                    }));
+                    const detalhe = data.razao_social ? `Razao social: ${data.razao_social}` : 'CNPJ confirmado na Receita Federal.';
+                    setCnpjStatus({ type: 'success', message: detalhe, cnpj: cleanCNPJ });
+                } catch (err) {
+                    setError(`CNPJ: ${err.message || 'Erro ao consultar CNPJ.'}`);
+                    setLoading(false);
+                    return;
+                } finally {
+                    setCnpjLoading(false);
+                }
+            }
+
             const formData = new FormData();
             
             // === MAPEAMENTO CORRETO PARA BACKEND DJANGO ===
@@ -365,7 +426,7 @@ function AutoDiversosCreatePage() {
             
             console.log('✅ Sucesso! Resposta do servidor:', response);
             alert(`Auto Diversos "${response.numero}" criado com sucesso!`);
-            navigate('/fiscalizacao');
+      navigate('/fiscalizacao/diversos');
             
         } catch (err) {
             console.error('❌ Erro detalhado:', err);
@@ -473,6 +534,37 @@ function AutoDiversosCreatePage() {
         { value: 'outros', label: 'Outros' }
     ];
 
+    const estadoOptions = [
+        { value: 'AC', label: 'Acre' },
+        { value: 'AL', label: 'Alagoas' },
+        { value: 'AP', label: 'Amapa' },
+        { value: 'AM', label: 'Amazonas' },
+        { value: 'BA', label: 'Bahia' },
+        { value: 'CE', label: 'Ceara' },
+        { value: 'DF', label: 'Distrito Federal' },
+        { value: 'ES', label: 'Espirito Santo' },
+        { value: 'GO', label: 'Goias' },
+        { value: 'MA', label: 'Maranhao' },
+        { value: 'MT', label: 'Mato Grosso' },
+        { value: 'MS', label: 'Mato Grosso do Sul' },
+        { value: 'MG', label: 'Minas Gerais' },
+        { value: 'PA', label: 'Para' },
+        { value: 'PB', label: 'Paraiba' },
+        { value: 'PR', label: 'Parana' },
+        { value: 'PE', label: 'Pernambuco' },
+        { value: 'PI', label: 'Piaui' },
+        { value: 'RJ', label: 'Rio de Janeiro' },
+        { value: 'RN', label: 'Rio Grande do Norte' },
+        { value: 'RS', label: 'Rio Grande do Sul' },
+        { value: 'RO', label: 'Rondonia' },
+        { value: 'RR', label: 'Roraima' },
+        { value: 'SC', label: 'Santa Catarina' },
+        { value: 'SP', label: 'Sao Paulo' },
+        { value: 'SE', label: 'Sergipe' },
+        { value: 'TO', label: 'Tocantins' },
+    ];
+
+
     return (
         <div className="min-h-screen bg-gray-50 py-6">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -495,7 +587,38 @@ function AutoDiversosCreatePage() {
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                 {renderTextField('razao_social', 'Estabelecimento', 'text', true, 255)}
                                 {renderTextField('nome_fantasia', 'Nome Fantasia', 'text', false, 255)}
-                                {renderTextField('cnpj', 'CNPJ', 'text', true, 18)}
+                                <div>
+                                    <label htmlFor="cnpj" className="block text-sm font-medium text-gray-700">
+                                        CNPJ <span className="text-red-500">*</span>
+                                    </label>
+                                    <div className="mt-1 flex flex-col gap-2">
+                                        <div className="flex gap-2">
+                                            <input
+                                                type="text"
+                                                id="cnpj"
+                                                name="cnpj"
+                                                value={autoData.cnpj}
+                                                onChange={handleAutoChange}
+                                                required
+                                                maxLength={18}
+                                                className="flex-1 p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={handleConsultarCNPJ}
+                                                disabled={cnpjLoading}
+                                                className="px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 text-sm font-medium"
+                                            >
+                                                {cnpjLoading ? 'Consultando...' : 'Consultar Receita'}
+                                            </button>
+                                        </div>
+                                        {cnpjStatus && (
+                                            <p className={`text-xs ${cnpjStatus.type === 'success' ? 'text-green-600' : 'text-red-600'}`}>
+                                                {cnpjStatus.message}
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
                                 {renderTextField('atividade', 'Atividade', 'text', true, 255)}
                                 {renderSelect('porte', 'Porte', porteOptions)}
                                 {renderTextField('atuacao', 'Atuação', 'text', false, 100)}
@@ -512,15 +635,7 @@ function AutoDiversosCreatePage() {
                                 {renderTextField('endereco', 'Endereço', 'text', true, 255)}
                                 {renderTextField('cep', 'CEP', 'text', true, 10)}
                                 {renderTextField('municipio', 'Município', 'text', true, 100)}
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700">Estado</label>
-                                    <input 
-                                        type="text" 
-                                        value="AM" 
-                                        disabled 
-                                        className="mt-1 block w-full p-2 bg-gray-100 border border-gray-300 rounded-md text-gray-500" 
-                                    />
-                                </div>
+{renderSelect('estado', 'Estado', estadoOptions, true)}
                                 {renderTextField('telefone', 'Telefone', 'tel', false, 20)}
                             </div>
                         </div>

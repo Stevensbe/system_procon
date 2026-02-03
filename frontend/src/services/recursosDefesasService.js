@@ -2,7 +2,7 @@ import api from './api';
 
 class RecursosDefesasService {
   constructor() {
-    this.baseURL = '/api/recursos-defesas/';
+    this.baseURL = '/recursos-defesas/';
   }
 
   // ===== ESTATÍSTICAS E DASHBOARD =====
@@ -621,7 +621,7 @@ class RecursosDefesasService {
    */
   async listarProcessos() {
     try {
-      const response = await api.get('/api/processos/');
+      const response = await api.get('/processos/');
       return response.data.results || response.data || [];
     } catch (error) {
       console.error('Erro ao listar processos:', error);
@@ -634,7 +634,7 @@ class RecursosDefesasService {
    */
   async listarAdvogados() {
     try {
-      const response = await api.get('/api/advogados/');
+      const response = await api.get('/advogados/');
       return response.data.results || response.data || [];
     } catch (error) {
       console.error('Erro ao listar advogados:', error);

@@ -36,6 +36,27 @@ export const tiService = {
     return response.data;
   },
 
+  async listarSetores() {
+    const response = await api.get(`${BASE_URL}/usuarios/setores/`);
+    return response.data;
+  },
+
+  // Configuracoes
+  async listarConfiguracoes() {
+    const response = await api.get(`${BASE_URL}/configuracoes/`);
+    return response.data;
+  },
+
+  async obterConfiguracao(chave) {
+    const response = await api.get(`${BASE_URL}/configuracoes/${chave}/`);
+    return response.data;
+  },
+
+  async atualizarConfiguracao(chave, payload) {
+    const response = await api.patch(`${BASE_URL}/configuracoes/${chave}/`, payload);
+    return response.data;
+  },
+
   // Validações
   async validarCPF(cpf) {
     // Validação local + verificação se já existe no sistema

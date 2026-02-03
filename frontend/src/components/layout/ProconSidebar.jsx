@@ -11,14 +11,9 @@ import {
   Home,
   Users,
   Settings,
-  Megaphone,
   Scale,
   DollarSign,
-  TrendingUp,
-  AlertTriangle,
-  CheckCircle,
-  Clock,
-  Archive
+  TrendingUp
 } from 'lucide-react';
 import {
   Sidebar,
@@ -38,8 +33,6 @@ import { useInboxStats } from '@/hooks/useInboxStats';
 // Menu principal do sistema
 const mainMenuItems = [
   { title: 'Dashboard', url: '/dashboard', icon: Home },
-  { title: 'Protocolos', url: '/protocolo', icon: FileText },
-  { title: 'Tramitação', url: '/tramitacao', icon: ClipboardCheck },
   { title: 'Fiscalização', url: '/fiscalizacao', icon: ClipboardCheck },
   { title: 'Jurídico', url: '/juridico', icon: Scale },
   { title: 'Processos', url: '/processos', icon: FileText },
@@ -51,55 +44,20 @@ const mainMenuItems = [
   { title: 'Configurações', url: '/configuracoes', icon: Settings },
 ];
 
-// Caixas de entrada setoriais
+// Caixa de entrada unificada
 const caixasEntradaItems = [
-  { 
-    title: 'Caixa Denúncias', 
-    url: '/caixa-denuncias', 
-    icon: Megaphone, 
-    badge: 'denuncias',
-    description: 'Denúncias direcionadas para Fiscalização' 
-  },
-  { 
-    title: 'Caixa Fiscalização', 
-    url: '/caixa-fiscalizacao', 
-    icon: ClipboardCheck, 
-    badge: 'fiscalizacao',
-    description: 'Documentos internos do setor de Fiscalização' 
-  },
-  { 
-    title: 'Caixa Jurídico 1', 
-    url: '/caixa-juridico-1', 
-    icon: Scale, 
-    badge: 'juridico1',
-    description: 'Petições e análises da primeira instância jurídica' 
-  },
-  { 
-    title: 'Caixa Jurídico 2', 
-    url: '/caixa-juridico-2', 
-    icon: Scale, 
-    badge: 'juridico2',
-    description: 'Recursos e segunda instância jurídica' 
-  },
-  { 
-    title: 'Caixa DAF', 
-    url: '/caixa-daf', 
-    icon: DollarSign, 
-    badge: 'daf',
-    description: 'Demandas da diretoria administrativa financeira' 
-  },
-  { 
-    title: 'Caixa Diretoria', 
-    url: '/caixa-diretoria', 
-    icon: Users, 
-    badge: 'diretoria',
-    description: 'Demandas da diretoria geral' 
+  {
+    title: 'Caixa de Entrada',
+    url: '/caixa-entrada',
+    icon: InboxIcon,
+    badge: 'inbox',
+    description: 'Visão unificada da caixa pessoal e do setor'
   },
 ];
 
 // Itens de notificação e inbox
 const notificationItems = [
-  { title: 'Inbox', url: '/caixa-entrada/pessoal', icon: InboxIcon, hasBadge: 'inbox' },
+  { title: 'Inbox', url: '/caixa-entrada', icon: InboxIcon, hasBadge: 'inbox' },
   { title: 'Notificações', url: '/notificacoes', icon: Bell, hasBadge: 'notifications' },
 ];
 
@@ -115,12 +73,6 @@ export function ProconSidebar() {
     const counts = {
       inbox: (inboxStats?.pessoal || 0) + (inboxStats?.setor || 0),
       notifications: unreadCount || 0,
-      denuncias: inboxStats?.denuncias || 0,
-      fiscalizacao: inboxStats?.fiscalizacao || 0,
-      juridico1: inboxStats?.juridico1 || 0,
-      juridico2: inboxStats?.juridico2 || 0,
-      daf: inboxStats?.daf || 0,
-      diretoria: inboxStats?.diretoria || 0
     };
     return counts[type] || 0;
   };

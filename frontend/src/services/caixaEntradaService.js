@@ -144,6 +144,26 @@ class CaixaEntradaService {
     }
   }
 
+  async bloquearDocumento(documentoId, dados = {}) {
+    try {
+      const response = await api.post(`/caixa-entrada/api/documentos/${documentoId}/bloquear/`, dados);
+      return response.data;
+    } catch (error) {
+      console.error('Erro ao bloquear documento:', error);
+      throw error;
+    }
+  }
+
+  async desbloquearDocumento(documentoId) {
+    try {
+      const response = await api.post(`/caixa-entrada/api/documentos/${documentoId}/desbloquear/`);
+      return response.data;
+    } catch (error) {
+      console.error('Erro ao desbloquear documento:', error);
+      throw error;
+    }
+  }
+
   // Buscar histórico do documento
   async getHistoricoDocumento(documentoId) {
     try {

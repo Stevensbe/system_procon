@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import portalConsumidorService from '../../services/portalConsumidorService';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../context/SupabaseAuthContext';
 
 const STATUS_LABELS = {
   PENDENTE: { label: 'Pendente', color: 'bg-amber-500/15 text-amber-300 border border-amber-500/30' },
@@ -42,9 +42,9 @@ function PortalConsumidorFeedbacksAdmin() {
     try {
       setLoading(true);
       setError(null);
-      const data = await portalConsumidorService.listarFeedbacksAdmin({ 
+      const data = await portalConsumidorService.listarFeedbacksAdmin({
         ordering: '-data_feedback',
-        page_size: 50 
+        page_size: 50
       });
       const results = data?.results ?? data ?? [];
       setFeedbacks(results);
@@ -93,9 +93,9 @@ function PortalConsumidorFeedbacksAdmin() {
       prev.map((item) =>
         item.id === id
           ? {
-              ...item,
-              ...updates,
-            }
+            ...item,
+            ...updates,
+          }
           : item,
       ),
     );
@@ -126,10 +126,10 @@ function PortalConsumidorFeedbacksAdmin() {
 
   const handleResponder = async (feedbackItem, resposta) => {
     try {
-      updateFeedbackStatus(feedbackItem.id, { 
+      updateFeedbackStatus(feedbackItem.id, {
         acoes_tomadas: resposta,
         revisado: true,
-        revisado_por: user?.username 
+        revisado_por: user?.username
       });
       await portalConsumidorService.atualizarFeedbackAdmin(feedbackItem.id, {
         acoes_tomadas: resposta,
@@ -198,11 +198,10 @@ function PortalConsumidorFeedbacksAdmin() {
                   key={item.value}
                   type="button"
                   onClick={() => setFilter(item.value)}
-                  className={`rounded-xl border px-3.5 py-1.5 text-sm transition ${
-                    filter === item.value
+                  className={`rounded-xl border px-3.5 py-1.5 text-sm transition ${filter === item.value
                       ? 'border-blue-500 bg-blue-500/10 text-blue-600 dark:border-blue-400 dark:text-blue-300'
                       : 'border-slate-200 text-slate-600 hover:border-blue-200 hover:text-blue-500 dark:border-slate-700 dark:text-slate-400'
-                  }`}
+                    }`}
                 >
                   {item.label}
                 </button>
@@ -289,19 +288,18 @@ function PortalConsumidorFeedbacksAdmin() {
                     </td>
                     <td className="px-4 py-3 align-top">
                       <span
-                        className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium ${
-                          feedbackItem.acoes_tomadas
+                        className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium ${feedbackItem.acoes_tomadas
                             ? STATUS_LABELS.RESPONDIDO.color
                             : feedbackItem.revisado
-                            ? STATUS_LABELS.REVISADO.color
-                            : STATUS_LABELS.PENDENTE.color
-                        }`}
+                              ? STATUS_LABELS.REVISADO.color
+                              : STATUS_LABELS.PENDENTE.color
+                          }`}
                       >
                         {feedbackItem.acoes_tomadas
                           ? STATUS_LABELS.RESPONDIDO.label
                           : feedbackItem.revisado
-                          ? STATUS_LABELS.REVISADO.label
-                          : STATUS_LABELS.PENDENTE.label}
+                            ? STATUS_LABELS.REVISADO.label
+                            : STATUS_LABELS.PENDENTE.label}
                       </span>
                     </td>
                     <td className="px-4 py-3 align-top text-xs text-slate-500 dark:text-slate-400">
@@ -368,11 +366,10 @@ function PortalConsumidorFeedbacksAdmin() {
             onAnimationComplete={() => {
               setTimeout(() => setFeedback(null), 4000);
             }}
-            className={`fixed bottom-6 right-6 z-50 flex items-center gap-3 rounded-2xl px-4 py-3 text-sm shadow-lg ${
-              feedback.type === 'success'
+            className={`fixed bottom-6 right-6 z-50 flex items-center gap-3 rounded-2xl px-4 py-3 text-sm shadow-lg ${feedback.type === 'success'
                 ? 'bg-emerald-500 text-white'
                 : 'bg-rose-500 text-white'
-            }`}
+              }`}
           >
             {feedback.type === 'success' && <CheckCircle2 className="h-5 w-5" />}
             {feedback.type === 'error' && <XCircle className="h-5 w-5" />}

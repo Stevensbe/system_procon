@@ -13,7 +13,7 @@ import {
 
 import portalConsumidorService from '../../services/portalConsumidorService';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../context/SupabaseAuthContext';
 
 const STATUS_OPCOES = [
   { value: 'ABERTO', label: 'Aberto' },
@@ -269,9 +269,8 @@ function PortalConsumidorTicketsAdmin() {
             onAnimationComplete={() => {
               setTimeout(() => setFeedback(null), 3500);
             }}
-            className={`fixed bottom-6 right-6 z-40 flex items-center gap-3 rounded-2xl px-4 py-3 text-sm shadow-lg ${
-              feedback.type === 'success' ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'
-            }`}
+            className={`fixed bottom-6 right-6 z-40 flex items-center gap-3 rounded-2xl px-4 py-3 text-sm shadow-lg ${feedback.type === 'success' ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'
+              }`}
           >
             {feedback.message}
           </motion.div>

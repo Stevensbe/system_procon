@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Building2, ShieldCheck, LockKeyhole, Mail } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../context/SupabaseAuthContext';
 
 /**
  * Tela de login dedicada ao Portal da Empresa.
@@ -174,10 +174,10 @@ function PortalEmpresaLogin() {
                   </div>
 
                   <button
-                  type="submit"
-                  disabled={isSubmitting || isLoading}
-                  className="mt-4 flex w-full items-center justify-center rounded-xl bg-blue-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-400 disabled:cursor-not-allowed disabled:bg-blue-500/70"
-                >
+                    type="submit"
+                    disabled={isSubmitting || isLoading}
+                    className="mt-4 flex w-full items-center justify-center rounded-xl bg-blue-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-400 disabled:cursor-not-allowed disabled:bg-blue-500/70"
+                  >
                     {isSubmitting || isLoading ? 'Entrando...' : 'Entrar no portal'}
                   </button>
                 </form>
@@ -186,11 +186,10 @@ function PortalEmpresaLogin() {
                   <motion.div
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className={`mt-4 rounded-lg border px-4 py-3 text-sm ${
-                      feedback?.type === 'success'
+                    className={`mt-4 rounded-lg border px-4 py-3 text-sm ${feedback?.type === 'success'
                         ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-200'
                         : 'border-rose-500/50 bg-rose-500/10 text-rose-200'
-                    }`}
+                      }`}
                   >
                     {feedback?.message || error}
                   </motion.div>

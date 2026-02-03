@@ -71,6 +71,18 @@ function AutoSupermercadoDetailPage() {
             <p>{auto.nome_fantasia || '-'}</p>
           </div>
           <div>
+            <p className="font-medium">Porte:</p>
+            <p>{auto.porte || '-'}</p>
+          </div>
+          <div>
+            <p className="font-medium">Atuação:</p>
+            <p>{auto.atuacao || '-'}</p>
+          </div>
+          <div>
+            <p className="font-medium">Atividade:</p>
+            <p>{auto.atividade || '-'}</p>
+          </div>
+          <div>
             <p className="font-medium">CNPJ:</p>
             <p>{auto.cnpj}</p>
           </div>
@@ -96,7 +108,7 @@ function AutoSupermercadoDetailPage() {
           </div>
           <div>
             <p className="font-medium">Prazo de Cumprimento:</p>
-            <p>{auto.prazo_cumprimento} dias</p>
+            <p>{auto.prazo_cumprimento_dias} dias</p>
           </div>
         </div>
       </div>
@@ -107,33 +119,29 @@ function AutoSupermercadoDetailPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
             <div className="flex items-center">
-              <span className={`w-4 h-4 rounded mr-2 ${auto.produtos_vencidos ? 'bg-red-500' : 'bg-gray-300'}`}></span>
+              <span className={`w-4 h-4 rounded mr-2 ${auto.comercializar_produtos_vencidos ? 'bg-red-500' : 'bg-gray-300'}`}></span>
               <span>Produtos vencidos</span>
             </div>
             <div className="flex items-center">
-              <span className={`w-4 h-4 rounded mr-2 ${auto.embalagem_violada ? 'bg-red-500' : 'bg-gray-300'}`}></span>
+              <span className={`w-4 h-4 rounded mr-2 ${auto.comercializar_embalagem_violada ? 'bg-red-500' : 'bg-gray-300'}`}></span>
               <span>Embalagem violada</span>
             </div>
             <div className="flex items-center">
-              <span className={`w-4 h-4 rounded mr-2 ${auto.lata_amassada ? 'bg-red-500' : 'bg-gray-300'}`}></span>
+              <span className={`w-4 h-4 rounded mr-2 ${auto.comercializar_lata_amassada ? 'bg-red-500' : 'bg-gray-300'}`}></span>
               <span>Lata amassada</span>
             </div>
             <div className="flex items-center">
-              <span className={`w-4 h-4 rounded mr-2 ${auto.sem_validade ? 'bg-red-500' : 'bg-gray-300'}`}></span>
+              <span className={`w-4 h-4 rounded mr-2 ${auto.comercializar_sem_validade ? 'bg-red-500' : 'bg-gray-300'}`}></span>
               <span>Sem validade</span>
-            </div>
-            <div className="flex items-center">
-              <span className={`w-4 h-4 rounded mr-2 ${auto.validade_ilegivel ? 'bg-red-500' : 'bg-gray-300'}`}></span>
-              <span>Validade ilegível</span>
             </div>
           </div>
           <div className="space-y-2">
             <div className="flex items-center">
-              <span className={`w-4 h-4 rounded mr-2 ${auto.mal_armazenados ? 'bg-red-500' : 'bg-gray-300'}`}></span>
+              <span className={`w-4 h-4 rounded mr-2 ${auto.comercializar_mal_armazenados ? 'bg-red-500' : 'bg-gray-300'}`}></span>
               <span>Mal armazenados</span>
             </div>
             <div className="flex items-center">
-              <span className={`w-4 h-4 rounded mr-2 ${auto.produtos_descongelados ? 'bg-red-500' : 'bg-gray-300'}`}></span>
+              <span className={`w-4 h-4 rounded mr-2 ${auto.comercializar_descongelados ? 'bg-red-500' : 'bg-gray-300'}`}></span>
               <span>Produtos descongelados</span>
             </div>
           </div>
@@ -154,25 +162,25 @@ function AutoSupermercadoDetailPage() {
               <span>Obstrução do monitor</span>
             </div>
             <div className="flex items-center">
-              <span className={`w-4 h-4 rounded mr-2 ${auto.precos_fora_padrao ? 'bg-red-500' : 'bg-gray-300'}`}></span>
+              <span className={`w-4 h-4 rounded mr-2 ${auto.afixacao_precos_fora_padrao ? 'bg-red-500' : 'bg-gray-300'}`}></span>
               <span>Preços fora do padrão</span>
             </div>
             <div className="flex items-center">
-              <span className={`w-4 h-4 rounded mr-2 ${auto.ausencia_precos ? 'bg-red-500' : 'bg-gray-300'}`}></span>
+              <span className={`w-4 h-4 rounded mr-2 ${auto.ausencia_afixacao_precos ? 'bg-red-500' : 'bg-gray-300'}`}></span>
               <span>Ausência de preços</span>
             </div>
           </div>
           <div className="space-y-2">
             <div className="flex items-center">
-              <span className={`w-4 h-4 rounded mr-2 ${auto.fracionados_fora_padrao ? 'bg-red-500' : 'bg-gray-300'}`}></span>
+              <span className={`w-4 h-4 rounded mr-2 ${auto.afixacao_precos_fracionados_fora_padrao ? 'bg-red-500' : 'bg-gray-300'}`}></span>
               <span>Fracionados fora do padrão</span>
             </div>
             <div className="flex items-center">
-              <span className={`w-4 h-4 rounded mr-2 ${auto.ausencia_desconto_visibilidade ? 'bg-red-500' : 'bg-gray-300'}`}></span>
+              <span className={`w-4 h-4 rounded mr-2 ${auto.ausencia_visibilidade_descontos ? 'bg-red-500' : 'bg-gray-300'}`}></span>
               <span>Ausência de visibilidade de descontos</span>
             </div>
             <div className="flex items-center">
-              <span className={`w-4 h-4 rounded mr-2 ${auto.ausencia_placas_promocao ? 'bg-red-500' : 'bg-gray-300'}`}></span>
+              <span className={`w-4 h-4 rounded mr-2 ${auto.ausencia_placas_promocao_vencimento ? 'bg-red-500' : 'bg-gray-300'}`}></span>
               <span>Ausência de placas de promoção</span>
             </div>
           </div>
@@ -197,12 +205,20 @@ function AutoSupermercadoDetailPage() {
           </div>
         )}
 
-        {auto.observacoes && (
+        {auto.cominacao_legal && (
           <div className="mb-4">
-            <p className="font-medium">Observações:</p>
-            <p className="whitespace-pre-wrap">{auto.observacoes}</p>
+            <p className="font-medium">Cominacao Legal:</p>
+            <p className="whitespace-pre-wrap">{auto.cominacao_legal}</p>
           </div>
         )}
+
+        {auto.instrucoes_fiscalizado && (
+          <div className="mb-4">
+            <p className="font-medium">Instrucoes ao Fiscalizado:</p>
+            <p className="whitespace-pre-wrap">{auto.instrucoes_fiscalizado}</p>
+          </div>
+        )}
+
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
           <div className="flex items-center">
@@ -210,22 +226,68 @@ function AutoSupermercadoDetailPage() {
             <span>Possui anexo</span>
           </div>
           <div className="flex items-center">
-            <span className={`w-4 h-4 rounded mr-2 ${auto.possui_auto_apreensao ? 'bg-green-500' : 'bg-gray-300'}`}></span>
+            <span className={`w-4 h-4 rounded mr-2 ${auto.auto_apreensao ? 'bg-green-500' : 'bg-gray-300'}`}></span>
             <span>Possui auto de apreensão</span>
           </div>
           <div className="flex items-center">
             <span className={`w-4 h-4 rounded mr-2 ${auto.necessita_pericia ? 'bg-yellow-500' : 'bg-gray-300'}`}></span>
             <span>Necessita perícia</span>
           </div>
+          <div className="flex items-center">
+            <span className={`w-4 h-4 rounded mr-2 ${auto.vicios_aparentes ? 'bg-green-500' : 'bg-gray-300'}`}></span>
+            <span>Vicios aparentes</span>
+          </div>
+          <div className="flex items-center">
+            <span className={`w-4 h-4 rounded mr-2 ${auto.receita_bruta_notificada ? 'bg-green-500' : 'bg-gray-300'}`}></span>
+            <span>Receita bruta notificada</span>
+          </div>
         </div>
 
-        {auto.numero_auto_apreensao && (
+        {auto.auto_apreensao_numero && (
           <div className="mt-4">
             <p className="font-medium">Número do Auto de Apreensão:</p>
-            <p>{auto.numero_auto_apreensao}</p>
+            <p>{auto.auto_apreensao_numero}</p>
           </div>
         )}
       </div>
+
+      {(auto.assinatura_fiscal_1 || auto.assinatura_fiscal_2 || auto.assinatura_representante) && (
+        <div className="bg-white p-6 rounded-lg shadow mb-6">
+          <h2 className="text-xl font-semibold mb-4 text-green-700">Assinaturas</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {auto.assinatura_fiscal_1 && (
+              <div className="text-center">
+                <h4 className="font-medium text-gray-800 mb-2">Fiscal Principal</h4>
+                <img
+                  src={auto.assinatura_fiscal_1}
+                  alt="Assinatura do Fiscal Principal"
+                  className="border border-gray-300 rounded max-h-32 mx-auto"
+                />
+              </div>
+            )}
+            {auto.assinatura_fiscal_2 && (
+              <div className="text-center">
+                <h4 className="font-medium text-gray-800 mb-2">Fiscal Secundário</h4>
+                <img
+                  src={auto.assinatura_fiscal_2}
+                  alt="Assinatura do Fiscal Secundário"
+                  className="border border-gray-300 rounded max-h-32 mx-auto"
+                />
+              </div>
+            )}
+            {auto.assinatura_representante && (
+              <div className="text-center">
+                <h4 className="font-medium text-gray-800 mb-2">Representante</h4>
+                <img
+                  src={auto.assinatura_representante}
+                  alt="Assinatura do Representante"
+                  className="border border-gray-300 rounded max-h-32 mx-auto"
+                />
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* RESPONSÁVEIS */}
       <div className="bg-white p-6 rounded-lg shadow mb-6">
@@ -237,13 +299,11 @@ function AutoSupermercadoDetailPage() {
               <div>
                 <p className="text-sm font-medium">Fiscal 1:</p>
                 <p>{auto.fiscal_nome_1}</p>
-                <p className="text-sm text-gray-600">Matrícula: {auto.fiscal_matricula_1}</p>
               </div>
               {auto.fiscal_nome_2 && (
                 <div>
                   <p className="text-sm font-medium">Fiscal 2:</p>
                   <p>{auto.fiscal_nome_2}</p>
-                  <p className="text-sm text-gray-600">Matrícula: {auto.fiscal_matricula_2}</p>
                 </div>
               )}
             </div>

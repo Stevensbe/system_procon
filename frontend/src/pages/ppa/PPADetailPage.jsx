@@ -31,9 +31,24 @@ export default function PPADetailPage() {
   const { id } = useParams();
   const queryClient = useQueryClient();
 
+  const formatDateTime = (value) => {
+    if (!value) return "-";
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return "-";
+    return format(parsed, "dd/MM/yyyy HH:mm", { locale: ptBR });
+  };
+
+  const formatDate = (value) => {
+    if (!value) return "-";
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return "-";
+    return format(parsed, "dd/MM/yyyy", { locale: ptBR });
+  };
+
   const [showMovimentacaoModal, setShowMovimentacaoModal] = useState(false);
   const [showAnexoModal, setShowAnexoModal] = useState(false);
   const [showParecerModal, setShowParecerModal] = useState(false);
+  const [downloadStatus, setDownloadStatus] = useState({ pdf: false, docx: false });
 
   const { data: ppa, isLoading } = useQuery({
     queryKey: ['ppa', id],
@@ -108,6 +123,33 @@ export default function PPADetailPage() {
     }
   };
 
+  const handleDownload = async (tipo) => {
+    if (!id) return;
+    setDownloadStatus((prev) => ({ ...prev, [tipo]: true }));
+
+    try {
+      const blob = tipo === "pdf"
+        ? await ppaService.baixarPdf(id)
+        : await ppaService.baixarDocx(id);
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      const numero = (ppa?.numero || "PPA").replace("/", "-");
+      const ext = tipo === "pdf" ? "pdf" : "docx";
+
+      link.href = url;
+      link.download = `PPA_${numero}.${ext}`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Erro ao baixar PPA:", error);
+      alert("Erro ao baixar o arquivo do PPA.");
+    } finally {
+      setDownloadStatus((prev) => ({ ...prev, [tipo]: false }));
+    }
+  };
+
   const getPrazoBadge = () => {
     if (!ppa?.prazo_analise) return <Badge variant="secondary">Sem prazo</Badge>;
     
@@ -176,9 +218,23 @@ export default function PPADetailPage() {
             </div>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" className="gap-2">
+            <Button
+              variant="outline"
+              className="gap-2"
+              onClick={() => handleDownload("pdf")}
+              disabled={downloadStatus.pdf}
+            >
               <FileDown className="w-4 h-4" />
-              PDF
+              {downloadStatus.pdf ? "Baixando..." : "PDF"}
+            </Button>
+            <Button
+              variant="outline"
+              className="gap-2"
+              onClick={() => handleDownload("docx")}
+              disabled={downloadStatus.docx}
+            >
+              <FileText className="w-4 h-4" />
+              {downloadStatus.docx ? "Baixando..." : "DOCX"}
             </Button>
             <Button
               variant="outline"
@@ -292,7 +348,7 @@ export default function PPADetailPage() {
                     {ppa.prazo_analise ? (
                       <>
                         <p className="text-gray-900">
-                          {format(new Date(ppa.prazo_analise), "dd/MM/yyyy", { locale: ptBR })}
+                          {formatDate(ppa.prazo_analise)}
                         </p>
                         {getPrazoBadge()}
                       </>
@@ -306,7 +362,7 @@ export default function PPADetailPage() {
                   <div>
                     <label className="text-sm font-semibold text-gray-700 block mb-1">Prazo de Resposta</label>
                     <p className="text-gray-900">
-                      {format(new Date(ppa.prazo_resposta), "dd/MM/yyyy", { locale: ptBR })}
+                      {formatDate(ppa.prazo_resposta)}
                     </p>
                   </div>
                 )}
@@ -369,7 +425,7 @@ export default function PPADetailPage() {
                     movimentacoes.map((mov) => (
                       <tr key={mov.id} className="hover:bg-gray-50">
                         <td className="px-4 py-3 text-sm font-medium">
-                          {format(new Date(mov.data), "dd/MM/yyyy", { locale: ptBR })}
+                          {formatDate(mov.data)}
                         </td>
                         <td className="px-4 py-3 text-sm">{mov.hora || "-"}</td>
                         <td className="px-4 py-3 text-sm">
@@ -425,8 +481,9 @@ export default function PPADetailPage() {
                       </div>
                       <p className="text-sm text-gray-600 mb-1">{anexo.descricao}</p>
                       <small className="text-xs text-gray-500">
-                        {format(new Date(anexo.created_date), "dd/MM/yyyy HH:mm", { locale: ptBR })}
-                        {anexo.anexado_por && ` - ${anexo.anexado_por}`}
+                        {formatDateTime(anexo.data_anexacao || anexo.created_date)}
+                        {anexo.anexado_por_nome && ` - ${anexo.anexado_por_nome}`}
+                        {!anexo.anexado_por_nome && anexo.anexado_por && ` - ${anexo.anexado_por}`}
                       </small>
                     </div>
                     {anexo.arquivo_url && (
@@ -478,8 +535,9 @@ export default function PPADetailPage() {
                           {parecer.numero_parecer} - {parecer.titulo}
                         </h6>
                         <small className="text-gray-500">
-                          {format(new Date(parecer.created_date), "dd/MM/yyyy HH:mm", { locale: ptBR })}
-                          {parecer.elaborado_por && ` - ${parecer.elaborado_por}`}
+                          {formatDateTime(parecer.criado_em || parecer.created_date)}
+                          {parecer.elaborado_por_nome && ` - ${parecer.elaborado_por_nome}`}
+                          {!parecer.elaborado_por_nome && parecer.elaborado_por && ` - ${parecer.elaborado_por}`}
                         </small>
                       </div>
                       <Badge variant={parecer.conclusao === "procedente" ? "default" : "destructive"}>
@@ -501,10 +559,10 @@ export default function PPADetailPage() {
                           <p className="text-blue-600">{parecer.recomendacoes}</p>
                         </div>
                       )}
-                      {parecer.aprovado && (
+                      {parecer.aprovado_por && (
                         <div className="bg-green-100 p-2 rounded">
-                          ✅ Aprovado {parecer.aprovado_por && `por ${parecer.aprovado_por}`}
-                          {parecer.data_aprovacao && ` em ${format(new Date(parecer.data_aprovacao), "dd/MM/yyyy", { locale: ptBR })}`}
+                          ✅ Aprovado {parecer.aprovado_por_nome && `por ${parecer.aprovado_por_nome}`}
+                          {parecer.data_aprovacao && ` em ${formatDateTime(parecer.data_aprovacao)}`}
                         </div>
                       )}
                     </div>

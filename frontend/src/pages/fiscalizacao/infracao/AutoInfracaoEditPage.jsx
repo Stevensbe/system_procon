@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { obterAutoInfracao, atualizarAutoInfracao } from '../../../services/fiscalizacaoService';
 import SignaturePad from "../../../components/shared/SignaturePad";
-import FileUpload from "../../../components/shared/FileUpload";
 
 function AutoInfracaoEditPage() {
     const { id } = useParams();
@@ -23,12 +22,16 @@ function AutoInfracaoEditPage() {
         nome_fantasia: '',
         atividade: '',
         endereco: '',
+        cep: '',
         cnpj: '',
         telefone: '',
         
-        // === PARECER PRÉVIO ===
+        // === ORIGEM / PARECER ===
+        auto_constatacao_numero: '',
+        notificacao_numero: '',
         parecer_numero: '',
         parecer_origem: '',
+        texto_origem: '',
         
         // === RELATÓRIO E BASE LEGAL ===
         relatorio: '',
@@ -62,17 +65,9 @@ function AutoInfracaoEditPage() {
         fiscal_cargo: '',
         estabelecimento_responsavel: '',
         
-        // === DATAS ===
-        data_notificacao: '',
-        data_vencimento: '',
-        
         // === STATUS ===
         status: '',
-        
-        // === ANEXOS ===
-        possui_anexo: false,
-        descricao_anexo: '',
-        
+
         // === OBSERVAÇÕES ===
         observacoes: ''
     });
@@ -83,8 +78,6 @@ function AutoInfracaoEditPage() {
         assinatura_responsavel: ''
     });
 
-    // Estados para arquivos anexados
-    const [uploadedFiles, setUploadedFiles] = useState([]);
 
     useEffect(() => {
         carregarAuto();
@@ -137,11 +130,6 @@ function AutoInfracaoEditPage() {
         }));
     };
 
-    // Handlers para arquivos
-    const handleFilesChange = (files) => {
-        setUploadedFiles(files);
-    };
-
     // Função para converter base64 para File
     const base64ToFile = (base64Data, filename) => {
         try {
@@ -184,7 +172,7 @@ function AutoInfracaoEditPage() {
         setError('');
 
         // Validação básica
-        if (!autoData.razao_social || !autoData.cnpj || !autoData.relatorio || !autoData.valor_multa) {
+        if (!autoData.razao_social || !autoData.cnpj || !autoData.relatorio) {
             setError('Preencha todos os campos obrigatórios');
             setSaving(false);
             return;
@@ -217,16 +205,6 @@ function AutoInfracaoEditPage() {
                 }
             });
             
-            // Adicionar arquivos anexados
-            if (uploadedFiles && uploadedFiles.length > 0) {
-                uploadedFiles.forEach((fileObj, index) => {
-                    if (fileObj && fileObj.file instanceof File) {
-                        formData.append('anexos', fileObj.file);
-                        formData.append(`anexo_descricao_${index}`, fileObj.name || fileObj.file.name);
-                    }
-                });
-            }
-
             const response = await atualizarAutoInfracao(id, formData);
             
             alert(`Auto de Infração "${response.numero}" atualizado com sucesso!`);
@@ -274,55 +252,6 @@ function AutoInfracaoEditPage() {
             />
         </div>
     );
-
-    const renderCheckboxField = (name, label, description = '') => (
-        <div className="flex items-start">
-            <input 
-                type="checkbox" 
-                id={name} 
-                name={name} 
-                checked={autoData[name] || false} 
-                onChange={handleAutoChange} 
-                className="h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 rounded mt-1" 
-            />
-            <div className="ml-2">
-                <label htmlFor={name} className="block text-sm text-gray-700">{label}</label>
-                {description && <p className="text-xs text-gray-500 mt-1">{description}</p>}
-            </div>
-        </div>
-    );
-
-    const renderSelect = (name, label, options, required = false) => (
-        <div>
-            <label htmlFor={name} className="block text-sm font-medium text-gray-700">
-                {label} {required && <span className="text-red-500">*</span>}
-            </label>
-            <select 
-                id={name}
-                name={name} 
-                value={autoData[name] || ''} 
-                onChange={handleAutoChange} 
-                required={required}
-                className="mt-1 block w-full p-2 border border-gray-300 rounded-md focus:ring-red-500 focus:border-red-500"
-            >
-                <option value="">Selecione...</option>
-                {options.map(option => (
-                    <option key={option.value} value={option.value}>
-                        {option.label}
-                    </option>
-                ))}
-            </select>
-        </div>
-    );
-
-    const statusOptions = [
-        { value: 'autuado', label: 'Autuado' },
-        { value: 'notificado', label: 'Notificado' },
-        { value: 'em_defesa', label: 'Em Defesa' },
-        { value: 'julgado', label: 'Julgado' },
-        { value: 'pago', label: 'Pago' },
-        { value: 'cancelado', label: 'Cancelado' }
-    ];
 
     if (loading) {
         return (
@@ -381,20 +310,32 @@ function AutoInfracaoEditPage() {
                                 {renderTextField('nome_fantasia', 'Nome Fantasia', 'text', false, 255)}
                                 {renderTextField('atividade', 'Atividade', 'text', true, 255)}
                                 {renderTextField('endereco', 'Endereço', 'text', true, 500)}
+                                {renderTextField('cep', 'CEP', 'text', false, 10)}
                                 {renderTextField('cnpj', 'CNPJ', 'text', true, 18)}
                                 {renderTextField('telefone', 'Telefone', 'tel', false, 20)}
                             </div>
                         </div>
 
-                        {/* === PARECER PRÉVIO === */}
+                        {/* === ORIGEM DO AUTO === */}
                         <div className="bg-gray-50 rounded-lg p-6">
                             <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
                                 <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm mr-2">3</span>
-                                Parecer Prévio
+                                Origem do Auto
                             </h2>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {renderTextField('auto_constatacao_numero', 'Auto de Constatação Nº', 'text', false, 20)}
+                                {renderTextField('notificacao_numero', 'Notificação Nº', 'text', false, 20)}
                                 {renderTextField('parecer_numero', 'Número do Parecer', 'text', false, 50)}
                                 {renderTextField('parecer_origem', 'Origem do Parecer', 'text', false, 100)}
+                                {renderTextField('valor_multa', 'Valor da Multa (R$)', 'number', false)}
+                            </div>
+                            <div className="mt-4">
+                                {renderTextArea(
+                                    'texto_origem',
+                                    'Texto de Origem (introdução antes do relatório)',
+                                    4,
+                                    false
+                                )}
                             </div>
                         </div>
 
@@ -407,81 +348,10 @@ function AutoInfracaoEditPage() {
                             {renderTextArea('relatorio', 'Relatório Detalhado', 8, true)}
                         </div>
 
-                        {/* === BASE LEGAL === */}
-                        <div className="bg-gray-50 rounded-lg p-6">
-                            <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                                <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm mr-2">5</span>
-                                Base Legal
-                            </h2>
-                            <div className="space-y-4">
-                                {renderTextArea('base_legal_cdc', 'Artigos do CDC violados', 4, true)}
-                                {renderTextArea('base_legal_outras', 'Outras bases legais', 4)}
-                            </div>
-                        </div>
-
-                        {/* === INFRAÇÕES ESPECÍFICAS === */}
-                        <div className="bg-gray-50 rounded-lg p-6">
-                            <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                                <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm mr-2">6</span>
-                                Infrações Constatadas
-                            </h2>
-                            
-                            <div className="space-y-6">
-                                <div>
-                                    <h3 className="text-md font-medium text-gray-800 mb-3">Artigos do CDC</h3>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        {renderCheckboxField('infracao_art_34', 'Art. 34 CDC', 'Informação adequada e clara')}
-                                        {renderCheckboxField('infracao_art_35', 'Art. 35 CDC', 'Publicidade enganosa')}
-                                        {renderCheckboxField('infracao_art_36', 'Art. 36 CDC', 'Publicidade abusiva')}
-                                        {renderCheckboxField('infracao_art_55', 'Art. 55 CDC', 'Oferta inadequada')}
-                                        {renderCheckboxField('infracao_art_56', 'Art. 56 CDC', 'Recusa de venda')}
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <h3 className="text-md font-medium text-gray-800 mb-3">Outras Infrações</h3>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        {renderCheckboxField('infracao_publicidade_enganosa', 'Publicidade Enganosa')}
-                                        {renderCheckboxField('infracao_precos_abusivos', 'Preços Abusivos')}
-                                        {renderCheckboxField('infracao_produtos_vencidos', 'Produtos Vencidos')}
-                                        {renderCheckboxField('infracao_falta_informacao', 'Falta de Informação')}
-                                    </div>
-                                </div>
-
-                                {renderTextArea('outras_infracoes', 'Outras infrações específicas', 4)}
-                            </div>
-                        </div>
-
-                        {/* === FUNDAMENTAÇÃO === */}
-                        <div className="bg-gray-50 rounded-lg p-6">
-                            <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                                <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm mr-2">7</span>
-                                Fundamentação
-                            </h2>
-                            <div className="space-y-4">
-                                {renderTextArea('fundamentacao_tecnica', 'Fundamentação Técnica', 4)}
-                                {renderTextArea('fundamentacao_juridica', 'Fundamentação Jurídica', 4)}
-                            </div>
-                        </div>
-
-                        {/* === PENALIDADE === */}
-                        <div className="bg-gray-50 rounded-lg p-6">
-                            <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                                <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm mr-2">8</span>
-                                Penalidade
-                            </h2>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                {renderTextField('valor_multa', 'Valor da Multa (R$)', 'number', true)}
-                                {renderSelect('status', 'Status', statusOptions, true)}
-                                {renderTextField('data_notificacao', 'Data de Notificação', 'date')}
-                                {renderTextField('data_vencimento', 'Data de Vencimento', 'date')}
-                            </div>
-                        </div>
-
                         {/* === RESPONSÁVEIS === */}
                         <div className="bg-gray-50 rounded-lg p-6">
                             <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                                <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm mr-2">9</span>
+                                <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm mr-2">5</span>
                                 Responsáveis
                             </h2>
                             
@@ -509,7 +379,7 @@ function AutoInfracaoEditPage() {
                         {/* === ASSINATURAS === */}
                         <div className="bg-gray-50 rounded-lg p-6">
                             <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                                <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm mr-2">10</span>
+                                <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm mr-2">6</span>
                                 Assinaturas
                             </h2>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -537,36 +407,7 @@ function AutoInfracaoEditPage() {
                             </div>
                         </div>
 
-                        {/* === ANEXOS === */}
-                        <div className="bg-gray-50 rounded-lg p-6">
-                            <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                                <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm mr-2">11</span>
-                                Anexos
-                            </h2>
-                            <div className="space-y-4">
-                                {renderCheckboxField('possui_anexo', 'Possui anexo?')}
-                                {autoData.possui_anexo && (
-                                    <>
-                                        {renderTextArea('descricao_anexo', 'Descrição dos Anexos', 3)}
-                                        <FileUpload 
-                                            onFilesChange={handleFilesChange}
-                                            acceptedFormats="image/*,.pdf,.doc,.docx"
-                                            maxFiles={10}
-                                            maxSize={10 * 1024 * 1024} // 10MB
-                                        />
-                                    </>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* === OBSERVAÇÕES === */}
-                        <div className="bg-gray-50 rounded-lg p-6">
-                            <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                                <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm mr-2">12</span>
-                                Observações
-                            </h2>
-                            {renderTextArea('observacoes', 'Observações gerais', 4)}
-                        </div>
+                        {/* === ANEXOS/OBSERVAÇÕES REMOVIDOS PARA ESPELHAR O DOCUMENTO === */}
 
                         {/* === MENSAGEM DE ERRO === */}
                         {error && (

@@ -23,6 +23,21 @@ class PeticionamentoService {
       throw error;
     }
   }
+
+  /**
+   * Lista usuários ativos para atribuição
+   */
+  async listarUsuariosAtivos(apenasStaff = true, setorDestino = '') {
+    const params = new URLSearchParams();
+    if (!apenasStaff) {
+      params.append('staff', 'false');
+    }
+    if (setorDestino) {
+      params.append('setor_destino', setorDestino);
+    }
+    const response = await api.get(`/peticionamento/peticoes/usuarios/?${params.toString()}`);
+    return response.data;
+  }
   
   /**
    * Busca petição por ID
@@ -36,6 +51,15 @@ class PeticionamentoService {
       throw error;
     }
   }
+
+  /**
+   * Atribui responsável a uma petição
+   */
+  async atribuirResponsavel(peticaoId, responsavelId = null) {
+    const payload = responsavelId ? { responsavel_id: responsavelId } : {};
+    const response = await api.post(`/peticionamento/peticoes/${peticaoId}/atribuir/`, payload);
+    return response.data;
+  }
   
   /**
    * Cria nova petição
@@ -48,6 +72,66 @@ class PeticionamentoService {
       console.error('Erro ao criar petição:', error);
       throw error;
     }
+  }
+
+  /**
+   * Cria resposta (multipart ou JSON)
+   */
+  async criarResposta(dados) {
+    const isFormData = typeof FormData !== 'undefined' && dados instanceof FormData;
+    const config = isFormData ? { headers: { 'Content-Type': 'multipart/form-data' } } : undefined;
+    const response = await api.post('/peticionamento/respostas/', dados, config);
+    return response.data;
+  }
+
+  /**
+   * Atualiza resposta com novo arquivo
+   */
+  async atualizarResposta(id, dados) {
+    const isFormData = typeof FormData !== 'undefined' && dados instanceof FormData;
+    const config = isFormData ? { headers: { 'Content-Type': 'multipart/form-data' } } : undefined;
+    const response = await api.patch(`/peticionamento/respostas/${id}/`, dados, config);
+    return response.data;
+  }
+
+  /**
+   * Envia resposta (marca como enviada)
+   */
+  async enviarResposta(id) {
+    const response = await api.post(`/peticionamento/respostas/${id}/enviar/`);
+    return response.data;
+  }
+
+  /**
+   * Upload de documento jurídico (parecer/decisão) como anexo
+   */
+  async criarDocumentoJuridico(peticaoId, arquivo, tipo, titulo, descricao = '') {
+    const formData = new FormData();
+    formData.append('peticao', peticaoId);
+    formData.append('arquivo', arquivo);
+    formData.append('tipo', tipo);
+    formData.append('titulo', titulo);
+    formData.append('descricao', descricao);
+    const response = await api.post('/peticionamento/anexos/', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  }
+
+  /**
+   * Notifica disponibilidade de decisão no portal (email simples)
+   */
+  async notificarDisponibilidade(peticaoId) {
+    const response = await api.post(`/peticionamento/peticoes/${peticaoId}/notificar-disponibilidade/`);
+    return response.data;
+  }
+
+  /**
+   * Registra o resultado da decisão e atualiza o processo vinculado
+   */
+  async registrarDecisao(peticaoId, payload) {
+    const response = await api.post(`/peticionamento/peticoes/${peticaoId}/registrar-decisao/`, payload);
+    return response.data;
   }
   
   /**
@@ -195,13 +279,7 @@ class PeticionamentoService {
     return response.data;
   }
   
-  /**
-   * Cria resposta à petição
-   */
-  async criarResposta(dados) {
-    const response = await api.post('/peticionamento/api/respostas/', dados);
-    return response.data;
-  }
+  // Nota: criarResposta já cobre multipart/JSON acima.
   
   // === GESTÃO INTERNA ===
   

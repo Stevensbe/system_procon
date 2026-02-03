@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   EyeIcon, 
   CheckIcon, 
@@ -10,14 +11,18 @@ import {
   UserIcon,
   BuildingOfficeIcon,
   CalendarIcon,
-  FlagIcon
+  FlagIcon,
+  ArrowPathIcon,
+  LockClosedIcon,
+  LockOpenIcon
 } from '@heroicons/react/24/outline';
 import { ProconButton, ProconCard } from '../ui';
 import useDocumentoDetalhes from '../../hooks/useDocumentoDetalhes';
 import DocumentoDetalheModal from './DocumentoDetalheModal';
 
-const DocumentoCard = ({ documento, onAcao, onVisualizar }) => {
+const DocumentoCard = ({ documento, onAcao, onVisualizar, usuarioAtual }) => {
   const [acaoCarregando, setAcaoCarregando] = useState(false);
+  const navigate = useNavigate();
   const {
     modalAberto,
     carregandoDetalhes,
@@ -116,6 +121,34 @@ const DocumentoCard = ({ documento, onAcao, onVisualizar }) => {
     return documento.prioridade === 'URGENTE' || isAtrasado();
   };
 
+  const ultimaTramitacao = documento?.ultima_tramitacao;
+  const ultimaTramitacaoOrigem = ultimaTramitacao?.setor_origem_nome || ultimaTramitacao?.setor_origem;
+  const ultimaTramitacaoDestino = ultimaTramitacao?.setor_destino_nome || ultimaTramitacao?.setor_destino;
+  const ultimaTramitacaoLabel = ultimaTramitacaoOrigem && ultimaTramitacaoDestino
+    ? `${ultimaTramitacaoOrigem} -> ${ultimaTramitacaoDestino}`
+    : (ultimaTramitacao?.acao_display || ultimaTramitacao?.acao || '');
+
+  const podeBloquearBase = typeof documento?.pode_bloquear === 'boolean'
+    ? documento.pode_bloquear
+    : (usuarioAtual?.is_staff || usuarioAtual?.is_superuser);
+
+  const podeDesbloquear = documento.bloqueado
+    && (typeof documento?.pode_bloquear === 'boolean'
+      ? documento.pode_bloquear
+      : (documento.bloqueado_por === usuarioAtual?.id || usuarioAtual?.is_staff || usuarioAtual?.is_superuser));
+
+  const podeBloquear = !documento.bloqueado && podeBloquearBase;
+
+  const processoId = documento?.processo_id;
+  const processoNumero = documento?.processo_numero;
+
+  const handleAbrirProcesso = () => {
+    if (!processoId) {
+      return;
+    }
+    navigate(`/processos/${processoId}`);
+  };
+
   return (
     <ProconCard
       className={`transition-all duration-200 hover:shadow-lg ${
@@ -199,12 +232,29 @@ const DocumentoCard = ({ documento, onAcao, onVisualizar }) => {
             </div>
           </div>
 
+          {ultimaTramitacao && (
+            <div className="flex items-center space-x-2 text-sm">
+              <ArrowPathIcon className="h-4 w-4 text-gray-400" />
+              <span className="text-gray-600 dark:text-gray-400">
+                Ultima tramitacao: {ultimaTramitacaoLabel}
+                {ultimaTramitacao.data_tramitacao ? ` (${formatarData(ultimaTramitacao.data_tramitacao)})` : ''}
+              </span>
+            </div>
+          )}
+
           {/* Indicadores especiais */}
           <div className="flex items-center space-x-3">
             {documento.notificado_dte && (
               <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400 rounded-full">
                 <CheckIcon className="h-3 w-3 mr-1" />
                 Notificado DTE
+              </span>
+            )}
+
+            {documento.bloqueado && (
+              <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-300 rounded-full">
+                <LockClosedIcon className="h-3 w-3 mr-1" />
+                Trancado
               </span>
             )}
             
@@ -238,6 +288,20 @@ const DocumentoCard = ({ documento, onAcao, onVisualizar }) => {
             Visualizar
           </ProconButton>
 
+          {processoId && (
+            <ProconButton
+              variant="primary"
+              size="sm"
+              icon={DocumentTextIcon}
+              onClick={handleAbrirProcesso}
+              disabled={acaoCarregando}
+              fullWidth
+              title={processoNumero ? `Processo ${processoNumero}` : 'Abrir processo'}
+            >
+              Abrir processo
+            </ProconButton>
+          )}
+
           {documento.status === 'NAO_LIDO' && (
             <ProconButton
               variant="success"
@@ -247,7 +311,7 @@ const DocumentoCard = ({ documento, onAcao, onVisualizar }) => {
               disabled={acaoCarregando}
               fullWidth
             >
-              Marcar Lido
+              Receber
             </ProconButton>
           )}
 
@@ -261,6 +325,19 @@ const DocumentoCard = ({ documento, onAcao, onVisualizar }) => {
           >
             Encaminhar
           </ProconButton>
+
+          {(podeBloquear || podeDesbloquear) && (
+            <ProconButton
+              variant="outline"
+              size="sm"
+              icon={documento.bloqueado ? LockOpenIcon : LockClosedIcon}
+              onClick={() => handleAcao(documento.bloqueado ? 'desbloquear' : 'bloquear')}
+              disabled={acaoCarregando}
+              fullWidth
+            >
+              {documento.bloqueado ? 'Destrancar' : 'Trancar'}
+            </ProconButton>
+          )}
 
           <ProconButton
             variant="secondary"

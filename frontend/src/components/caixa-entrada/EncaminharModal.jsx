@@ -21,6 +21,7 @@ const EncaminharModal = ({
   documento,
   setores = SETORES_PADRAO,
 }) => {
+  const [destinoTipo, setDestinoTipo] = useState('setor');
   const [setorDestino, setSetorDestino] = useState('FISCALIZACAO');
   const [observacoes, setObservacoes] = useState('Encaminhado pela Caixa de Denuncias');
   const [responsavelId, setResponsavelId] = useState('');
@@ -50,18 +51,21 @@ const EncaminharModal = ({
 
   useEffect(() => {
     if (open) {
-      const setorPadrao = 'FISCALIZACAO';
+      const setorPadrao = documento?.setor_destino || 'FISCALIZACAO';
+      setDestinoTipo('setor');
       setSetorDestino(setorPadrao);
-      setObservacoes('Encaminhado pela Caixa de Denuncias');
+      setObservacoes('Encaminhado pela Caixa de Entrada');
       setResponsavelId('');
       setBuscaUsuario('');
       carregarDestinatarios('', setorPadrao);
     }
-  }, [open, carregarDestinatarios]);
+  }, [open, carregarDestinatarios, documento]);
 
-  if (!open) {
-    return null;
-  }
+  useEffect(() => {
+    if (destinoTipo === 'setor') {
+      setResponsavelId('');
+    }
+  }, [destinoTipo]);
 
   const destinatarioOptions = useMemo(() => {
     const itens = destinatarios.map((usuario) => {
@@ -78,6 +82,10 @@ const EncaminharModal = ({
     return [{ value: '', label: 'Selecione um usuario' }, ...itens];
   }, [destinatarios]);
 
+  if (!open) {
+    return null;
+  }
+
   const handleTrocarSetor = (event) => {
     const novoSetor = event.target.value;
     setSetorDestino(novoSetor);
@@ -89,17 +97,22 @@ const EncaminharModal = ({
   };
 
   const handleConfirmar = () => {
-    if (!setorDestino) {
+    if (destinoTipo === 'setor' && !setorDestino) {
+      return;
+    }
+    if (destinoTipo === 'usuario' && !responsavelId) {
+      setErroUsuarios('Selecione um usuario para encaminhar.');
       return;
     }
 
     const payload = {
-      setor_destino: setorDestino,
+      destino_tipo: destinoTipo,
+      setor_destino: setorDestino || undefined,
       observacoes,
     };
 
-    if (responsavelId) {
-      payload.responsavel = Number(responsavelId);
+    if (destinoTipo === 'usuario' && responsavelId) {
+      payload.destinatario_direto = Number(responsavelId);
     }
 
     onConfirm(payload);
@@ -127,43 +140,56 @@ const EncaminharModal = ({
 
         <div className="space-y-5 px-6 py-5">
           <ProconSelect
+            label="Destino"
+            value={destinoTipo}
+            onChange={(event) => setDestinoTipo(event.target.value)}
+            options={[
+              { value: 'setor', label: 'Setor' },
+              { value: 'usuario', label: 'Pessoa' },
+            ]}
+            required
+          />
+
+          <ProconSelect
             label="Setor destino"
             value={setorDestino}
             onChange={handleTrocarSetor}
             options={setores.map((item) => ({ value: item.value, label: item.label }))}
-            required
+            required={destinoTipo === 'setor'}
           />
 
-          <div className="space-y-2">
-            <div className="flex items-end gap-3">
-              <ProconInput
-                label="Buscar usuario"
-                placeholder="Digite parte do nome ou login"
-                value={buscaUsuario}
-                onChange={(event) => setBuscaUsuario(event.target.value)}
+          {destinoTipo === 'usuario' && (
+            <div className="space-y-2">
+              <div className="flex items-end gap-3">
+                <ProconInput
+                  label="Buscar usuario"
+                  placeholder="Digite parte do nome ou login"
+                  value={buscaUsuario}
+                  onChange={(event) => setBuscaUsuario(event.target.value)}
+                />
+                <ProconButton onClick={handleBuscarUsuarios} variant="outline">
+                  Buscar
+                </ProconButton>
+              </div>
+              {carregandoUsuarios && (
+                <p className="text-xs text-gray-500 dark:text-gray-400">Carregando usuarios...</p>
+              )}
+              {erroUsuarios && (
+                <p className="text-xs text-red-600 dark:text-red-400">{erroUsuarios}</p>
+              )}
+              <ProconSelect
+                label="Encaminhar para pessoa"
+                value={responsavelId}
+                onChange={(event) => setResponsavelId(event.target.value)}
+                options={destinatarioOptions}
               />
-              <ProconButton onClick={handleBuscarUsuarios} variant="outline">
-                Buscar
-              </ProconButton>
+              {!carregandoUsuarios && !erroUsuarios && destinatarios.length === 0 && (
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Nenhum usuario encontrado com os filtros atuais.
+                </p>
+              )}
             </div>
-            {carregandoUsuarios && (
-              <p className="text-xs text-gray-500 dark:text-gray-400">Carregando usuarios...</p>
-            )}
-            {erroUsuarios && (
-              <p className="text-xs text-red-600 dark:text-red-400">{erroUsuarios}</p>
-            )}
-            <ProconSelect
-              label="Encaminhar para pessoa (opcional)"
-              value={responsavelId}
-              onChange={(event) => setResponsavelId(event.target.value)}
-              options={destinatarioOptions}
-            />
-            {!carregandoUsuarios && !erroUsuarios && destinatarios.length === 0 && (
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                Nenhum usuario encontrado com os filtros atuais.
-              </p>
-            )}
-          </div>
+          )}
 
           <ProconTextarea
             label="Observacoes"

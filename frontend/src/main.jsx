@@ -6,7 +6,8 @@ import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { Toaster } from 'sonner';
 
 // Providers
-import { AuthProvider } from './context/AuthContext';
+// import { AuthProvider } from './context/AuthContext'; // Django Auth (desativado)
+import { AuthProvider } from './context/SupabaseAuthContext'; // Supabase Auth (ATIVO)
 import { NotificationProvider } from './context/NotificationContext';
 import { ThemeProvider } from './context/ThemeContext';
 
@@ -37,7 +38,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         <AuthProvider>
           <NotificationProvider>
             <App />
-            <Toaster 
+            <Toaster
               position="top-right"
               richColors
               closeButton

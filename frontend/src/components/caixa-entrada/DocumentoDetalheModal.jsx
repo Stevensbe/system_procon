@@ -36,6 +36,13 @@ const DocumentoDetalheModal = ({
 }) => {
   const [downloadEmProgresso, setDownloadEmProgresso] = useState(null);
 
+  const tramitacoesList = useMemo(() => {
+    if (documento?.tramitacoes?.length) {
+      return documento.tramitacoes;
+    }
+    return historico;
+  }, [documento, historico]);
+
   const resumoDocumento = useMemo(() => {
     if (!documento) {
       return [];
@@ -47,7 +54,7 @@ const DocumentoDetalheModal = ({
       { rotulo: 'Status', valor: documento.status },
       { rotulo: 'Prioridade', valor: documento.prioridade },
       { rotulo: 'Setor Destino', valor: documento.setor_destino },
-      { rotulo: 'Responsável Atual', valor: documento.responsavel_atual_nome },
+      { rotulo: 'Responsavel Atual', valor: documento.responsavel_atual_nome },
       { rotulo: 'Data de Entrada', valor: formatDateTime(documento.data_entrada) },
       { rotulo: 'Prazo de Resposta', valor: formatDateTime(documento.prazo_resposta) },
     ];
@@ -236,12 +243,19 @@ const DocumentoDetalheModal = ({
                   <ClockIcon className="mr-2 h-5 w-5 text-amber-500 dark:text-amber-300" />
                   Histórico de Tramitações
                 </h3>
-                {historico.length === 0 ? (
+                {tramitacoesList.length === 0 ? (
                   <p className="text-sm text-gray-600 dark:text-gray-400">Nenhum evento registrado para este documento.</p>
                 ) : (
                   <ul className="space-y-3">
-                    {historico.map((evento) => {
-                      const chaveEvento = evento.id || (evento.acao + '-' + evento.data_acao);
+                    {tramitacoesList.map((evento, index) => {
+                      const chaveEvento = evento.id || `${evento.acao || 'evento'}-${evento.data_tramitacao || evento.data_acao || index}`;
+                      const acaoLabel = evento.acao_display || evento.acao || 'Evento';
+                      const dataEvento = evento.data_tramitacao || evento.data_acao;
+                      const responsavel = evento.usuario_nome || evento.recebido_por_nome;
+                      const detalhes = evento.detalhes || evento.observacoes || evento.motivo;
+                      const setores = evento.setor_origem_nome && evento.setor_destino_nome
+                        ? `${evento.setor_origem_nome} -> ${evento.setor_destino_nome}`
+                        : '';
                       return (
                         <li
                           key={chaveEvento}
@@ -250,20 +264,25 @@ const DocumentoDetalheModal = ({
                           <div className="flex items-center justify-between">
                             <div className="flex items-center space-x-2">
                               <CheckCircleIcon className="h-4 w-4 text-blue-500 dark:text-blue-300" />
-                              <span className="font-medium text-gray-900 dark:text-gray-100">{evento.acao}</span>
+                              <span className="font-medium text-gray-900 dark:text-gray-100">{acaoLabel}</span>
                             </div>
                             <span className="text-xs text-gray-500 dark:text-gray-400">
-                              {formatDateTime(evento.data_acao)}
+                              {formatDateTime(dataEvento)}
                             </span>
                           </div>
-                          {evento.usuario_nome && (
+                          {setores && (
                             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                              Responsável: {evento.usuario_nome}
+                              Setores: {setores}
                             </p>
                           )}
-                          {evento.detalhes && (
+                          {responsavel && (
+                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                              Responsavel: {responsavel}
+                            </p>
+                          )}
+                          {detalhes && (
                             <p className="mt-2 whitespace-pre-line text-sm text-gray-700 dark:text-gray-300">
-                              {evento.detalhes}
+                              {detalhes}
                             </p>
                           )}
                         </li>

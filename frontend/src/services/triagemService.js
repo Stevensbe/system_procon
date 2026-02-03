@@ -26,6 +26,16 @@ const triagemService = {
     const response = await api.patch(`${BASE_URL}${id}/`, data, config);
     return response.data;
   },
+
+  async obterRespostaDenuncia(denunciaId) {
+    const response = await api.get(`/portal/api/denuncia/${denunciaId}/resposta/`);
+    return response.data;
+  },
+
+  async responderDenuncia(denunciaId, data) {
+    const response = await api.patch(`/portal/api/denuncia/${denunciaId}/resposta/`, data);
+    return response.data;
+  },
 };
 
 export default triagemService;

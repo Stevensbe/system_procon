@@ -297,7 +297,7 @@ function FiscalizacaoHomePage() {
         <div className="flex items-start">
           <span className="text-blue-400 text-xl mr-3">ℹ️</span>
           <div>
-            <h3 className="font-medium text-blue-800 mb-2">Sistema de Fiscalização PROCON-AM</h3>
+            <h3 className="font-medium text-blue-800 mb-2">Sistema de Fiscalização PROCON</h3>
             <div className="text-sm text-blue-700 space-y-1">
               <p>• <strong>Versão:</strong> 2.1 - Sistema Integrado com Autos de Infração</p>
               <p>• <strong>Última atualização:</strong> {new Date().toLocaleDateString('pt-BR')}</p>

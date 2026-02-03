@@ -10,7 +10,6 @@ export default function Navbar() {
         <Link to="/fiscalizacao" className="hover:text-blue-400">Fiscalização</Link>
         <Link to="/juridico" className="hover:text-blue-400">Jurídico</Link>
         <Link to="/multas" className="hover:text-blue-400">Multas</Link>
-        <Link to="/protocolo" className="hover:text-blue-400">Protocolo</Link>
         <ThemeToggle />
       </div>
     </nav>

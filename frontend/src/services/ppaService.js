@@ -107,6 +107,22 @@ const ppaService = {
     return response.data;
   },
 
+  // ========== Downloads ==========
+
+  baixarPdf: async (id) => {
+    const response = await api.get(`${API_URL}/ppas/${id}/gerar_pdf/`, {
+      responseType: 'blob'
+    });
+    return response.data;
+  },
+
+  baixarDocx: async (id) => {
+    const response = await api.get(`${API_URL}/ppas/${id}/gerar_docx/`, {
+      responseType: 'blob'
+    });
+    return response.data;
+  },
+
   // ========== Movimentações ==========
 
   listarMovimentacoes: async (ppaId) => {

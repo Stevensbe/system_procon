@@ -8,6 +8,7 @@ import ConsultaResultado from './ConsultaResultado';
 
 const AcompanhamentoProcesso = ({ onSuccess, onError }) => {
   const [protocolo, setProtocolo] = useState('');
+  const [documento, setDocumento] = useState('');
   const [loading, setLoading] = useState(false);
   const [resultado, setResultado] = useState(null);
   const [error, setError] = useState('');
@@ -25,7 +26,7 @@ const AcompanhamentoProcesso = ({ onSuccess, onError }) => {
     setResultado(null);
 
     try {
-      const dados = await portalCidadaoService.acompanharProcesso(numero);
+      const dados = await portalCidadaoService.acompanharProcesso(numero, documento.trim());
 
       if (dados?.encontrado) {
         setResultado(dados);
@@ -60,14 +61,14 @@ const AcompanhamentoProcesso = ({ onSuccess, onError }) => {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Número do Protocolo *
+              Número do Processo ou Protocolo *
             </label>
             <div className="flex">
               <input
                 type="text"
                 value={protocolo}
                 onChange={(event) => setProtocolo(event.target.value)}
-                placeholder="Digite o número do protocolo"
+                placeholder="Digite o número do processo ou protocolo"
                 className="flex-1 px-3 py-2 border border-gray-300 rounded-l-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white transition-colors"
                 required
               />
@@ -86,6 +87,22 @@ const AcompanhamentoProcesso = ({ onSuccess, onError }) => {
                 )}
               </button>
             </div>
+            <p className="text-xs text-gray-500 mt-2">
+              Informe apenas o número se quiser acompanhar o status. Para baixar documentos, preencha o CPF/CNPJ.
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              CPF/CNPJ do Autuado (para liberar downloads)
+            </label>
+            <input
+              type="text"
+              value={documento}
+              onChange={(event) => setDocumento(portalCidadaoService.formatarCPFCNPJ(event.target.value))}
+              placeholder="000.000.000-00 ou 00.000.000/0000-00"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white transition-colors"
+            />
           </div>
         </form>
 
@@ -101,7 +118,10 @@ const AcompanhamentoProcesso = ({ onSuccess, onError }) => {
 
       {resultado && (
         <div className="bg-white rounded-lg shadow-lg p-6 dark:bg-gray-800 dark:border-gray-700 transition-colors duration-300">
-          <ConsultaResultado resultado={resultado} tipo="protocolo" />
+          <ConsultaResultado
+            resultado={resultado}
+            tipo={(resultado?.tipo || 'PROTOCOLO').toLowerCase()}
+          />
         </div>
       )}
     </div>

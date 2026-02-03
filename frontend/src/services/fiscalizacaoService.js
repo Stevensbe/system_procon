@@ -423,6 +423,10 @@ export const obterAutoInfracao = async (id) => {
     return apiRequest(`${API_PREFIX}/infracoes/${id}/`, 'GET');
 };
 
+export const validarAutoInfracaoFormal = async (id, payload = {}) => {
+    return apiRequest(`${API_PREFIX}/infracoes/${id}/validacao-formal/`, 'POST', payload);
+};
+
 export const atualizarAutoInfracao = async (id, formData) => {
     return apiRequest(`${API_PREFIX}/infracoes/${id}/`, 'PUT', formData);
 };
@@ -643,6 +647,39 @@ export const formatarTelefone = (telefone) => {
     }
     
     return telefone;
+};
+
+export const consultarCNPJReceita = async (cnpj) => {
+    if (!cnpj) {
+        throw new Error('Informe um CNPJ.');
+    }
+    const cleanCNPJ = cnpj.replace(/[^\d]/g, '');
+    if (cleanCNPJ.length !== 14) {
+        throw new Error('CNPJ invalido.');
+    }
+
+    const token = getToken();
+    const url = `${API_PREFIX}/atendimento/consultar-cnpj/?cnpj=${cleanCNPJ}`;
+    const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+            ...(token && { 'Authorization': `Bearer ${token}` }),
+            'Accept': 'application/json'
+        }
+    });
+
+    let data = {};
+    try {
+        data = await response.json();
+    } catch (error) {
+        data = {};
+    }
+
+    if (!response.ok) {
+        throw new Error(data.erro || 'Erro ao consultar CNPJ.');
+    }
+
+    return data;
 };
 
 export const formatarData = (data) => {
@@ -908,6 +945,7 @@ export default {
     getAutoPostoById,
     getAutoInfracaoById,
     obterAutoInfracao,
+    validarAutoInfracaoFormal,
     
     atualizarAutoDiversos,
     atualizarAutoSupermercado,

@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { criarAutoInfracao } from '../../../services/fiscalizacaoService';
 import SignaturePad from "../../../components/shared/SignaturePad";
-import FileUpload from "../../../components/shared/FileUpload";
 
 function AutoInfracaoCreatePage() {
     const navigate = useNavigate();
+    const location = useLocation();
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
 
@@ -14,19 +14,25 @@ function AutoInfracaoCreatePage() {
         data_fiscalizacao: new Date().toISOString().split('T')[0],
         hora_fiscalizacao: new Date().toTimeString().split(' ')[0].substring(0, 5),
         municipio: 'MANAUS',
-        estado: 'AMAZONAS',
+        estado: 'AM',
         
         // === DADOS DO ESTABELECIMENTO ===
         razao_social: '',
         nome_fantasia: '',
         atividade: '',
         endereco: '',
+        cep: '',
         cnpj: '',
         telefone: '',
         
-        // === PARECER PRÉVIO ===
+        // === ORIGEM / PARECER ===
+        auto_tipo: '',
+        auto_id: '',
+        auto_constatacao_numero: '',
+        notificacao_numero: '',
         parecer_numero: '',
         parecer_origem: 'FISCALIZAÇÃO/PROCON/AM',
+        texto_origem: '',
         
         // === RELATÓRIO E BASE LEGAL ===
         relatorio: '',
@@ -75,14 +81,54 @@ function AutoInfracaoCreatePage() {
         observacoes: ''
     });
 
+    const preencherComAutoConstatacao = (autoConstatacao, tipoAuto) => {
+        if (!autoConstatacao) {
+            return;
+        }
+
+        const tipoMap = {
+            banco: 'autobanco',
+            posto: 'autoposto',
+            supermercado: 'autosupermercado',
+            diversos: 'autodiversos',
+        };
+
+        setAutoData(prev => ({
+            ...prev,
+            auto_tipo: tipoMap[tipoAuto] || prev.auto_tipo,
+            auto_id: autoConstatacao.id || prev.auto_id,
+            data_fiscalizacao: autoConstatacao.data_fiscalizacao || prev.data_fiscalizacao,
+            hora_fiscalizacao: autoConstatacao.hora_fiscalizacao || prev.hora_fiscalizacao,
+            municipio: autoConstatacao.municipio || prev.municipio,
+            estado: autoConstatacao.estado || prev.estado,
+            razao_social: autoConstatacao.razao_social || prev.razao_social,
+            nome_fantasia: autoConstatacao.nome_fantasia || prev.nome_fantasia,
+            atividade: autoConstatacao.atividade || prev.atividade,
+            endereco: autoConstatacao.endereco || prev.endereco,
+            cep: autoConstatacao.cep || prev.cep,
+            cnpj: autoConstatacao.cnpj || prev.cnpj,
+            telefone: autoConstatacao.telefone || prev.telefone,
+            responsavel_nome: autoConstatacao.responsavel_nome || prev.responsavel_nome,
+            responsavel_cpf: autoConstatacao.responsavel_cpf || prev.responsavel_cpf,
+            estabelecimento_responsavel: autoConstatacao.estabelecimento_responsavel || prev.estabelecimento_responsavel,
+            auto_constatacao_numero: autoConstatacao.numero || prev.auto_constatacao_numero,
+        }));
+    };
+
+    useEffect(() => {
+        const autoConstatacao = location.state?.autoConstatacao;
+        const tipoAuto = location.state?.tipoAuto;
+        if (autoConstatacao) {
+            preencherComAutoConstatacao(autoConstatacao, tipoAuto);
+        }
+    }, [location.state]);
+
     // Estados para assinaturas
     const [signatures, setSignatures] = useState({
         assinatura_fiscal: '',
         assinatura_responsavel: ''
     });
 
-    // Estados para arquivos anexados
-    const [uploadedFiles, setUploadedFiles] = useState([]);
 
     const handleAutoChange = (e) => {
         const { name, value, type, checked } = e.target;
@@ -100,11 +146,6 @@ function AutoInfracaoCreatePage() {
             ...prev,
             [name]: signatureData
         }));
-    };
-
-    // Handlers para arquivos
-    const handleFilesChange = (files) => {
-        setUploadedFiles(files);
     };
 
     // Função para converter base64 para File
@@ -149,7 +190,7 @@ function AutoInfracaoCreatePage() {
         setError('');
 
         // Validação básica
-        if (!autoData.razao_social || !autoData.cnpj || !autoData.relatorio || !autoData.valor_multa) {
+        if (!autoData.razao_social || !autoData.cnpj || !autoData.relatorio) {
             setError('Preencha todos os campos obrigatórios');
             setLoading(false);
             return;
@@ -162,6 +203,10 @@ function AutoInfracaoCreatePage() {
             Object.keys(autoData).forEach(key => {
                 const value = autoData[key];
                 
+                if ((key === 'auto_tipo' || key === 'auto_id') && !value) {
+                    return;
+                }
+
                 if (typeof value === 'boolean') {
                     formData.append(key, value ? 'true' : 'false');
                 } else if (value !== null && value !== undefined) {
@@ -182,16 +227,6 @@ function AutoInfracaoCreatePage() {
                 }
             });
             
-            // Adicionar arquivos anexados
-            if (uploadedFiles && uploadedFiles.length > 0) {
-                uploadedFiles.forEach((fileObj, index) => {
-                    if (fileObj && fileObj.file instanceof File) {
-                        formData.append('anexos', fileObj.file);
-                        formData.append(`anexo_descricao_${index}`, fileObj.name || fileObj.file.name);
-                    }
-                });
-            }
-
             const response = await criarAutoInfracao(formData);
             
             alert(`Auto de Infração "${response.numero}" criado com sucesso!`);
@@ -240,55 +275,6 @@ function AutoInfracaoCreatePage() {
         </div>
     );
 
-    const renderCheckboxField = (name, label, description = '') => (
-        <div className="flex items-start">
-            <input 
-                type="checkbox" 
-                id={name} 
-                name={name} 
-                checked={autoData[name]} 
-                onChange={handleAutoChange} 
-                className="h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 rounded mt-1" 
-            />
-            <div className="ml-2">
-                <label htmlFor={name} className="block text-sm text-gray-700">{label}</label>
-                {description && <p className="text-xs text-gray-500 mt-1">{description}</p>}
-            </div>
-        </div>
-    );
-
-    const renderSelect = (name, label, options, required = false) => (
-        <div>
-            <label htmlFor={name} className="block text-sm font-medium text-gray-700">
-                {label} {required && <span className="text-red-500">*</span>}
-            </label>
-            <select 
-                id={name}
-                name={name} 
-                value={autoData[name]} 
-                onChange={handleAutoChange} 
-                required={required}
-                className="mt-1 block w-full p-2 border border-gray-300 rounded-md focus:ring-red-500 focus:border-red-500"
-            >
-                <option value="">Selecione...</option>
-                {options.map(option => (
-                    <option key={option.value} value={option.value}>
-                        {option.label}
-                    </option>
-                ))}
-            </select>
-        </div>
-    );
-
-    const statusOptions = [
-        { value: 'autuado', label: 'Autuado' },
-        { value: 'notificado', label: 'Notificado' },
-        { value: 'em_defesa', label: 'Em Defesa' },
-        { value: 'julgado', label: 'Julgado' },
-        { value: 'pago', label: 'Pago' },
-        { value: 'cancelado', label: 'Cancelado' }
-    ];
-
     return (
         <div className="min-h-screen bg-gray-50 py-6">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -335,20 +321,32 @@ function AutoInfracaoCreatePage() {
                                 {renderTextField('nome_fantasia', 'Nome Fantasia', 'text', false, 255)}
                                 {renderTextField('atividade', 'Atividade', 'text', true, 255)}
                                 {renderTextField('endereco', 'Endereço', 'text', true, 500)}
+                                {renderTextField('cep', 'CEP', 'text', false, 10)}
                                 {renderTextField('cnpj', 'CNPJ', 'text', true, 18)}
                                 {renderTextField('telefone', 'Telefone', 'tel', false, 20)}
                             </div>
                         </div>
 
-                        {/* === PARECER PRÉVIO === */}
+                        {/* === ORIGEM DO AUTO === */}
                         <div className="bg-gray-50 rounded-lg p-6">
                             <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
                                 <span className="bg-red-100 text-red-800 px-2 py-1 rounded text-sm mr-2">3</span>
-                                Parecer Prévio
+                                Origem do Auto
                             </h2>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {renderTextField('auto_constatacao_numero', 'Auto de Constatação Nº', 'text', false, 20)}
+                                {renderTextField('notificacao_numero', 'Notificação Nº', 'text', false, 20)}
                                 {renderTextField('parecer_numero', 'Número do Parecer', 'text', false, 50)}
                                 {renderTextField('parecer_origem', 'Origem do Parecer', 'text', false, 100)}
+                                {renderTextField('valor_multa', 'Valor da Multa (R$)', 'number', false)}
+                            </div>
+                            <div className="mt-4">
+                                {renderTextArea(
+                                    'texto_origem',
+                                    'Texto de Origem (introdução antes do relatório)',
+                                    4,
+                                    false
+                                )}
                             </div>
                         </div>
 
@@ -367,81 +365,10 @@ function AutoInfracaoCreatePage() {
                             </div>
                         </div>
 
-                        {/* === BASE LEGAL === */}
-                        <div className="bg-gray-50 rounded-lg p-6">
-                            <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                                <span className="bg-red-100 text-red-800 px-2 py-1 rounded text-sm mr-2">5</span>
-                                Base Legal
-                            </h2>
-                            <div className="space-y-4">
-                                {renderTextArea('base_legal_cdc', 'Artigos do CDC violados', 4, true)}
-                                {renderTextArea('base_legal_outras', 'Outras bases legais', 4)}
-                            </div>
-                        </div>
-
-                        {/* === INFRAÇÕES ESPECÍFICAS === */}
-                        <div className="bg-gray-50 rounded-lg p-6">
-                            <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                                <span className="bg-red-100 text-red-800 px-2 py-1 rounded text-sm mr-2">6</span>
-                                Infrações Constatadas
-                            </h2>
-                            
-                            <div className="space-y-6">
-                                <div>
-                                    <h3 className="text-md font-medium text-gray-800 mb-3">Artigos do CDC</h3>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        {renderCheckboxField('infracao_art_34', 'Art. 34 CDC', 'Informação adequada e clara')}
-                                        {renderCheckboxField('infracao_art_35', 'Art. 35 CDC', 'Publicidade enganosa')}
-                                        {renderCheckboxField('infracao_art_36', 'Art. 36 CDC', 'Publicidade abusiva')}
-                                        {renderCheckboxField('infracao_art_55', 'Art. 55 CDC', 'Oferta inadequada')}
-                                        {renderCheckboxField('infracao_art_56', 'Art. 56 CDC', 'Recusa de venda')}
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <h3 className="text-md font-medium text-gray-800 mb-3">Outras Infrações</h3>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        {renderCheckboxField('infracao_publicidade_enganosa', 'Publicidade Enganosa')}
-                                        {renderCheckboxField('infracao_precos_abusivos', 'Preços Abusivos')}
-                                        {renderCheckboxField('infracao_produtos_vencidos', 'Produtos Vencidos')}
-                                        {renderCheckboxField('infracao_falta_informacao', 'Falta de Informação')}
-                                    </div>
-                                </div>
-
-                                {renderTextArea('outras_infracoes', 'Outras infrações específicas', 4)}
-                            </div>
-                        </div>
-
-                        {/* === FUNDAMENTAÇÃO === */}
-                        <div className="bg-gray-50 rounded-lg p-6">
-                            <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                                <span className="bg-red-100 text-red-800 px-2 py-1 rounded text-sm mr-2">7</span>
-                                Fundamentação
-                            </h2>
-                            <div className="space-y-4">
-                                {renderTextArea('fundamentacao_tecnica', 'Fundamentação Técnica', 4)}
-                                {renderTextArea('fundamentacao_juridica', 'Fundamentação Jurídica', 4)}
-                            </div>
-                        </div>
-
-                        {/* === PENALIDADE === */}
-                        <div className="bg-gray-50 rounded-lg p-6">
-                            <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                                <span className="bg-red-100 text-red-800 px-2 py-1 rounded text-sm mr-2">8</span>
-                                Penalidade
-                            </h2>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                {renderTextField('valor_multa', 'Valor da Multa (R$)', 'number', true)}
-                                {renderSelect('status', 'Status', statusOptions, true)}
-                                {renderTextField('data_notificacao', 'Data de Notificação', 'date')}
-                                {renderTextField('data_vencimento', 'Data de Vencimento', 'date')}
-                            </div>
-                        </div>
-
                         {/* === RESPONSÁVEIS === */}
                         <div className="bg-gray-50 rounded-lg p-6">
                             <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                                <span className="bg-red-100 text-red-800 px-2 py-1 rounded text-sm mr-2">9</span>
+                                <span className="bg-red-100 text-red-800 px-2 py-1 rounded text-sm mr-2">5</span>
                                 Responsáveis
                             </h2>
                             
@@ -469,7 +396,7 @@ function AutoInfracaoCreatePage() {
                         {/* === ASSINATURAS === */}
                         <div className="bg-gray-50 rounded-lg p-6">
                             <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                                <span className="bg-red-100 text-red-800 px-2 py-1 rounded text-sm mr-2">10</span>
+                                <span className="bg-red-100 text-red-800 px-2 py-1 rounded text-sm mr-2">6</span>
                                 Assinaturas
                             </h2>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -497,36 +424,7 @@ function AutoInfracaoCreatePage() {
                             </div>
                         </div>
 
-                        {/* === ANEXOS === */}
-                        <div className="bg-gray-50 rounded-lg p-6">
-                            <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                                <span className="bg-red-100 text-red-800 px-2 py-1 rounded text-sm mr-2">11</span>
-                                Anexos
-                            </h2>
-                            <div className="space-y-4">
-                                {renderCheckboxField('possui_anexo', 'Possui anexo?')}
-                                {autoData.possui_anexo && (
-                                    <>
-                                        {renderTextArea('descricao_anexo', 'Descrição dos Anexos', 3)}
-                                        <FileUpload 
-                                            onFilesChange={handleFilesChange}
-                                            acceptedFormats="image/*,.pdf,.doc,.docx"
-                                            maxFiles={10}
-                                            maxSize={10 * 1024 * 1024} // 10MB
-                                        />
-                                    </>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* === OBSERVAÇÕES === */}
-                        <div className="bg-gray-50 rounded-lg p-6">
-                            <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                                <span className="bg-red-100 text-red-800 px-2 py-1 rounded text-sm mr-2">12</span>
-                                Observações
-                            </h2>
-                            {renderTextArea('observacoes', 'Observações gerais', 4)}
-                        </div>
+                        {/* === ANEXOS/OBSERVAÇÕES REMOVIDOS PARA ESPELHAR O DOCUMENTO === */}
 
                         {/* === MENSAGEM DE ERRO === */}
                         {error && (

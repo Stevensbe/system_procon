@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../context/SupabaseAuthContext';
 import { useNavigate } from 'react-router-dom';
 
 const PPADebugPage = () => {
@@ -132,7 +132,7 @@ const PPADebugPage = () => {
                   <h6>Solução:</h6>
                   <p>Execute no terminal do backend:</p>
                   <pre className="bg-dark text-white p-3 rounded">
-{`python3 manage.py shell
+                    {`python3 manage.py shell
 
 # No shell:
 from django.contrib.auth.models import User
@@ -170,13 +170,13 @@ exit()`}
             </div>
             <div className="card-body">
               <div className="btn-group btn-group-lg" role="group">
-                <button 
+                <button
                   className="btn btn-primary"
                   onClick={() => navigate('/ppa')}
                 >
                   🔄 Tentar Acessar /ppa
                 </button>
-                <button 
+                <button
                   className="btn btn-warning"
                   onClick={() => {
                     localStorage.clear();
@@ -187,7 +187,7 @@ exit()`}
                 >
                   🗑️ Limpar Cache
                 </button>
-                <button 
+                <button
                   className="btn btn-info"
                   onClick={() => {
                     window.location.reload();
@@ -195,7 +195,7 @@ exit()`}
                 >
                   🔄 Recarregar Página
                 </button>
-                <button 
+                <button
                   className="btn btn-secondary"
                   onClick={() => navigate('/dashboard')}
                 >

@@ -12,7 +12,8 @@ import {
 
 import { LoadingSpinner, ProconButton } from '../../components/ui';
 import DocumentoCard from '../../components/caixa-entrada/DocumentoCard';
-import { useAuth } from '../../context/AuthContext';
+import EncaminharModal from '../../components/caixa-entrada/EncaminharModal';
+import { useAuth } from '../../context/SupabaseAuthContext';
 import FiltrosCaixa from '../../components/caixa-entrada/FiltrosCaixa';
 import caixaEntradaService from '../../services/caixaEntradaService';
 import { normalizeSetorFiltro, formatSetorName } from '../../utils/setor';
@@ -29,104 +30,6 @@ const tabs = [
     label: 'Caixa do Setor',
     description: 'Demandas compartilhadas com o seu setor.',
     icon: UsersIcon,
-  },
-];
-
-const mockSetorDocumentos = [
-  {
-    id: 1,
-    numero_protocolo: 'PROC-2024-006',
-    tipo_documento: 'PETICAO',
-    assunto: 'Reclamação contra banco - Cobrança indevida',
-    remetente: 'Pedro Santos Oliveira',
-    remetente_nome: 'Pedro Santos Oliveira',
-    empresa: 'Banco Nacional S.A.',
-    empresa_nome: 'Banco Nacional S.A.',
-    data_entrada: '2024-03-29T08:15:00',
-    prazo: '2024-04-05T17:00:00',
-    prazo_resposta: '2024-04-05T17:00:00',
-    prioridade: 'ALTA',
-    status: 'NAO_LIDO',
-    setor_destino: 'ATENDIMENTO',
-    setor_lotacao: 'ATENDIMENTO',
-    notificado_dte: false,
-    anexos: 3,
-  },
-  {
-    id: 2,
-    numero_protocolo: 'PROC-2024-007',
-    tipo_documento: 'AUTO_INFRACAO',
-    assunto: 'Auto de infração - Propaganda enganosa',
-    remetente: 'Fiscal Maria Costa',
-    remetente_nome: 'Fiscal Maria Costa',
-    empresa: 'Loja de Móveis MNO',
-    empresa_nome: 'Loja de Móveis MNO',
-    data_entrada: '2024-03-28T15:30:00',
-    prazo: '2024-04-10T17:00:00',
-    prazo_resposta: '2024-04-10T17:00:00',
-    prioridade: 'URGENTE',
-    status: 'LIDO',
-    setor_destino: 'FISCALIZACAO',
-    setor_lotacao: 'FISCALIZACAO',
-    notificado_dte: false,
-    anexos: 4,
-  },
-  {
-    id: 3,
-    numero_protocolo: 'PROC-2024-008',
-    tipo_documento: 'RECURSO',
-    assunto: 'Recurso administrativo - Multa aplicada',
-    remetente: 'Advogado Carlos Silva',
-    remetente_nome: 'Advogado Carlos Silva',
-    empresa: 'Empresa PQR Ltda',
-    empresa_nome: 'Empresa PQR Ltda',
-    data_entrada: '2024-03-27T11:45:00',
-    prazo: '2024-04-15T17:00:00',
-    prazo_resposta: '2024-04-15T17:00:00',
-    prioridade: 'NORMAL',
-    status: 'NAO_LIDO',
-    setor_destino: 'JURIDICO',
-    setor_lotacao: 'JURIDICO',
-    notificado_dte: false,
-    anexos: 6,
-  },
-  {
-    id: 4,
-    numero_protocolo: 'PROC-2024-009',
-    tipo_documento: 'MULTA',
-    assunto: 'Multa aplicada - Preços abusivos',
-    remetente: 'Sistema Automático',
-    remetente_nome: 'Sistema Automático',
-    empresa: 'Posto de Combustível STU',
-    empresa_nome: 'Posto de Combustível STU',
-    data_entrada: '2024-03-26T14:20:00',
-    prazo: '2024-04-25T17:00:00',
-    prazo_resposta: '2024-04-25T17:00:00',
-    prioridade: 'BAIXA',
-    status: 'LIDO',
-    setor_destino: 'FINANCEIRO',
-    setor_lotacao: 'FINANCEIRO',
-    notificado_dte: false,
-    anexos: 1,
-  },
-  {
-    id: 5,
-    numero_protocolo: 'PROC-2024-010',
-    tipo_documento: 'DENUNCIA',
-    assunto: 'Denúncia de venda casada',
-    remetente: 'Consumidor João Lima',
-    remetente_nome: 'Consumidor João Lima',
-    empresa: 'Loja de Eletrônicos VWX',
-    empresa_nome: 'Loja de Eletrônicos VWX',
-    data_entrada: '2024-03-25T09:30:00',
-    prazo: '2024-04-02T17:00:00',
-    prazo_resposta: '2024-04-02T17:00:00',
-    prioridade: 'ALTA',
-    status: 'NAO_LIDO',
-    setor_destino: 'FISCALIZACAO',
-    setor_lotacao: 'FISCALIZACAO',
-    notificado_dte: false,
-    anexos: 2,
   },
 ];
 
@@ -237,14 +140,16 @@ const filterBySetor = (lista, setor) => {
   });
 };
 
-const removerDenuncias = (lista) => {
+const normalizeStatus = (status) => (typeof status === 'string' ? status.toUpperCase() : status);
+
+const applyDefaultStatusFilter = (lista, statusFiltro) => {
   if (!Array.isArray(lista)) {
     return [];
   }
-  return lista.filter((item) => {
-    const tipo = (item?.tipo_documento || '').toUpperCase();
-    return tipo !== 'DENUNCIA';
-  });
+  if (statusFiltro) {
+    return lista;
+  }
+  return lista.filter((item) => !['ENCAMINHADO', 'ARQUIVADO'].includes(normalizeStatus(item.status)));
 };
 
 
@@ -276,18 +181,30 @@ const useCaixaPessoalData = () => {
         caixaEntradaService.getEstatisticas(params),
       ]);
 
-      const lista = normalizeList(documentosResponse);
+      let lista = normalizeList(documentosResponse);
+      lista = applyDefaultStatusFilter(lista, filtros.status);
+
+      const stats = mapStatsResponse(estatisticasResponse, lista);
+      if (!filtros.status) {
+        const statsLocal = deriveStatsFromList(lista);
+        stats.total = statsLocal.total;
+        stats.naoLidos = statsLocal.naoLidos;
+        stats.urgentes = statsLocal.urgentes;
+        stats.atrasados = statsLocal.atrasados;
+      }
+
       setDocumentos(lista);
-      setEstatisticas(mapStatsResponse(estatisticasResponse, lista));
+      setEstatisticas(stats);
     } catch (error) {
-      console.error('Erro ao carregar documentos pessoais:', error);
-      setErro('Não foi possível carregar sua caixa pessoal. Tente novamente em instantes.');
+      console.error('Erro ao carregar documentos da caixa pessoal:', error);
+      setErro('Nao foi possivel carregar a caixa pessoal agora. Tente novamente em instantes.');
       setDocumentos([]);
       setEstatisticas({ total: 0, naoLidos: 0, urgentes: 0, atrasados: 0 });
     } finally {
       setLoading(false);
     }
   }, [montarParametros]);
+
 
   useEffect(() => {
     carregar();
@@ -296,6 +213,10 @@ const useCaixaPessoalData = () => {
   const onFiltrosChange = useCallback((novosFiltros) => {
     setFiltros((prev) => ({ ...prev, ...novosFiltros }));
   }, []);
+
+  const refresh = useCallback(() => {
+    carregar();
+  }, [carregar]);
 
   const onAcao = useCallback(async (documentoId, acao, dados = {}) => {
     try {
@@ -307,9 +228,15 @@ const useCaixaPessoalData = () => {
           await caixaEntradaService.arquivarDocumento(documentoId);
           break;
         case 'encaminhar':
-          if (dados?.setor_destino) {
+          if (dados?.setor_destino || dados?.destinatario_direto) {
             await caixaEntradaService.encaminharDocumento(documentoId, dados);
           }
+          break;
+        case 'bloquear':
+          await caixaEntradaService.bloquearDocumento(documentoId, dados);
+          break;
+        case 'desbloquear':
+          await caixaEntradaService.desbloquearDocumento(documentoId);
           break;
         case 'visualizar':
           await caixaEntradaService.visualizarDocumento(documentoId);
@@ -332,7 +259,7 @@ const useCaixaPessoalData = () => {
     erro,
     filtros,
     onFiltrosChange,
-    refresh: carregar,
+    refresh,
     onAcao,
   };
 };
@@ -342,63 +269,23 @@ const useCaixaSetorData = () => {
   const [documentos, setDocumentos] = useState([]);
   const [estatisticas, setEstatisticas] = useState({ total: 0, naoLidos: 0, urgentes: 0, atrasados: 0 });
   const [erro, setErro] = useState('');
-  const [filtros, setFiltros] = useState({ status: '', tipo: '', prioridade: '', setor: '', busca: '' });
+  const [filtros, setFiltros] = useState({
+    status: '',
+    tipo: '',
+    prioridade: '',
+    busca: '',
+    setor: '',
+  });
   const [setoresDisponiveis, setSetoresDisponiveis] = useState([]);
-  const [selectedSetor, setSelectedSetor] = useState('');
 
-  const montarParametros = useCallback(() => {
-    const setorFiltro = selectedSetor || filtros.setor || undefined;
-    return {
-      status: filtros.status || undefined,
-      tipo_documento: filtros.tipo || undefined,
-      prioridade: filtros.prioridade || undefined,
-      setor: setorFiltro,
-      busca: filtros.busca || undefined,
-    };
-  }, [filtros, selectedSetor]);
-
-  const carregarSetoresDisponiveis = useCallback(async () => {
-    try {
-      const response = await caixaEntradaService.getEstatisticas({});
-      const stats = mapStatsResponse(response, []);
-      const baseSetores = Array.isArray(stats.porSetor) ? stats.porSetor : [];
-      let lista = baseSetores.length
-        ? baseSetores
-        : extractUniqueSetores(removerDenuncias(mockSetorDocumentos));
-
-      if (!lista.length) {
-        lista = extractUniqueSetores(removerDenuncias(mockSetorDocumentos));
-      }
-
-      setSetoresDisponiveis(lista);
-
-      if (!selectedSetor && lista.length) {
-        setSelectedSetor(lista[0].value);
-      } else if (selectedSetor) {
-        const exists = lista.some((item) => item.value === selectedSetor);
-        if (!exists && lista.length) {
-          setSelectedSetor(lista[0].value);
-        }
-      }
-    } catch (error) {
-      console.error('Erro ao buscar setores disponíveis:', error);
-      if (!setoresDisponiveis.length) {
-        const fallback = extractUniqueSetores(removerDenuncias(mockSetorDocumentos));
-        setSetoresDisponiveis(fallback);
-        if (!selectedSetor && fallback.length) {
-          setSelectedSetor(fallback[0].value);
-        }
-      }
-    }
-  }, [selectedSetor, setoresDisponiveis.length]);
-
-  useEffect(() => {
-    carregarSetoresDisponiveis();
-  }, [carregarSetoresDisponiveis]);
-
-  useEffect(() => {
-    setFiltros((prev) => ({ ...prev, setor: selectedSetor || '' }));
-  }, [selectedSetor]);
+  const montarParametros = useCallback(() => ({
+    status: filtros.status || undefined,
+    tipo_documento: filtros.tipo || undefined,
+    prioridade: filtros.prioridade || undefined,
+    busca: filtros.busca || undefined,
+    setor: filtros.setor || undefined,
+    notificado_dte: false,
+  }), [filtros]);
 
   const carregar = useCallback(async () => {
     setLoading(true);
@@ -411,20 +298,55 @@ const useCaixaSetorData = () => {
         caixaEntradaService.getEstatisticas(params),
       ]);
 
-      let lista = removerDenuncias(normalizeList(documentosResponse));
-      lista = filterBySetor(lista, params.setor);
-      if (!lista.length) {
-        lista = filterBySetor(removerDenuncias(mockSetorDocumentos), params.setor);
+      let lista = normalizeList(documentosResponse);
+      if (params.setor) {
+        lista = filterBySetor(lista, params.setor);
       }
+      lista = applyDefaultStatusFilter(lista, filtros.status);
 
+      const stats = mapStatsResponse(estatisticasResponse, lista);
+      if (!filtros.status) {
+        const statsLocal = deriveStatsFromList(lista);
+        stats.total = statsLocal.total;
+        stats.naoLidos = statsLocal.naoLidos;
+        stats.urgentes = statsLocal.urgentes;
+        stats.atrasados = statsLocal.atrasados;
+      }
       setDocumentos(lista);
-      setEstatisticas(mapStatsResponse(estatisticasResponse, lista));
+      setEstatisticas(stats);
+
+      const usarSetoresLista = !filtros.status;
+      const baseSetores = (!usarSetoresLista && Array.isArray(stats.porSetor) && stats.porSetor.length)
+        ? stats.porSetor.map((item) => {
+          const raw = (item.setor_destino || item.setor || '').trim();
+          if (!raw) {
+            return null;
+          }
+          return {
+            value: raw,
+            label: formatSetorName(raw),
+            total: item.total ?? item.count ?? 0,
+          };
+        }).filter(Boolean)
+        : extractUniqueSetores(lista);
+
+      const seen = new Set();
+      const setoresUnicos = baseSetores.filter((item) => {
+        const key = (item.value || '').toUpperCase();
+        if (!key || seen.has(key)) {
+          return false;
+        }
+        seen.add(key);
+        return true;
+      });
+
+      setSetoresDisponiveis(setoresUnicos);
     } catch (error) {
       console.error('Erro ao carregar documentos do setor:', error);
-      const lista = filterBySetor(mockSetorDocumentos, montarParametros().setor);
-      setErro('Não foi possível carregar a caixa do setor agora. Exibindo dados recentes disponíveis.');
-      setDocumentos(lista);
-      setEstatisticas(deriveStatsFromList(lista));
+      setErro('Nao foi possivel carregar a caixa do setor agora. Tente novamente em instantes.');
+      setDocumentos([]);
+      setEstatisticas({ total: 0, naoLidos: 0, urgentes: 0, atrasados: 0 });
+      setSetoresDisponiveis([]);
     } finally {
       setLoading(false);
     }
@@ -435,9 +357,6 @@ const useCaixaSetorData = () => {
   }, [carregar]);
 
   const onFiltrosChange = useCallback((novosFiltros) => {
-    if (Object.prototype.hasOwnProperty.call(novosFiltros, 'setor')) {
-      setSelectedSetor(novosFiltros.setor || '');
-    }
     setFiltros((prev) => ({ ...prev, ...novosFiltros }));
   }, []);
 
@@ -455,32 +374,39 @@ const useCaixaSetorData = () => {
           await caixaEntradaService.arquivarDocumento(documentoId);
           break;
         case 'encaminhar':
-          if (dados?.setor_destino) {
+          if (dados?.setor_destino || dados?.destinatario_direto) {
             await caixaEntradaService.encaminharDocumento(documentoId, dados);
           }
+          break;
+        case 'bloquear':
+          await caixaEntradaService.bloquearDocumento(documentoId, dados);
+          break;
+        case 'desbloquear':
+          await caixaEntradaService.desbloquearDocumento(documentoId);
           break;
         case 'visualizar':
           await caixaEntradaService.visualizarDocumento(documentoId);
           break;
         default:
-          console.warn(`Ação não tratada: ${acao}`);
+          console.warn(`A‡Æo nÆo tratada: ${acao}`);
       }
       await carregar();
     } catch (error) {
-      console.error(`Erro ao executar ação ${acao}:`, error);
-      setErro('Não foi possível concluir a ação solicitada. Verifique os dados e tente novamente.');
+      console.error(`Erro ao executar a‡Æo ${acao}:`, error);
+      setErro('NÆo foi poss¡vel concluir a a‡Æo solicitada. Verifique os dados e tente novamente.');
     }
   }, [carregar]);
 
   const setorOptions = useMemo(() => {
     if (!setoresDisponiveis.length) {
-      return [];
+      return [{ value: '', label: 'Todos os setores' }];
     }
-    return setoresDisponiveis.map((item) => ({
+    const options = setoresDisponiveis.map((item) => ({
       value: item.value,
       label: item.total ? `${item.label} (${item.total})` : item.label,
       total: item.total ?? 0,
     }));
+    return [{ value: '', label: 'Todos os setores' }, ...options];
   }, [setoresDisponiveis]);
 
   return {
@@ -495,8 +421,6 @@ const useCaixaSetorData = () => {
     onAcao,
     setorOptions,
     setoresDisponiveis,
-    selectedSetor,
-    setSelectedSetor,
   };
 };
 
@@ -564,8 +488,10 @@ const CaixaEntrada = () => {
   const currentUser = user;
 
   const [activeTab, setActiveTab] = useState('pessoal');
+  const [encaminharAberto, setEncaminharAberto] = useState(false);
+  const [documentoSelecionado, setDocumentoSelecionado] = useState(null);
   const caixaPessoal = useCaixaPessoalData();
-  const caixaSetor = useCaixaSetorData(currentUser);
+  const caixaSetor = useCaixaSetorData();
 
   const current = activeTab === 'pessoal' ? caixaPessoal : caixaSetor;
 
@@ -576,6 +502,25 @@ const CaixaEntrada = () => {
   const handleTabChange = (value) => {
     setActiveTab(value);
   };
+
+  const handleAcao = useCallback((documentoId, acao, dados = {}) => {
+    if (acao === 'encaminhar') {
+      const documento = current.documentos.find((item) => item.id === documentoId) || null;
+      setDocumentoSelecionado(documento);
+      setEncaminharAberto(true);
+      return;
+    }
+    current.onAcao(documentoId, acao, dados);
+  }, [current]);
+
+  const handleConfirmarEncaminhamento = useCallback(async (payload) => {
+    if (!documentoSelecionado) {
+      return;
+    }
+    await current.onAcao(documentoSelecionado.id, 'encaminhar', payload);
+    setEncaminharAberto(false);
+    setDocumentoSelecionado(null);
+  }, [current, documentoSelecionado]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-100 via-white to-gray-200 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
@@ -602,11 +547,10 @@ const CaixaEntrada = () => {
                   key={tab.value}
                   type="button"
                   onClick={() => handleTabChange(tab.value)}
-                  className={`relative z-10 flex items-center gap-2 px-5 py-2 rounded-full text-sm font-medium transition-colors ${
-                    isActive
+                  className={`relative z-10 flex items-center gap-2 px-5 py-2 rounded-full text-sm font-medium transition-colors ${isActive
                       ? 'text-slate-900 dark:text-white'
                       : 'text-slate-500 hover:text-slate-700 dark:text-slate-300 dark:hover:text-slate-100'
-                  }`}
+                    }`}
                 >
                   {isActive && (
                     <motion.span
@@ -693,8 +637,9 @@ const CaixaEntrada = () => {
                       >
                         <DocumentoCard
                           documento={documento}
-                          onAcao={current.onAcao}
+                          onAcao={handleAcao}
                           tipoCaixa={current.tipo}
+                          usuarioAtual={currentUser}
                         />
                       </motion.div>
                     ))}
@@ -709,6 +654,17 @@ const CaixaEntrada = () => {
           </div>
         </div>
       </div>
+
+      <EncaminharModal
+        open={encaminharAberto}
+        documento={documentoSelecionado}
+        setores={caixaSetor.setoresDisponiveis && caixaSetor.setoresDisponiveis.length ? caixaSetor.setoresDisponiveis : undefined}
+        onClose={() => {
+          setEncaminharAberto(false);
+          setDocumentoSelecionado(null);
+        }}
+        onConfirm={handleConfirmarEncaminhamento}
+      />
     </div>
   );
 };

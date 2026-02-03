@@ -24,6 +24,7 @@ import { formatCurrency } from '../../utils/formatters';
 
 const ProdutosPage = () => {
   const navigate = useNavigate();
+  const SELECT_ALL_VALUE = "__all__";
   const [loading, setLoading] = useState(true);
   const [produtos, setProdutos] = useState([]);
   const [filtros, setFiltros] = useState({
@@ -148,7 +149,7 @@ const ProdutosPage = () => {
   };
 
   const handleFiltroChange = (campo, valor) => {
-    setFiltros(prev => ({ ...prev, [campo]: valor }));
+    setFiltros(prev => ({ ...prev, [campo]: valor === SELECT_ALL_VALUE ? '' : valor }));
   };
 
   const aplicarFiltros = () => {
@@ -338,12 +339,12 @@ const ProdutosPage = () => {
             
             <div>
               <Label htmlFor="categoria">Categoria</Label>
-              <Select value={filtros.categoria} onValueChange={(value) => handleFiltroChange('categoria', value)}>
+              <Select value={filtros.categoria || undefined} onValueChange={(value) => handleFiltroChange('categoria', value)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Todas" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Todas</SelectItem>
+                  <SelectItem value={SELECT_ALL_VALUE}>Todas</SelectItem>
                   {categorias.map((categoria) => (
                     <SelectItem key={categoria} value={categoria}>
                       {categoria}
@@ -355,12 +356,12 @@ const ProdutosPage = () => {
             
             <div>
               <Label htmlFor="status">Status</Label>
-              <Select value={filtros.status} onValueChange={(value) => handleFiltroChange('status', value)}>
+              <Select value={filtros.status || undefined} onValueChange={(value) => handleFiltroChange('status', value)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Todos" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Todos</SelectItem>
+                  <SelectItem value={SELECT_ALL_VALUE}>Todos</SelectItem>
                   <SelectItem value="ativo">Ativo</SelectItem>
                   <SelectItem value="alerta">Alerta</SelectItem>
                   <SelectItem value="inativo">Inativo</SelectItem>

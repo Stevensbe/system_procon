@@ -25,6 +25,13 @@ const ConsultaResultado = ({ resultado, tipo = 'protocolo' }) => {
       'RECEBIDA': { label: 'Recebida', color: 'green', icon: CheckCircleIcon },
       'EM_ANALISE': { label: 'Em Análise', color: 'yellow', icon: EyeIcon },
       'RESPONDIDA': { label: 'Respondida', color: 'purple', icon: CheckCircleIcon },
+      'AGUARDANDO_DEFESA': { label: 'Aguardando Defesa', color: 'yellow', icon: ClockIcon },
+      'DEFESA_APRESENTADA': { label: 'Defesa Apresentada', color: 'blue', icon: DocumentTextIcon },
+      'AGUARDANDO_RECURSO': { label: 'Aguardando Recurso', color: 'yellow', icon: ClockIcon },
+      'RECURSO_APRESENTADO': { label: 'Recurso Apresentado', color: 'blue', icon: DocumentTextIcon },
+      'JULGAMENTO': { label: 'Em Julgamento', color: 'yellow', icon: EyeIcon },
+      'FINALIZADO_PROCEDENTE': { label: 'Finalizado - Procedente', color: 'green', icon: CheckCircleIcon },
+      'FINALIZADO_IMPROCEDENTE': { label: 'Finalizado - Improcedente', color: 'green', icon: CheckCircleIcon },
     };
     
     return statusMap[status] || { label: status, color: 'gray', icon: ExclamationCircleIcon };
@@ -62,6 +69,16 @@ const ConsultaResultado = ({ resultado, tipo = 'protocolo' }) => {
   const status = formatarStatus(resultado.status);
   const StatusIcon = status.icon;
   const statusLabel = resultado.status_display || status.label;
+  const isProcesso = tipo === 'processo';
+  const numeroExibicao = resultado.numero_processo || resultado.numero_protocolo || resultado.numero_peticao;
+  const interessadoExibicao = resultado.autuado || resultado.interessado_nome || resultado.peticionario_nome;
+  const dataExibicao =
+    resultado.data_protocolo ||
+    resultado.criado_em ||
+    resultado.data_envio ||
+    resultado.data_notificacao;
+  const documentosDisponiveis = resultado.documentos_disponiveis || [];
+  const documentosRequerDocumento = Boolean(resultado.documentos_requer_documento);
 
   return (
     <div className="bg-white rounded-lg shadow-lg overflow-hidden">
@@ -71,7 +88,7 @@ const ConsultaResultado = ({ resultado, tipo = 'protocolo' }) => {
           <StatusIcon className="h-8 w-8 mr-3" />
           <div>
             <h3 className="text-xl font-bold">
-              {tipo === 'peticao' ? 'Petição Encontrada' : 'Protocolo Encontrado'}
+              {tipo === 'peticao' ? 'Petição Encontrada' : isProcesso ? 'Processo Encontrado' : 'Protocolo Encontrado'}
             </h3>
             <p className="text-sm opacity-90">
               Status: {statusLabel}
@@ -90,7 +107,7 @@ const ConsultaResultado = ({ resultado, tipo = 'protocolo' }) => {
               <div>
                 <p className="text-sm font-medium text-gray-500">Número</p>
                 <p className="text-lg font-semibold text-blue-600">
-                  {resultado.numero_protocolo || resultado.numero_peticao}
+                  {numeroExibicao}
                 </p>
               </div>
             </div>
@@ -99,16 +116,16 @@ const ConsultaResultado = ({ resultado, tipo = 'protocolo' }) => {
               <CalendarDaysIcon className="h-5 w-5 text-gray-400 mt-0.5 mr-3" />
               <div>
                 <p className="text-sm font-medium text-gray-500">
-                  {tipo === 'peticao' ? 'Data de Envio' : 'Data do Protocolo'}
+                  {tipo === 'peticao' ? 'Data de Envio' : isProcesso ? 'Data de Criação' : 'Data do Protocolo'}
                 </p>
                 <p className="text-gray-900">
-                  {new Date(resultado.data_protocolo || resultado.criado_em || resultado.data_envio).toLocaleDateString('pt-BR', {
+                  {dataExibicao ? new Date(dataExibicao).toLocaleDateString('pt-BR', {
                     year: 'numeric',
                     month: 'long',
                     day: 'numeric',
                     hour: '2-digit',
                     minute: '2-digit'
-                  })}
+                  }) : '-'}
                 </p>
               </div>
             </div>
@@ -130,7 +147,7 @@ const ConsultaResultado = ({ resultado, tipo = 'protocolo' }) => {
               <div>
                 <p className="text-sm font-medium text-gray-500">Interessado</p>
                 <p className="text-gray-900">
-                  {resultado.interessado_nome || resultado.peticionario_nome}
+                  {interessadoExibicao}
                 </p>
               </div>
             </div>
@@ -165,11 +182,11 @@ const ConsultaResultado = ({ resultado, tipo = 'protocolo' }) => {
         {/* Assunto/Descrição */}
         <div className="mb-6">
           <h4 className="text-lg font-semibold text-gray-900 mb-3">
-            {tipo === 'peticao' ? 'Assunto da Petição' : 'Assunto'}
+            {tipo === 'peticao' ? 'Assunto da Petição' : isProcesso ? 'Resumo do Processo' : 'Assunto'}
           </h4>
           <div className="bg-gray-50 rounded-lg p-4">
             <p className="text-gray-900 leading-relaxed">
-              {resultado.assunto || resultado.descricao}
+              {resultado.assunto || resultado.descricao || '-'}
             </p>
           </div>
         </div>
@@ -210,6 +227,43 @@ const ConsultaResultado = ({ resultado, tipo = 'protocolo' }) => {
           </div>
         )}
 
+        {/* Documentos disponíveis */}
+        {isProcesso && (documentosDisponiveis.length > 0 || documentosRequerDocumento) && (
+          <div className="mb-6">
+            <h4 className="text-lg font-semibold text-gray-900 mb-3">Documentos Disponíveis</h4>
+            {documentosDisponiveis.length === 0 ? (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-sm text-yellow-800">
+                Para liberar os documentos, informe o CPF/CNPJ do autuado na consulta do processo.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {documentosDisponiveis.map((doc) => (
+                  <div
+                    key={`${doc.origem || 'processo'}-${doc.id}`}
+                    className="flex items-center justify-between border rounded-lg p-3 bg-white"
+                  >
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">{doc.titulo}</p>
+                      <p className="text-xs text-gray-500">
+                        {doc.tipo_display || doc.tipo} •{' '}
+                        {doc.data ? new Date(doc.data).toLocaleDateString('pt-BR') : 'Sem data'}
+                      </p>
+                    </div>
+                    {doc.download_url && (
+                      <button
+                        onClick={() => window.open(doc.download_url, '_blank')}
+                        className="text-blue-600 hover:text-blue-800 text-sm"
+                      >
+                        Baixar
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Próximos Passos */}
         <div className="bg-blue-50 border-l-4 border-blue-400 p-4 mb-6">
           <div className="flex">
@@ -244,7 +298,7 @@ const ConsultaResultado = ({ resultado, tipo = 'protocolo' }) => {
             <p>📧 E-mail: atendimento@procon.gov.br</p>
             <p>🕒 Horário: Segunda a Sexta, 8h às 17h</p>
             <p className="mt-2 text-xs text-gray-500">
-              Ao entrar em contato, informe o número {resultado.numero_protocolo || resultado.numero_peticao}
+              Ao entrar em contato, informe o número {numeroExibicao}
             </p>
           </div>
         </div>
