@@ -19,10 +19,12 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import transaction, models
 from rest_framework import status
 from rest_framework.exceptions import ValidationError
-from rest_framework.decorators import api_view, permission_classes, parser_classes
+from rest_framework.decorators import api_view, permission_classes, parser_classes, authentication_classes
 from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.authentication import SessionAuthentication
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework_simplejwt.authentication import JWTAuthentication
 
 from .models import Atendimento, ConfiguracaoAtendimento, BalcaoAtendimento, RegraDistribuicaoAtendimento
 from portal_cidadao.models import ReclamacaoDenuncia, HistoricoReclamacao, AnexoReclamacao
@@ -940,24 +942,24 @@ def api_reclamacao_detalhe(request, pk):
     return Response(serializer.data)
 
 
-@login_required
-@require_http_methods(["GET"])
+@api_view(['GET'])
+@authentication_classes([JWTAuthentication, SessionAuthentication])
+@permission_classes([IsAuthenticated])
 def api_consultar_cnpj(request):
-    """API para consultar CNPJ na Receita Federal"""
-    
+    """API para consultar CNPJ na Receita Federal."""
     cnpj = request.GET.get('cnpj', '').replace('.', '').replace('/', '').replace('-', '')
-    
+
     if len(cnpj) != 14:
-        return JsonResponse({'erro': 'CNPJ inválido'}, status=400)
-    
+        return Response({'erro': 'CNPJ inválido'}, status=status.HTTP_400_BAD_REQUEST)
+
     try:
         resultado = ReceitaFederalService.consultar_cnpj(cnpj)
         if not resultado.get('sucesso'):
             mensagem = resultado.get('erro', 'Erro na consulta a Receita Federal')
-            return JsonResponse({'erro': mensagem}, status=400)
-        return JsonResponse(resultado)
+            return Response({'erro': mensagem}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(resultado)
     except Exception as e:
-        return JsonResponse({'erro': str(e)}, status=500)
+        return Response({'erro': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 

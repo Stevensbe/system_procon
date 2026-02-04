@@ -288,6 +288,8 @@ class AnexoPeticao(models.Model):
         ('FOTO', 'Foto'),
         ('VIDEO', 'Vídeo'),
         ('AUDIO', 'Áudio'),
+        ('PARECER', 'Parecer'),
+        ('DECISAO', 'Decisão'),
         ('OUTROS', 'Outros'),
     ]
     
@@ -464,6 +466,7 @@ class RespostaPeticao(models.Model):
     def enviar(self):
         """Envia a resposta"""
         self.data_envio = timezone.now()
+        self.enviado_email = True
         self.peticao.status = 'RESPONDIDA'
         self.peticao.save()
         self.save()

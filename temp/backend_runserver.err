@@ -1,0 +1,7 @@
+[2026-01-14 14:38:49,295] INFO autoreload.run_with_reloader:667 - Watching for file changes with StatReloader
+[2026-01-14 14:38:49,866] WARNING ocr_service.__init__:24 - OCR temporariamente desabilitado - dependências não instaladas
+[2026-01-14 14:38:50,295] DEBUG utils.debug_sql:151 - (0.000) 
+            SELECT name, type FROM sqlite_master
+            WHERE type in ('table', 'view') AND NOT name='sqlite_sequence'
+            ORDER BY name; args=None; alias=default
+[2026-01-14 14:38:50,299] DEBUG utils.debug_sql:151 - (0.000) SELECT "django_migrations"."id", "django_migrations"."app", "django_migrations"."name", "django_migrations"."applied" FROM "django_migrations"; args=(); alias=default

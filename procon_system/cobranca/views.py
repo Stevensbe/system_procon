@@ -5,19 +5,21 @@ from rest_framework.pagination import PageNumberPagination
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Q, Sum, Count, Avg
 from django.utils import timezone
+from django.http import HttpResponse
 from datetime import datetime, timedelta
 import json
 
 from .models import (
     BoletoMulta, PagamentoMulta, CobrancaMulta, ConfiguracaoCobranca,
-    TemplateCobranca, LogCobranca, Remessa, Banco
+    TemplateCobranca, LogCobranca, Remessa, Banco, GuiaRecolhimentoMulta
 )
 from .serializers import (
     BoletoMultaSerializer, BoletoMultaCreateSerializer, PagamentoMultaSerializer, 
     CobrancaMultaSerializer, ConfiguracaoCobrancaSerializer, TemplateCobrancaSerializer,
     DashboardSerializer, BoletosPorStatusSerializer, 
     PagamentosPorMesSerializer, CobrancasPorStatusSerializer,
-    RemessaSerializer, RemessaCreateSerializer, RemessasPorStatusSerializer, BancoSerializer
+    RemessaSerializer, RemessaCreateSerializer, RemessasPorStatusSerializer, BancoSerializer,
+    GuiaRecolhimentoMultaSerializer
 )
 from .permissions import BoletoPermission, PagamentoPermission, RemessaPermission
 
@@ -525,3 +527,62 @@ class BancoViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Banco.objects.filter(ativo=True)
     serializer_class = BancoSerializer
     permission_classes = [RemessaPermission]
+
+
+class GuiaRecolhimentoMultaViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet para gestão de GRM
+    """
+    queryset = GuiaRecolhimentoMulta.objects.all().order_by('-criado_em')
+    serializer_class = GuiaRecolhimentoMultaSerializer
+    permission_classes = [BoletoPermission]
+    pagination_class = StandardResultsSetPagination
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['departamento_emissor', 'vencimento', 'processo', 'auto_infracao']
+    search_fields = ['numero_guia', 'numero_processo', 'numero_auto_infracao', 'autuado_nome', 'autuado_documento']
+    ordering_fields = ['numero_guia', 'vencimento', 'criado_em']
+    ordering = ['-criado_em']
+
+    def create(self, request, *args, **kwargs):
+        data = request.data.copy()
+        processo_id = data.get('processo')
+        if processo_id:
+            from fiscalizacao.models import Processo
+            processo = Processo.objects.filter(pk=processo_id).first()
+            if processo:
+                data.setdefault('autuado_nome', processo.autuado)
+                data.setdefault('autuado_documento', processo.cnpj)
+                data.setdefault('numero_processo', processo.numero_processo)
+                if processo.auto_infracao_id and not data.get('auto_infracao'):
+                    data['auto_infracao'] = processo.auto_infracao_id
+                if processo.auto_infracao and not data.get('numero_auto_infracao'):
+                    data['numero_auto_infracao'] = processo.auto_infracao.numero_auto
+                if processo.valor_final and not data.get('valor_integral'):
+                    data['valor_integral'] = processo.valor_final
+
+        serializer = self.get_serializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
+    def perform_create(self, serializer):
+        usuario = getattr(self.request, 'user', None)
+        criado_por = ''
+        if usuario and getattr(usuario, 'is_authenticated', False):
+            criado_por = usuario.get_full_name() or usuario.username
+        serializer.save(criado_por=criado_por)
+
+    @action(detail=True, methods=['get'])
+    def gerar_docx(self, request, pk=None):
+        """Gera e retorna o DOCX da GRM."""
+        grm = self.get_object()
+        buffer = grm.gerar_docx(salvar=True)
+        buffer.seek(0)
+        response = HttpResponse(
+            buffer.read(),
+            content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        )
+        nome = f"GRM_{grm.numero_guia.replace('/', '_')}.docx"
+        response['Content-Disposition'] = f'attachment; filename=\"{nome}\"'
+        return response

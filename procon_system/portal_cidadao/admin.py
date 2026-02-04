@@ -12,6 +12,7 @@ from .models import (
     EstatisticaPortal,
     PerfilCidadao,
     DenunciaCidadao,
+    HistoricoAtividade,
 )
 
 
@@ -381,5 +382,29 @@ class DenunciaCidadaoAdmin(admin.ModelAdmin):
         "nome_denunciante",
         "cpf_cnpj",
     ]
-    readonly_fields = ["numero_denuncia", "criado_em", "atualizado_em"]
+    readonly_fields = ["numero_denuncia", "criado_em", "atualizado_em", "respondido_em", "respondido_por"]
     ordering = ["-criado_em"]
+
+
+@admin.register(HistoricoAtividade)
+class HistoricoAtividadeAdmin(admin.ModelAdmin):
+    list_display = [
+        "usuario",
+        "identificador",
+        "tipo",
+        "titulo",
+        "numero_protocolo",
+        "criado_em",
+    ]
+    list_filter = ["tipo", "criado_em"]
+    search_fields = [
+        "usuario__username",
+        "usuario__email",
+        "identificador",
+        "titulo",
+        "descricao",
+        "numero_protocolo",
+    ]
+    readonly_fields = ["criado_em"]
+    ordering = ["-criado_em"]
+    date_hierarchy = "criado_em"

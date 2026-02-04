@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from datetime import time
-from .models import Processo, HistoricoProcesso, DocumentoProcesso # Adicione Processo ao import
+import os
+from .models import Processo, HistoricoProcesso, DocumentoProcesso, ParecerProcesso # Adicione Processo ao import
 from .models import (
     AutoBanco, 
     AtendimentoCaixaBanco, 
@@ -40,7 +41,16 @@ class AtendimentoCaixaBancoSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = AtendimentoCaixaBanco
-        fields = ['id', 'letra_senha', 'horario_chegada', 'horario_atendimento', 'tempo_decorrido', 'tempo_espera_formatado']
+        fields = [
+            'id',
+            'letra_senha',
+            'horario_chegada',
+            'horario_atendimento',
+            'tempo_decorrido',
+            'tipo_servico',
+            'limite_tempo',
+            'tempo_espera_formatado',
+        ]
 
 class AnexoAutoSerializer(serializers.ModelSerializer):
     class Meta:
@@ -54,11 +64,7 @@ class AutoBancoSerializer(serializers.ModelSerializer):
     tem_irregularidades = serializers.BooleanField(read_only=True)
     
     # Campos para receber dados aninhados (write-only)
-    atendimentos_caixa_data = serializers.ListField(
-        child=serializers.DictField(), 
-        required=False, 
-        write_only=True
-    )
+    atendimentos_caixa_data = serializers.JSONField(required=False, write_only=True)
     
     class Meta:
         model = AutoBanco
@@ -67,6 +73,8 @@ class AutoBancoSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         # Remove os atendimentos dos dados validados
         atendimentos_data = validated_data.pop('atendimentos_caixa_data', [])
+        if not isinstance(atendimentos_data, list):
+            atendimentos_data = []
         
         # Cria o AutoBanco
         auto = AutoBanco.objects.create(**validated_data)
@@ -93,12 +101,20 @@ class AutoBancoSerializer(serializers.ModelSerializer):
                     horario_atendimento = None
             
             if atendimento_data.get('letra_senha'):  # Só cria se tem senha
+                limite_tempo = atendimento_data.get('limite_tempo')
+                if limite_tempo is not None:
+                    try:
+                        limite_tempo = int(limite_tempo)
+                    except (TypeError, ValueError):
+                        limite_tempo = None
                 AtendimentoCaixaBanco.objects.create(
                     auto_banco=auto,
                     letra_senha=atendimento_data.get('letra_senha', ''),
                     horario_chegada=horario_chegada,
                     horario_atendimento=horario_atendimento,
-                    tempo_decorrido=int(atendimento_data.get('tempo_decorrido', 15))
+                    tempo_decorrido=int(atendimento_data.get('tempo_decorrido', 15)),
+                    tipo_servico=atendimento_data.get('tipo_servico', 'simples'),
+                    limite_tempo=limite_tempo
                 )
         
         return auto
@@ -106,6 +122,8 @@ class AutoBancoSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         # Remove os atendimentos dos dados validados
         atendimentos_data = validated_data.pop('atendimentos_caixa_data', [])
+        if not isinstance(atendimentos_data, list):
+            atendimentos_data = []
         
         # Atualiza o AutoBanco
         for attr, value in validated_data.items():
@@ -135,12 +153,20 @@ class AutoBancoSerializer(serializers.ModelSerializer):
                     horario_atendimento = None
             
             if atendimento_data.get('letra_senha'):
+                limite_tempo = atendimento_data.get('limite_tempo')
+                if limite_tempo is not None:
+                    try:
+                        limite_tempo = int(limite_tempo)
+                    except (TypeError, ValueError):
+                        limite_tempo = None
                 AtendimentoCaixaBanco.objects.create(
                     auto_banco=instance,
                     letra_senha=atendimento_data.get('letra_senha', ''),
                     horario_chegada=horario_chegada,
                     horario_atendimento=horario_atendimento,
-                    tempo_decorrido=int(atendimento_data.get('tempo_decorrido', 15))
+                    tempo_decorrido=int(atendimento_data.get('tempo_decorrido', 15)),
+                    tipo_servico=atendimento_data.get('tipo_servico', 'simples'),
+                    limite_tempo=limite_tempo
                 )
         
         return instance
@@ -260,7 +286,7 @@ class AutoSupermercadoSerializer(serializers.ModelSerializer):
                 irregularidades_marcadas.append(descricao)
         
         data['irregularidades_marcadas'] = irregularidades_marcadas
-        
+
         return data
 
 # === SERIALIZERS PARA AUTO DIVERSOS ===
@@ -304,11 +330,18 @@ class AutoInfracaoSerializer(serializers.ModelSerializer):
     valor_multa_formatado = serializers.CharField(read_only=True)
     status_display = serializers.CharField(read_only=True)
     tem_infracoes_marcadas = serializers.BooleanField(read_only=True)
+    validado_por_nome = serializers.SerializerMethodField()
     
     class Meta:
         model = AutoInfracao
         fields = '__all__'
         read_only_fields = ('numero', 'criado_em', 'atualizado_em')
+
+    def get_validado_por_nome(self, obj):
+        usuario = getattr(obj, 'validado_por', None)
+        if not usuario:
+            return ''
+        return usuario.get_full_name() or usuario.username
     
     def validate_cnpj(self, value):
         """Validação de CNPJ"""
@@ -333,54 +366,66 @@ class AutoInfracaoSerializer(serializers.ModelSerializer):
 # Serializer específico para criar infrações a partir de um auto
 class AutoInfracaoCreateSerializer(serializers.ModelSerializer):
     """
-    Serializer específico para criação de Auto de Infração
-    Lida corretamente com Generic Foreign Key
+    Serializer específico para criação de Auto de Infração.
+    Permite criação manual ou baseada em Auto de Constatação.
     """
-    # Campos para identificar o auto relacionado
     auto_tipo = serializers.ChoiceField(
-    choices=[
-        ('autobanco', 'Auto Banco'),
-        ('autoposto', 'Auto Posto'),
-        ('autosupermercado', 'Auto Supermercado'),
-        ('autodiversos', 'Auto Diversos'),
-        ('diversos', 'Auto Diversos'),  # ✅ ADICIONE ESTA LINHA
-    ],
-    write_only=True,
-    required=True
-)
-    auto_id = serializers.IntegerField(write_only=True)
-    
+        choices=[
+            ('banco', 'Auto Banco'),
+            ('posto', 'Auto Posto'),
+            ('supermercado', 'Auto Supermercado'),
+            ('autobanco', 'Auto Banco'),
+            ('autoposto', 'Auto Posto'),
+            ('autosupermercado', 'Auto Supermercado'),
+            ('autodiversos', 'Auto Diversos'),
+            ('diversos', 'Auto Diversos'),
+        ],
+        write_only=True,
+        required=False,
+        allow_null=True
+    )
+    auto_id = serializers.IntegerField(write_only=True, required=False, allow_null=True)
+
     class Meta:
         model = AutoInfracao
         fields = '__all__'
-    
+        read_only_fields = (
+            'numero',
+            'validacao_formal_status',
+            'validacao_formal_motivo',
+            'validado_por',
+            'validado_em',
+        )
+
     def validate(self, attrs):
-        """Valida e configura o Generic Foreign Key"""
         auto_tipo = attrs.get('auto_tipo')
         auto_id = attrs.get('auto_id')
-        
+
+        if not auto_tipo and not auto_id:
+            return attrs
+
         if not auto_tipo or not auto_id:
             raise serializers.ValidationError({
-                'auto_tipo': 'Tipo do auto é obrigatório',
-                'auto_id': 'ID do auto é obrigatório'
+                'auto_tipo': 'Informe o tipo do auto vinculado',
+                'auto_id': 'Informe o ID do auto vinculado'
             })
-        
-        # Mapear tipos para models
-        from django.contrib.contenttypes.models import ContentType
-        
+
         model_mapping = {
+            'banco': AutoBanco,
+            'posto': AutoPosto,
+            'supermercado': AutoSupermercado,
             'autobanco': AutoBanco,
             'autoposto': AutoPosto,
             'autosupermercado': AutoSupermercado,
             'autodiversos': AutoDiversos,
+            'diversos': AutoDiversos,
         }
-        
+
         if auto_tipo not in model_mapping:
             raise serializers.ValidationError({
                 'auto_tipo': f'Tipo inválido: {auto_tipo}'
             })
-        
-        # Verificar se o auto existe
+
         model_class = model_mapping[auto_tipo]
         try:
             auto_obj = model_class.objects.get(pk=auto_id)
@@ -388,24 +433,44 @@ class AutoInfracaoCreateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({
                 'auto_id': f'{auto_tipo} com ID {auto_id} não encontrado'
             })
-        
-        # Configurar o Generic Foreign Key
-        content_type = ContentType.objects.get_for_model(model_class)
-        attrs['content_type'] = content_type
-        attrs['object_id'] = auto_id
-        
-        # Se não tem data_fiscalizacao, usar a do auto relacionado
+
         if not attrs.get('data_fiscalizacao'):
             attrs['data_fiscalizacao'] = auto_obj.data_fiscalizacao
-        
+        if not attrs.get('hora_fiscalizacao'):
+            attrs['hora_fiscalizacao'] = getattr(auto_obj, 'hora_fiscalizacao', None)
+        if not attrs.get('municipio'):
+            attrs['municipio'] = getattr(auto_obj, 'municipio', '')
+        if not attrs.get('estado'):
+            attrs['estado'] = getattr(auto_obj, 'estado', '')
+        if not attrs.get('razao_social'):
+            attrs['razao_social'] = getattr(auto_obj, 'razao_social', '')
+        if not attrs.get('nome_fantasia'):
+            attrs['nome_fantasia'] = getattr(auto_obj, 'nome_fantasia', '')
+        if not attrs.get('atividade'):
+            attrs['atividade'] = getattr(auto_obj, 'atividade', '')
+        if not attrs.get('endereco'):
+            attrs['endereco'] = getattr(auto_obj, 'endereco', '')
+        if not attrs.get('cep'):
+            attrs['cep'] = getattr(auto_obj, 'cep', '')
+        if not attrs.get('cnpj'):
+            attrs['cnpj'] = getattr(auto_obj, 'cnpj', '')
+        if not attrs.get('telefone'):
+            attrs['telefone'] = getattr(auto_obj, 'telefone', '')
+        if not attrs.get('responsavel_nome'):
+            attrs['responsavel_nome'] = getattr(auto_obj, 'responsavel_nome', '')
+        if not attrs.get('responsavel_cpf'):
+            attrs['responsavel_cpf'] = getattr(auto_obj, 'responsavel_cpf', '')
+        if not attrs.get('estabelecimento_responsavel'):
+            attrs['estabelecimento_responsavel'] = getattr(auto_obj, 'estabelecimento_responsavel', '')
+        if not attrs.get('auto_constatacao_numero'):
+            attrs['auto_constatacao_numero'] = getattr(auto_obj, 'numero', '')
+
         return attrs
-    
+
     def create(self, validated_data):
-        """Cria o Auto de Infração com Generic Foreign Key configurado"""
-        # Remove campos auxiliares
         validated_data.pop('auto_tipo', None)
         validated_data.pop('auto_id', None)
-        
+
         return AutoInfracao.objects.create(**validated_data)
 
 # Serializer simplificado para listagem
@@ -558,96 +623,6 @@ class AnexoUploadSerializer(serializers.Serializer):
         
         # Tipos permit
 
-class AutoInfracaoCreateSerializer(serializers.ModelSerializer):
-    """
-    Serializer específico para criar Auto de Infração
-    ✅ VERSÃO CORRIGIDA QUE RESOLVE O ERRO DE ARRAYS
-    """
-    # Campos para identificar o auto relacionado
-    auto_tipo = serializers.ChoiceField(
-        choices=[
-            ('autobanco', 'Auto Banco'),
-            ('autoposto', 'Auto Posto'),
-            ('autosupermercado', 'Auto Supermercado'),
-            ('autodiversos', 'Auto Diversos'),
-        ],
-        write_only=True,
-        required=True
-    )
-    auto_id = serializers.IntegerField(write_only=True, required=True)
-    
-    class Meta:
-        model = AutoInfracao
-        fields = '__all__'
-    
-    def validate(self, attrs):
-        """Valida e configura o Generic Foreign Key"""
-        auto_tipo = attrs.get('auto_tipo')
-        auto_id = attrs.get('auto_id')
-        
-        # ✅ VALIDAÇÃO RIGOROSA
-        if not auto_tipo:
-            raise serializers.ValidationError({'auto_tipo': 'Tipo do auto é obrigatório'})
-        
-        if not auto_id:
-            raise serializers.ValidationError({'auto_id': 'ID do auto é obrigatório'})
-        
-        # ✅ MAPEAR TIPOS PARA MODELS
-        from django.contrib.contenttypes.models import ContentType
-        
-        model_mapping = {
-            'autobanco': AutoBanco,
-            'autoposto': AutoPosto,
-            'autosupermercado': AutoSupermercado,
-            'autodiversos': AutoDiversos,
-        }
-        
-        if auto_tipo not in model_mapping:
-            raise serializers.ValidationError({
-                'auto_tipo': f'Tipo inválido: {auto_tipo}. Tipos válidos: {list(model_mapping.keys())}'
-            })
-        
-        # ✅ VERIFICAR SE O AUTO EXISTE
-        model_class = model_mapping[auto_tipo]
-        try:
-            auto_obj = model_class.objects.get(pk=auto_id)
-            print(f"✅ Auto encontrado: {auto_obj}")
-        except model_class.DoesNotExist:
-            raise serializers.ValidationError({
-                'auto_id': f'{auto_tipo} com ID {auto_id} não encontrado'
-            })
-        
-        # ✅ CONFIGURAR O GENERIC FOREIGN KEY CORRETAMENTE
-        content_type = ContentType.objects.get_for_model(model_class)
-        
-        # ✅ GARANTIR QUE SÃO VALORES ÚNICOS (NÃO ARRAYS)
-        attrs['content_type'] = content_type  # Objeto único
-        attrs['object_id'] = int(auto_id)     # Inteiro único
-        
-        # ✅ DATA PADRÃO SE NÃO FORNECIDA
-        if not attrs.get('data_fiscalizacao'):
-            attrs['data_fiscalizacao'] = auto_obj.data_fiscalizacao
-        
-        print(f"✅ Generic FK configurado: content_type={content_type.id}, object_id={auto_id}")
-        
-        return attrs
-    
-    def create(self, validated_data):
-        """Cria o Auto de Infração com Generic Foreign Key configurado"""
-        # ✅ REMOVER campos auxiliares antes de criar
-        validated_data.pop('auto_tipo', None)
-        validated_data.pop('auto_id', None)
-        
-        print(f"✅ Criando AutoInfracao com dados: {list(validated_data.keys())}")
-        
-        try:
-            auto_infracao = AutoInfracao.objects.create(**validated_data)
-            print(f"✅ AutoInfracao criado com ID: {auto_infracao.id}")
-            return auto_infracao
-        except Exception as e:
-            print(f"❌ Erro ao criar AutoInfracao: {e}")
-            raise serializers.ValidationError(f'Erro ao salvar: {str(e)}')
-        
 class HistoricoProcessoSerializer(serializers.ModelSerializer):
     """Serializer para histórico de mudanças do processo"""
     
@@ -699,6 +674,44 @@ class DocumentoProcessoSerializer(serializers.ModelSerializer):
                 return request.build_absolute_uri(obj.arquivo.url)
             return obj.arquivo.url
         return None
+
+
+class ParecerProcessoSerializer(serializers.ModelSerializer):
+    elaborado_por_display = serializers.SerializerMethodField()
+    processo_numero = serializers.CharField(source='processo.numero_processo', read_only=True)
+    autuado = serializers.CharField(source='processo.autuado', read_only=True)
+
+    class Meta:
+        model = ParecerProcesso
+        fields = [
+            'id',
+            'processo',
+            'processo_numero',
+            'autuado',
+            'numero_parecer',
+            'sintese_fatica',
+            'parecer',
+            'decisao',
+            'elaborado_por',
+            'elaborado_por_nome',
+            'elaborado_por_display',
+            'cargo_elaborador',
+            'data_emissao',
+            'criado_em',
+            'atualizado_em',
+        ]
+        read_only_fields = ['numero_parecer', 'criado_em', 'atualizado_em']
+        extra_kwargs = {
+            'processo': {'required': False},
+            'elaborado_por': {'required': False},
+        }
+
+    def get_elaborado_por_display(self, obj):
+        if obj.elaborado_por_nome:
+            return obj.elaborado_por_nome
+        if obj.elaborado_por:
+            return obj.elaborado_por.get_full_name() or obj.elaborado_por.username
+        return ''
 
 
 class ProcessoSimpleSerializer(serializers.ModelSerializer):
@@ -794,19 +807,25 @@ class ProcessoDetailSerializer(serializers.ModelSerializer):
     
     def get_auto_infracao_detalhes(self, obj):
         """Retorna dados resumidos do auto de infração"""
-        if obj.auto_infracao:
+        auto_infracao = getattr(obj, 'auto_infracao', None)
+        if auto_infracao:
             return {
-                'id': obj.auto_infracao.id,
-                'numero': obj.auto_infracao.numero,
-                'tipo_infracao': obj.auto_infracao.tipo_infracao,
-                'gravidade': obj.auto_infracao.gravidade,
-                'data_fiscalizacao': obj.auto_infracao.data_fiscalizacao,
-                'valor_multa': obj.auto_infracao.valor_multa,
-                'descricao_infracao': obj.auto_infracao.descricao_infracao,
-                'base_legal': obj.auto_infracao.base_legal,
-                'auto_origem': obj.auto_infracao.auto_origem,
-                'endereco': obj.auto_infracao.endereco,
-                'municipio': obj.auto_infracao.municipio,
+                'id': auto_infracao.id,
+                'numero': auto_infracao.numero,
+                'tipo_infracao': getattr(auto_infracao, 'tipo_infracao', None),
+                'gravidade': getattr(auto_infracao, 'gravidade', None),
+                'data_fiscalizacao': auto_infracao.data_fiscalizacao,
+                'valor_multa': auto_infracao.valor_multa,
+                'descricao_infracao': getattr(auto_infracao, 'descricao_infracao', None),
+                'base_legal': getattr(auto_infracao, 'base_legal', None),
+                'base_legal_cdc': getattr(auto_infracao, 'base_legal_cdc', None),
+                'base_legal_outras': getattr(auto_infracao, 'base_legal_outras', None),
+                'auto_origem': getattr(auto_infracao, 'auto_origem', None),
+                'relatorio': getattr(auto_infracao, 'relatorio', None),
+                'razao_social': getattr(auto_infracao, 'razao_social', None),
+                'cnpj': getattr(auto_infracao, 'cnpj', None),
+                'endereco': getattr(auto_infracao, 'endereco', None),
+                'municipio': getattr(auto_infracao, 'municipio', None),
             }
         return None
     
@@ -987,10 +1006,60 @@ class ProcessoResumoMensalSerializer(serializers.Serializer):
 
 class DocumentoUploadSerializer(serializers.ModelSerializer):
     """Serializer para upload de documentos do processo"""
-    
+
+    tipo_documento = serializers.CharField(write_only=True, required=False)
+
     class Meta:
         model = DocumentoProcesso
-        fields = ['processo', 'tipo', 'titulo', 'arquivo', 'descricao', 'usuario_upload']
+        fields = ['tipo', 'tipo_documento', 'titulo', 'arquivo', 'descricao', 'usuario_upload']
+        extra_kwargs = {
+            'tipo': {'required': False},
+            'titulo': {'required': False, 'allow_blank': True},
+            'usuario_upload': {'required': False, 'allow_blank': True},
+        }
+
+    def validate(self, attrs):
+        tipo = attrs.get('tipo')
+        tipo_documento = attrs.pop('tipo_documento', None)
+
+        if not tipo and tipo_documento:
+            tipo_map = {
+                'auto_infracao': 'auto_infracao',
+                'defesa_previa': 'defesa',
+                'recurso': 'recurso',
+                'parecer_juridico': 'parecer',
+                'notificacao': 'outros',
+                'comprovante_pagamento': 'outros',
+                'documento_adicional': 'outros',
+                'correspondencia': 'outros',
+                'laudo_tecnico': 'outros',
+                'outros': 'outros',
+                'decisao': 'decisao',
+            }
+            tipo = tipo_map.get(tipo_documento, tipo_documento)
+            attrs['tipo'] = tipo
+
+        if not tipo:
+            raise serializers.ValidationError({'tipo': 'Tipo do documento é obrigatório.'})
+
+        tipos_validos = {choice[0] for choice in DocumentoProcesso.TIPO_DOCUMENTO_CHOICES}
+        if tipo not in tipos_validos:
+            raise serializers.ValidationError({'tipo': 'Tipo do documento inválido.'})
+
+        if not attrs.get('titulo'):
+            arquivo = attrs.get('arquivo')
+            if arquivo and getattr(arquivo, 'name', ''):
+                attrs['titulo'] = os.path.splitext(os.path.basename(arquivo.name))[0]
+
+        return attrs
+
+    def create(self, validated_data):
+        request = self.context.get('request')
+        if request and getattr(request, 'user', None) and request.user.is_authenticated:
+            nome_usuario = request.user.get_full_name() or request.user.username
+            if nome_usuario:
+                validated_data['usuario_upload'] = nome_usuario
+        return super().create(validated_data)
     
     def validate_arquivo(self, value):
         """Valida o arquivo enviado"""
@@ -1005,12 +1074,14 @@ class DocumentoUploadSerializer(serializers.ModelSerializer):
             'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
             'image/jpeg',
             'image/png',
-            'image/gif'
+            'image/gif',
+            'application/vnd.ms-excel',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
         ]
         
         if value.content_type not in tipos_permitidos:
             raise serializers.ValidationError(
-                "Tipo de arquivo não permitido. Use: PDF, DOC, DOCX, JPG, PNG, GIF"
+                "Tipo de arquivo não permitido. Use: PDF, DOC, DOCX, JPG, PNG, GIF, XLS, XLSX"
             )
         
         return value
@@ -1346,20 +1417,19 @@ class AssinaturaDigitalSerializer(serializers.ModelSerializer):
 
 # --- SERIALIZERS PARA NOTIFICAÇÃO ELETRÔNICA ---
 class NotificacaoEletronicaSerializer(serializers.ModelSerializer):
-    destinatario_nome = serializers.CharField(read_only=True)
-    
     class Meta:
         model = NotificacaoEletronica
         fields = [
-            'id', 'tipo_notificacao', 'destinatario_nome', 'destinatario_email',
-            'destinatario_cpf_cnpj', 'assunto', 'mensagem', 'anexos',
+            'id', 'numero', 'tipo_notificacao', 'destinatario_nome', 'destinatario_email',
+            'destinatario_cpf_cnpj', 'representante_legal', 'assunto', 'mensagem', 'anexos',
             'status', 'data_envio', 'data_entrega', 'data_leitura',
             'tentativas_envio', 'max_tentativas', 'proxima_tentativa',
-            'logs_envio', 'auto', 'auto_posto', 'auto_supermercado', 'auto_diversos'
+            'logs_envio', 'auto', 'auto_posto', 'auto_supermercado', 'auto_diversos', 'auto_infracao',
+            'processo', 'ppa'
         ]
         read_only_fields = [
-            'id', 'data_envio', 'data_entrega', 'data_leitura',
-            'tentativas_envio', 'proxima_tentativa', 'logs_envio'
+            'id', 'numero', 'data_envio', 'data_entrega', 'data_leitura',
+            'tentativas_envio', 'proxima_tentativa', 'logs_envio', 'processo', 'ppa'
         ]
     
     def validate(self, data):
@@ -1620,4 +1690,22 @@ class AutoSupermercadoListSerializer(serializers.ModelSerializer):
     """
     class Meta:
         model = AutoSupermercado
-        fields = ['id', 'numero', 'razao_social', 'nome_fantasia', 'data_fiscalizacao', 'hora_fiscalizacao'] 
+        fields = [
+            'id',
+            'numero',
+            'razao_social',
+            'nome_fantasia',
+            'atividade',
+            'endereco',
+            'cep',
+            'municipio',
+            'estado',
+            'cnpj',
+            'telefone',
+            'data_fiscalizacao',
+            'hora_fiscalizacao',
+            'fiscal_nome_1',
+            'fiscal_nome_2',
+            'responsavel_nome',
+            'responsavel_cpf',
+        ]

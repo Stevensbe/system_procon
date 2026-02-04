@@ -1,9 +1,10 @@
 from django.shortcuts import render, get_object_or_404, redirect
+from django.urls import reverse
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import get_user_model
 from django.contrib import messages
 from django.http import JsonResponse, HttpResponse
-from django.db.models import Count, Q, Avg, F, DurationField, ExpressionWrapper
+from django.db.models import Count, Q, Avg, F, DurationField, ExpressionWrapper, Prefetch
 from django.utils import timezone
 from django.core.paginator import Paginator
 from django.db.models.functions import Now
@@ -31,6 +32,14 @@ from .serializers import (
 from .mixins import AdminPermissionMixin
 from .services import sincronizar_protocolo_caixa
 from .constants import DESPACHO_PREDEFINIDOS
+
+# Importar modelo Setor para verificar chefia
+try:
+    from protocolo_tramitacao.models import Setor
+except ImportError:
+    Setor = None
+
+User = get_user_model()
 
 
 SETOR_EQUIVALENCIAS = {
@@ -129,6 +138,243 @@ def _aplicar_filtro_setor(queryset, valores):
     return queryset.filter(id__in=ids_correspondentes)
 
 
+def _obter_setor_lotacao_usuario(usuario):
+    """Obtém o setor de lotação do usuário baseado nos grupos do Django"""
+    grupos = list(usuario.groups.values_list('name', flat=True))
+    setores_lotacao = []
+    
+    for nome_grupo in grupos:
+        if not nome_grupo:
+            continue
+        # Normalizar o nome do grupo e adicionar variantes
+        setores_lotacao.extend(list(_gerar_variantes_setor(nome_grupo)))
+    
+    return set(setores_lotacao)
+
+
+def _obter_setor_preferencial_usuario(usuario):
+    """Retorna o setor principal do usuario para uso como destino."""
+    grupos = list(usuario.groups.values_list('name', flat=True))
+    if not grupos:
+        return None
+    return grupos[0]
+
+
+def _usuario_pode_bloquear_documento(usuario, documento) -> bool:
+    """Define se o usuario pode trancar/destrancar um documento."""
+    if usuario.is_superuser or usuario.is_staff:
+        return True
+    setores_chefia = _obter_setores_chefia_com_subsetores(usuario)
+    if not setores_chefia:
+        return False
+    variantes_doc = set()
+    if documento.setor_destino:
+        variantes_doc.update(_gerar_variantes_setor(documento.setor_destino))
+    if documento.setor_lotacao:
+        variantes_doc.update(_gerar_variantes_setor(documento.setor_lotacao))
+    return bool(variantes_doc & setores_chefia)
+
+
+def _usuario_pode_ver_documento_bloqueado(usuario, documento) -> bool:
+    if not documento.bloqueado:
+        return True
+    if documento.bloqueado_por_id == usuario.id:
+        return True
+    return _usuario_pode_bloquear_documento(usuario, documento)
+
+
+def _aplicar_filtro_bloqueio(queryset, usuario):
+    """Remove documentos bloqueados para quem nao tem permissao."""
+    if usuario.is_superuser or usuario.is_staff:
+        return queryset
+
+    filtros = Q(bloqueado=False) | Q(bloqueado_por=usuario)
+    setores_chefia = _obter_setores_chefia_com_subsetores(usuario)
+    if setores_chefia:
+        q_chefia = Q()
+        for variante in setores_chefia:
+            q_chefia |= Q(setor_destino__iexact=variante) | Q(setor_lotacao__iexact=variante)
+        filtros |= (Q(bloqueado=True) & q_chefia)
+
+    return queryset.filter(filtros)
+
+
+def _obter_setores_onde_e_chefe(usuario):
+    """Retorna os setores onde o usuário é chefe/responsável"""
+    if not Setor:
+        return []
+    
+    setores_chefe = Setor.objects.filter(
+        responsavel=usuario,
+        ativo=True
+    ).values_list('nome', flat=True)
+    
+    # Incluir variantes dos nomes dos setores
+    setores_com_variantes = set()
+    for setor_nome in setores_chefe:
+        setores_com_variantes.update(_gerar_variantes_setor(setor_nome))
+        # Também incluir a sigla se houver
+        try:
+            setor_obj = Setor.objects.get(nome=setor_nome)
+            if setor_obj.sigla:
+                setores_com_variantes.add(setor_obj.sigla)
+        except Setor.DoesNotExist:
+            pass
+    
+    return setores_com_variantes
+
+
+def _obter_subsetores(setor_principal):
+    """Retorna os subsetores de um setor principal baseado em padrões de nomes"""
+    subsetores = set()
+    
+    # Mapeamento de setores principais e seus subsetores conhecidos
+    SUBSETORES_MAP = {
+        'FISCALIZACAO': ['Fiscalização - Denúncias', 'Fiscalização - Setor Próprio'],
+        'FISCALIZACAO_DENUNCIAS': ['Fiscalização - Denúncias'],
+        'JURIDICO': ['Jurídico 1', 'Jurídico 2', 'Jurídico 1 - Petições'],
+        'JURIDICO_1': ['Jurídico 1', 'Jurídico 1 - Petições'],
+        'JURIDICO_2': ['Jurídico 2'],
+        'ATENDIMENTO': ['Atendimento/Protocolo', 'Protocolo'],
+        'DIRETORIA': ['Diretoria/Administração'],
+    }
+    
+    # Normalizar o setor principal
+    setor_normalizado = _normalizar_codigo_setor(setor_principal)
+    
+    # Obter subsetores conhecidos
+    if setor_normalizado in SUBSETORES_MAP:
+        for subsetor in SUBSETORES_MAP[setor_normalizado]:
+            subsetores.update(_gerar_variantes_setor(subsetor))
+    
+    # Buscar subsetores dinamicamente baseado em padrão de nome
+    # Ex: "Jurídico 1" e "Jurídico 2" são subsetores de "Jurídico"
+    setor_upper = str(setor_principal).upper().strip()
+    
+    # Padrões comuns de subsetores
+    if 'FISCALIZACAO' in setor_upper:
+        subsetores.update(_gerar_variantes_setor('Fiscalização - Denúncias'))
+        subsetores.update(_gerar_variantes_setor('Fiscalização - Setor Próprio'))
+    
+    if 'JURIDICO' in setor_upper and 'JURIDICO 1' not in setor_upper and 'JURIDICO 2' not in setor_upper:
+        subsetores.update(_gerar_variantes_setor('Jurídico 1'))
+        subsetores.update(_gerar_variantes_setor('Jurídico 2'))
+        subsetores.update(_gerar_variantes_setor('Jurídico 1 - Petições'))
+    
+    if 'ATENDIMENTO' in setor_upper:
+        subsetores.update(_gerar_variantes_setor('Atendimento/Protocolo'))
+        subsetores.update(_gerar_variantes_setor('Protocolo'))
+    
+    # Incluir o próprio setor principal
+    subsetores.update(_gerar_variantes_setor(setor_principal))
+    
+    return subsetores
+
+
+def _obter_setores_chefia_com_subsetores(usuario):
+    """
+    Retorna todos os setores que o usuário vê por ser chefe, incluindo subsetores.
+    
+    Regras:
+    - Se é chefe de um subsetor específico (ex: "Jurídico 1", "Jurídico 2"), 
+      vê APENAS aquele subsetor específico
+    - Se é chefe de um setor principal (ex: "Jurídico"), 
+      vê o setor principal e TODOS os seus subsetores
+    
+    Exemplo:
+    - Raquel é chefe de "Jurídico 1" → vê apenas processos de "Jurídico 1"
+    - Larissa é chefe de "Jurídico 2" → vê apenas processos de "Jurídico 2"
+    - Se alguém é chefe de "Jurídico" (principal) → vê "Jurídico 1" e "Jurídico 2"
+    """
+    setores_chefia = _obter_setores_onde_e_chefe(usuario)
+    todos_setores = set()
+    
+    # Para cada setor onde é chefe
+    for setor_chefe in setores_chefia:
+        # Normalizar o nome do setor
+        setor_upper = str(setor_chefe).upper().strip()
+        setor_normalizado = _normalizar_codigo_setor(setor_chefe)
+        
+        # Verificar se é um subsetor específico
+        is_subsetor_especifico = (
+            'JURIDICO 1' in setor_upper or 
+            'JURIDICO 2' in setor_upper or
+            'JURIDICO_1' in setor_normalizado or
+            'JURIDICO_2' in setor_normalizado or
+            'FISCALIZACAO - DENUNCIAS' in setor_upper or
+            'FISCALIZACAO_DENUNCIAS' in setor_normalizado or
+            'FISCALIZACAO - SETOR PROPRIO' in setor_upper or
+            'FISCALIZACAO_PROPRIO' in setor_normalizado
+        )
+        
+        if is_subsetor_especifico:
+            # É chefe de um subsetor específico - incluir apenas aquele subsetor
+            todos_setores.update(_gerar_variantes_setor(setor_chefe))
+        else:
+            # É chefe de um setor principal - incluir o setor principal e todos os subsetores
+            todos_setores.update(_gerar_variantes_setor(setor_chefe))
+            subsetores = _obter_subsetores(setor_chefe)
+            todos_setores.update(subsetores)
+    
+    return todos_setores
+
+
+def _obter_filtros_caixa_setor(usuario, excluir_notificados_dte=True):
+    """
+    Retorna os filtros Q para a Caixa Setor conforme regras do SIGED:
+    a) Setor de lotação do usuário
+    b) Setores aos quais tem acesso
+    c) Setores onde é chefe (incluindo subsetores)
+    """
+    filtros_setor = Q()
+    
+    # Verificar se tem acesso geral
+    permissoes = PermissaoSetorCaixaEntrada.objects.filter(
+        usuarios=usuario,
+        ativo=True,
+        pode_visualizar=True
+    )
+    
+    tem_acesso_geral = permissoes.filter(setor='GERAL').exists()
+    
+    if tem_acesso_geral:
+        # Acesso geral - retornar filtro vazio (todos os documentos)
+        return Q(), True
+    
+    # a) Setor de lotação do usuário
+    setores_lotacao = _obter_setor_lotacao_usuario(usuario)
+    if setores_lotacao:
+        q_lotacao = Q()
+        for variante in setores_lotacao:
+            q_lotacao |= Q(setor_destino__iexact=variante) | Q(setor_lotacao__iexact=variante)
+        filtros_setor |= q_lotacao
+    
+    # b) Setores aos quais tem acesso via permissões
+    for permissao in permissoes:
+        # Setor principal da permissão
+        setores_permissao = set()
+        setores_permissao.update(_gerar_variantes_setor(permissao.setor))
+        setores_permissao.update(_gerar_variantes_setor(permissao.get_setor_display()))
+        
+        # Setores adicionais permitidos
+        for setor_permitido in permissao.setores_permitidos or []:
+            setores_permissao.update(_gerar_variantes_setor(setor_permitido))
+        
+        # Adicionar aos filtros
+        for variante in setores_permissao:
+            filtros_setor |= Q(setor_destino__iexact=variante) | Q(setor_lotacao__iexact=variante)
+    
+    # c) Setores onde é chefe (incluindo subsetores)
+    setores_chefia_com_subsetores = _obter_setores_chefia_com_subsetores(usuario)
+    if setores_chefia_com_subsetores:
+        q_chefia = Q()
+        for variante in setores_chefia_com_subsetores:
+            q_chefia |= Q(setor_destino__iexact=variante) | Q(setor_lotacao__iexact=variante)
+        filtros_setor |= q_chefia
+    
+    return filtros_setor, False
+
+
 def filtrar_documentos_por_usuario(queryset, request, apenas_pessoal=False):
     """Aplica regras de visibilidade de documentos considerando usuário, setor e caixa pessoal."""
     usuario = request.user
@@ -141,16 +387,15 @@ def filtrar_documentos_por_usuario(queryset, request, apenas_pessoal=False):
 
     filtros_usuario = Q(destinatario_direto=usuario) | Q(responsavel_atual=usuario)
 
-    grupos = list(usuario.groups.values_list('name', flat=True))
-    if grupos:
-        setor_q = Q()
-        for nome in grupos:
-            if not nome:
-                continue
-            for variante in _gerar_variantes_setor(nome):
-                setor_q |= Q(setor_destino__iexact=variante)
-        filtros_usuario |= setor_q
+    # 1. Setor de lotação do usuário (baseado nos grupos)
+    setores_lotacao = _obter_setor_lotacao_usuario(usuario)
+    if setores_lotacao:
+        setor_q_lotacao = Q()
+        for variante in setores_lotacao:
+            setor_q_lotacao |= Q(setor_destino__iexact=variante) | Q(setor_lotacao__iexact=variante)
+        filtros_usuario |= setor_q_lotacao
 
+    # 2. Setores aos quais o usuário tem acesso explícito (via permissões)
     permissoes = PermissaoSetorCaixaEntrada.objects.filter(
         usuarios=usuario,
         ativo=True,
@@ -172,10 +417,18 @@ def filtrar_documentos_por_usuario(queryset, request, apenas_pessoal=False):
             filtros_usuario |= Q(tipo_documento=tipo)
 
     if setores_permitidos:
-        setor_q = Q()
+        setor_q_permitidos = Q()
         for variante in setores_permitidos:
-            setor_q |= Q(setor_destino__iexact=variante)
-        filtros_usuario |= setor_q
+            setor_q_permitidos |= Q(setor_destino__iexact=variante) | Q(setor_lotacao__iexact=variante)
+        filtros_usuario |= setor_q_permitidos
+
+    # 3. Setores onde o usuário é chefe (incluindo subsetores)
+    setores_chefia_com_subsetores = _obter_setores_chefia_com_subsetores(usuario)
+    if setores_chefia_com_subsetores:
+        setor_q_chefia = Q()
+        for variante in setores_chefia_com_subsetores:
+            setor_q_chefia |= Q(setor_destino__iexact=variante) | Q(setor_lotacao__iexact=variante)
+        filtros_usuario |= setor_q_chefia
 
     acessos_especiais = AcessoEspecialCaixaEntrada.objects.filter(
         usuario=usuario,
@@ -185,6 +438,7 @@ def filtrar_documentos_por_usuario(queryset, request, apenas_pessoal=False):
         filtros_usuario |= Q(id__in=acessos_especiais)
 
     queryset = queryset.filter(filtros_usuario).distinct()
+    queryset = _aplicar_filtro_bloqueio(queryset, usuario)
     if apenas_pessoal:
         queryset = queryset.filter(destinatario_direto=usuario)
     return queryset
@@ -233,267 +487,146 @@ def painel_gerencial_view(request):
         'setores': setores_formatados,
         'top_atrasados': top_atrasados,
     }
-
-    return render(request, 'caixa_entrada/painel_gerencial.html', contexto)
-
-# === VIEWS PRINCIPAIS ===
-
-@login_required
-def caixa_entrada_view(request):
-    """View principal da caixa de entrada - similar ao SIGED"""
     
+    # Filtros
     # Filtros
     status_filter = request.GET.get('status', '')
     tipo_filter = request.GET.get('tipo', '')
+
+
+@login_required
+def caixa_entrada_view(request):
+    """
+    View unificada da caixa de entrada.
+    Exibe abas para 'Pessoal' e 'Setor' para usuários comuns,
+    e uma visão geral para administradores.
+    """
+    # Filtros comuns
+    status_filter = request.GET.get('status', '')
+    tipo_filter = request.GET.get('tipo', '')
     prioridade_filter = request.GET.get('prioridade', '')
-    setor_filter = request.GET.get('setor', '')
     busca = request.GET.get('busca', '')
     
-    # Query base
-    documentos = CaixaEntrada.objects.all()
+    # Determinar se é admin/gestor
+    is_admin = request.user.is_superuser or request.user.groups.filter(name='Administradores').exists()
     
-    # Aplicar filtros
-    if status_filter:
-        documentos = documentos.filter(status=status_filter)
-    if tipo_filter:
-        documentos = documentos.filter(tipo_documento=tipo_filter)
-    if prioridade_filter:
-        documentos = documentos.filter(prioridade=prioridade_filter)
-    if setor_filter:
-        documentos = _aplicar_filtro_setor(documentos, setor_filter)
-    if busca:
-        documentos = documentos.filter(
-            Q(assunto__icontains=busca) |
-            Q(remetente_nome__icontains=busca) |
-            Q(numero_protocolo__icontains=busca) |
-            Q(empresa_nome__icontains=busca)
-        )
-    
-    # Ordenação
-    ordenacao = request.GET.get('ordenacao', '-data_entrada')
-    documentos = documentos.order_by(ordenacao)
-    
-    # Paginação
-    paginator = Paginator(documentos, 20)
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
-    
-    # Estatísticas
-    total_documentos = documentos.count()
-    nao_lidos = documentos.filter(status='NAO_LIDO').count()
-    atrasados = documentos.filter(prazo_resposta__lt=timezone.now()).count()
-    urgentes = documentos.filter(prioridade='URGENTE').count()
-    
-    # Distribuição por status
-    distribuicao_status = documentos.values('status').annotate(
-        total=Count('id')
-    ).order_by('-total')
-    
-    # Distribuição por tipo
-    distribuicao_tipo = documentos.values('tipo_documento').annotate(
-        total=Count('id')
-    ).order_by('-total')
-    
+    # Contexto base
     context = {
-        'page_obj': page_obj,
-        'total_documentos': total_documentos,
-        'nao_lidos': nao_lidos,
-        'atrasados': atrasados,
-        'urgentes': urgentes,
-        'distribuicao_status': distribuicao_status,
-        'distribuicao_tipo': distribuicao_tipo,
+        'is_admin': is_admin,
         'filtros': {
             'status': status_filter,
             'tipo': tipo_filter,
             'prioridade': prioridade_filter,
-            'setor': setor_filter,
             'busca': busca,
-            'ordenacao': ordenacao
         },
-        'ordenacao': ordenacao,
         'tipos_documento': CaixaEntrada.TIPO_DOCUMENTO_CHOICES,
         'status_choices': CaixaEntrada.STATUS_CHOICES,
         'prioridade_choices': CaixaEntrada.PRIORIDADE_CHOICES,
-        'setores': CaixaEntrada.objects.values_list('setor_destino', flat=True).distinct()
     }
-    
-    return render(request, 'caixa_entrada/caixa_entrada.html', context)
+
+    # Queryset base para estatísticas e listagem
+    if is_admin:
+        documentos = CaixaEntrada.objects.all()
+        # Aplicar filtros globais
+        if status_filter:
+            documentos = documentos.filter(status=status_filter)
+        if tipo_filter:
+            documentos = documentos.filter(tipo_documento=tipo_filter)
+        if prioridade_filter:
+            documentos = documentos.filter(prioridade=prioridade_filter)
+        if busca:
+            documentos = documentos.filter(
+                Q(assunto__icontains=busca) |
+                Q(remetente_nome__icontains=busca) |
+                Q(numero_protocolo__icontains=busca) |
+                Q(empresa_nome__icontains=busca)
+            )
+        
+        # Paginação para admin
+        paginator = Paginator(documentos.order_by('-data_entrada'), 20)
+        page_obj = paginator.get_page(request.GET.get('page'))
+        context['documentos_all'] = page_obj
+        context['page_obj'] = page_obj # Para compatibilidade com templates genéricos se houver
+        
+    else:
+        # Para usuários comuns, preparamos os querysets para as abas
+        
+        # 1. Caixa Pessoal
+        docs_pessoal = CaixaEntrada.objects.filter(
+            destinatario_direto=request.user
+        ).exclude(notificado_dte=True)
+        
+        # 2. Caixa Setor
+        # Conforme SIGED: mostra processos destinados ao:
+        # a) Setor de lotação do usuário (todos do setor veem)
+        # b) Setores aos quais o usuário tem acesso explícito
+        # c) Setores onde o usuário é chefe (incluindo subsetores)
+        
+        filtros_setor, tem_acesso_geral = _obter_filtros_caixa_setor(request.user)
+        
+        if tem_acesso_geral:
+            docs_setor = CaixaEntrada.objects.all()
+        else:
+            if filtros_setor:
+                docs_setor = CaixaEntrada.objects.filter(filtros_setor).exclude(notificado_dte=True).distinct()
+            else:
+                docs_setor = CaixaEntrada.objects.none()
+
+        # Aplicar filtros em ambos
+        if status_filter:
+            docs_pessoal = docs_pessoal.filter(status=status_filter)
+            docs_setor = docs_setor.filter(status=status_filter)
+        if tipo_filter:
+            docs_pessoal = docs_pessoal.filter(tipo_documento=tipo_filter)
+            docs_setor = docs_setor.filter(tipo_documento=tipo_filter)
+        if prioridade_filter:
+            docs_pessoal = docs_pessoal.filter(prioridade=prioridade_filter)
+            docs_setor = docs_setor.filter(prioridade=prioridade_filter)
+        if busca:
+            q_busca = (
+                Q(assunto__icontains=busca) |
+                Q(remetente_nome__icontains=busca) |
+                Q(numero_protocolo__icontains=busca) |
+                Q(empresa_nome__icontains=busca)
+            )
+            docs_pessoal = docs_pessoal.filter(q_busca)
+            docs_setor = docs_setor.filter(q_busca)
+
+        docs_pessoal = _aplicar_filtro_bloqueio(docs_pessoal, request.user)
+        docs_setor = _aplicar_filtro_bloqueio(docs_setor, request.user)
+
+        # Paginação (simplificada - idealmente seria via AJAX ou parâmetros distintos, 
+        # mas aqui vamos limitar ou usar a página para a aba ativa)
+        # Por enquanto, vamos passar os primeiros 50 de cada para renderizar
+        context['documentos_pessoal'] = docs_pessoal.order_by('-data_entrada')[:50]
+        context['documentos_setor'] = docs_setor.order_by('-data_entrada')[:50]
+        
+        # Contagens para badges
+        context['count_pessoal_nao_lido'] = docs_pessoal.filter(status='NAO_LIDO').count()
+        context['count_setor_nao_lido'] = docs_setor.filter(status='NAO_LIDO').count()
+        
+        # Combinar para estatísticas gerais do usuário
+        documentos = docs_pessoal | docs_setor
+
+    # Estatísticas Gerais (para os cards do topo)
+    context['total_documentos'] = documentos.count()
+    context['nao_lidos'] = documentos.filter(status='NAO_LIDO').count()
+    context['atrasados'] = documentos.filter(prazo_resposta__lt=timezone.now()).count()
+    context['urgentes'] = documentos.filter(prioridade='URGENTE').count()
+
+    return render(request, 'caixa_entrada/unified_inbox.html', context)
 
 
 @login_required
 def caixa_pessoal_view(request):
-    """Caixa Pessoal - Documentos destinados diretamente ao usuário logado"""
-    
-    # Filtros
-    status_filter = request.GET.get('status', '')
-    tipo_filter = request.GET.get('tipo', '')
-    prioridade_filter = request.GET.get('prioridade', '')
-    busca = request.GET.get('busca', '')
-    
-    # Query base - documentos destinados diretamente ao usuário
-    documentos = CaixaEntrada.objects.filter(
-        destinatario_direto=request.user
-    ).exclude(
-        notificado_dte=True  # Excluir documentos notificados no DTE
-    )
-    
-    # Aplicar filtros
-    if status_filter:
-        documentos = documentos.filter(status=status_filter)
-    if tipo_filter:
-        documentos = documentos.filter(tipo_documento=tipo_filter)
-    if prioridade_filter:
-        documentos = documentos.filter(prioridade=prioridade_filter)
-    if busca:
-        documentos = documentos.filter(
-            Q(assunto__icontains=busca) |
-            Q(remetente_nome__icontains=busca) |
-            Q(numero_protocolo__icontains=busca) |
-            Q(empresa_nome__icontains=busca)
-        )
-    
-    # Ordenação
-    ordenacao = request.GET.get('ordenacao', '-data_entrada')
-    documentos = documentos.order_by(ordenacao)
-    
-    # Paginação
-    paginator = Paginator(documentos, 20)
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
-    
-    # Estatísticas
-    total_documentos = documentos.count()
-    nao_lidos = documentos.filter(status='NAO_LIDO').count()
-    atrasados = documentos.filter(prazo_resposta__lt=timezone.now()).count()
-    urgentes = documentos.filter(prioridade='URGENTE').count()
-    
-    context = {
-        'page_obj': page_obj,
-        'total_documentos': total_documentos,
-        'nao_lidos': nao_lidos,
-        'atrasados': atrasados,
-        'urgentes': urgentes,
-        'filtros': {
-            'status': status_filter,
-            'tipo': tipo_filter,
-            'prioridade': prioridade_filter,
-            'busca': busca,
-        },
-        'ordenacao': ordenacao,
-        'tipos_documento': CaixaEntrada.TIPO_DOCUMENTO_CHOICES,
-        'status_choices': CaixaEntrada.STATUS_CHOICES,
-        'prioridade_choices': CaixaEntrada.PRIORIDADE_CHOICES,
-        'tipo_caixa': 'pessoal'
-    }
-    
-    return render(request, 'caixa_entrada/caixa_pessoal.html', context)
+    """Redireciona para a caixa unificada na aba pessoal"""
+    return redirect(f"{reverse('caixa_entrada:caixa_entrada')}?tab=personal")
 
 
 @login_required
 def caixa_setor_view(request):
-    """Caixa Setor - Documentos do setor de lotação e setores com acesso"""
-    
-    # Filtros
-    status_filter = request.GET.get('status', '')
-    tipo_filter = request.GET.get('tipo', '')
-    prioridade_filter = request.GET.get('prioridade', '')
-    setor_filter = request.GET.get('setor', '')
-    busca = request.GET.get('busca', '')
-    
-    # Buscar permissões do usuário
-    permissoes = PermissaoSetorCaixaEntrada.objects.filter(
-        usuarios=request.user,
-        ativo=True,
-        pode_visualizar=True
-    )
-    
-    # Query base - documentos do setor
-    documentos = CaixaEntrada.objects.none()
-    
-    for permissao in permissoes:
-        # Se tem acesso geral
-        if permissao.setor == 'GERAL':
-            documentos = CaixaEntrada.objects.all()
-            break
-        
-        # Documentos do próprio setor
-        setores_base = set()
-        setores_base.update(_gerar_variantes_setor(permissao.setor))
-        setores_base.update(_gerar_variantes_setor(permissao.get_setor_display()))
-        documentos_setor = _aplicar_filtro_setor(CaixaEntrada.objects.all(), list(setores_base))
-
-        # Documentos de setores permitidos
-        for setor_permitido in permissao.setores_permitidos:
-            documentos_setor = documentos_setor | _aplicar_filtro_setor(
-                CaixaEntrada.objects.all(),
-                list(_gerar_variantes_setor(setor_permitido))
-            )
-        
-        # Documentos por tipo permitido
-        for tipo_permitido in permissao.tipos_documento_permitidos:
-            documentos_setor = documentos_setor | CaixaEntrada.objects.filter(
-                tipo_documento=tipo_permitido
-            )
-        
-        documentos = documentos | documentos_setor
-    
-    # Excluir documentos notificados no DTE
-    documentos = documentos.exclude(notificado_dte=True)
-    
-    # Aplicar filtros
-    if status_filter:
-        documentos = documentos.filter(status=status_filter)
-    if tipo_filter:
-        documentos = documentos.filter(tipo_documento=tipo_filter)
-    if prioridade_filter:
-        documentos = documentos.filter(prioridade=prioridade_filter)
-    if setor_filter:
-        documentos = _aplicar_filtro_setor(documentos, setor_filter)
-    if busca:
-        documentos = documentos.filter(
-            Q(assunto__icontains=busca) |
-            Q(remetente_nome__icontains=busca) |
-            Q(numero_protocolo__icontains=busca) |
-            Q(empresa_nome__icontains=busca)
-        )
-    
-    # Ordenação
-    ordenacao = request.GET.get('ordenacao', '-data_entrada')
-    documentos = documentos.order_by(ordenacao)
-    
-    # Paginação
-    paginator = Paginator(documentos, 20)
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
-    
-    # Estatísticas
-    total_documentos = documentos.count()
-    nao_lidos = documentos.filter(status='NAO_LIDO').count()
-    atrasados = documentos.filter(prazo_resposta__lt=timezone.now()).count()
-    urgentes = documentos.filter(prioridade='URGENTE').count()
-    
-    context = {
-        'page_obj': page_obj,
-        'total_documentos': total_documentos,
-        'nao_lidos': nao_lidos,
-        'atrasados': atrasados,
-        'urgentes': urgentes,
-        'filtros': {
-            'status': status_filter,
-            'tipo': tipo_filter,
-            'prioridade': prioridade_filter,
-            'setor': setor_filter,
-            'busca': busca,
-        },
-        'ordenacao': ordenacao,
-        'tipos_documento': CaixaEntrada.TIPO_DOCUMENTO_CHOICES,
-        'status_choices': CaixaEntrada.STATUS_CHOICES,
-        'prioridade_choices': CaixaEntrada.PRIORIDADE_CHOICES,
-        'setores': documentos.values_list('setor_destino', flat=True).distinct(),
-        'tipo_caixa': 'setor'
-    }
-    
-    return render(request, 'caixa_entrada/caixa_setor.html', context)
+    """Redireciona para a caixa unificada na aba setor"""
+    return redirect(f"{reverse('caixa_entrada:caixa_entrada')}?tab=sector")
 
 
 @login_required
@@ -507,38 +640,18 @@ def caixa_notificados_view(request):
     busca = request.GET.get('busca', '')
     
     # Query base - documentos notificados no DTE
-    documentos = CaixaEntrada.objects.filter(notificado_dte=True)
+    documentos_base = CaixaEntrada.objects.filter(notificado_dte=True)
     
-    # Aplicar permissões do usuário
-    permissoes = PermissaoSetorCaixaEntrada.objects.filter(
-        usuarios=request.user,
-        ativo=True,
-        pode_visualizar=True
-    )
+    # Aplicar lógica da Caixa Setor (mas para documentos notificados no DTE)
+    filtros_setor, tem_acesso_geral = _obter_filtros_caixa_setor(request.user, excluir_notificados_dte=False)
     
-    documentos_permitidos = CaixaEntrada.objects.none()
-    
-    for permissao in permissoes:
-        if permissao.setor == 'GERAL':
-            documentos_permitidos = documentos
-            break
-        
-        setor_display = permissao.get_setor_display()
-        documentos_setor = documentos.filter(setor_destino=setor_display)
-        
-        for setor_permitido in permissao.setores_permitidos:
-            documentos_setor = documentos_setor | documentos.filter(
-                setor_destino=setor_permitido
-            )
-        
-        for tipo_permitido in permissao.tipos_documento_permitidos:
-            documentos_setor = documentos_setor | documentos.filter(
-                tipo_documento=tipo_permitido
-            )
-        
-        documentos_permitidos = documentos_permitidos | documentos_setor
-    
-    documentos = documentos_permitidos.distinct()
+    if tem_acesso_geral:
+        documentos = documentos_base
+    else:
+        if filtros_setor:
+            documentos = documentos_base.filter(filtros_setor).distinct()
+        else:
+            documentos = CaixaEntrada.objects.none()
     
     # Aplicar filtros
     if status_filter:
@@ -554,6 +667,8 @@ def caixa_notificados_view(request):
             Q(numero_protocolo__icontains=busca) |
             Q(empresa_nome__icontains=busca)
         )
+
+    documentos = _aplicar_filtro_bloqueio(documentos, request.user)
     
     # Ordenação
     ordenacao = request.GET.get('ordenacao', '-data_notificacao_dte')
@@ -596,6 +711,10 @@ def caixa_notificados_view(request):
 def documento_detail(request, documento_id):
     """Detalhes de um documento na caixa de entrada"""
     documento = get_object_or_404(CaixaEntrada, id=documento_id)
+
+    if not _usuario_pode_ver_documento_bloqueado(request.user, documento):
+        messages.error(request, "Documento bloqueado por outro usuario.")
+        return redirect('caixa_entrada:caixa_entrada')
     
     # Marcar como lido se não foi lido
     if documento.status == 'NAO_LIDO':
@@ -624,6 +743,10 @@ def documento_detail(request, documento_id):
 def marcar_como_lido(request, documento_id):
     """Marca documento como lido"""
     documento = get_object_or_404(CaixaEntrada, id=documento_id)
+
+    if not _usuario_pode_ver_documento_bloqueado(request.user, documento):
+        messages.error(request, "Documento bloqueado por outro usuario.")
+        return redirect('caixa_entrada:caixa_entrada')
     documento.marcar_como_lido(request.user)
 
     sincronizar_protocolo_caixa(
@@ -653,6 +776,10 @@ def marcar_como_lido(request, documento_id):
 def encaminhar_documento(request, documento_id):
     """Encaminha documento para outro setor"""
     documento = get_object_or_404(CaixaEntrada, id=documento_id)
+
+    if not _usuario_pode_ver_documento_bloqueado(request.user, documento):
+        messages.error(request, "Documento bloqueado por outro usuario.")
+        return redirect('caixa_entrada:caixa_entrada')
     
     if request.method == 'POST':
         setor_destino = request.POST.get('setor_destino')
@@ -724,6 +851,10 @@ def encaminhar_documento(request, documento_id):
 def arquivar_documento(request, documento_id):
     """Arquiva um documento"""
     documento = get_object_or_404(CaixaEntrada, id=documento_id)
+
+    if not _usuario_pode_ver_documento_bloqueado(request.user, documento):
+        messages.error(request, "Documento bloqueado por outro usuario.")
+        return redirect('caixa_entrada:caixa_entrada')
     
     if request.method == 'POST':
         motivo = request.POST.get('motivo', '')
@@ -762,7 +893,7 @@ class CaixaEntradaViewSet(viewsets.ModelViewSet):
     serializer_class = CaixaEntradaSerializer
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['status', 'tipo_documento', 'prioridade', 'responsavel_atual', 'notificado_dte']
+    filterset_fields = ['status', 'tipo_documento', 'prioridade', 'responsavel_atual', 'notificado_dte', 'bloqueado']
     search_fields = ['assunto', 'remetente_nome', 'numero_protocolo', 'empresa_nome']
     ordering_fields = ['data_entrada', 'prazo_resposta', 'prioridade']
     ordering = ['-data_entrada']
@@ -772,7 +903,28 @@ class CaixaEntradaViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         """Filtra documentos por usuário, permissões e sinalizadores da caixa pessoal"""
-        queryset = super().get_queryset()
+        queryset = super().get_queryset().select_related(
+            'protocolo',
+            'protocolo__processo_fiscalizacao',
+            'protocolo__auto_infracao',
+        )
+        try:
+            from protocolo_tramitacao.models import TramitacaoDocumento
+        except ImportError:
+            TramitacaoDocumento = None
+        if TramitacaoDocumento:
+            queryset = queryset.prefetch_related(
+                Prefetch(
+                    'protocolo__tramitacoes',
+                    queryset=TramitacaoDocumento.objects.select_related(
+                        'setor_origem',
+                        'setor_destino',
+                        'usuario',
+                        'recebido_por',
+                    ).order_by('-data_tramitacao'),
+                    to_attr='tramitacoes_ordenadas',
+                )
+            )
         apenas_pessoal = (self.request.query_params.get('apenas_pessoal') or '').lower() in {'1', 'true', 't', 'yes'}
         queryset = filtrar_documentos_por_usuario(queryset, self.request, apenas_pessoal=apenas_pessoal)
 
@@ -796,7 +948,21 @@ class CaixaEntradaViewSet(viewsets.ModelViewSet):
                 except ValueError:
                     return queryset.none()
 
+        status_param = (self.request.query_params.get('status') or '').strip()
+        if not status_param:
+            queryset = queryset.exclude(status__in=['ENCAMINHADO', 'ARQUIVADO'])
+
         return queryset
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['pode_bloquear_func'] = _usuario_pode_bloquear_documento
+        return context
+
+    def get_serializer_class(self):
+        if self.action == 'retrieve':
+            return CaixaEntradaDetailSerializer
+        return CaixaEntradaSerializer
 
 
     @action(detail=True, methods=['post'])
@@ -854,6 +1020,59 @@ class CaixaEntradaViewSet(viewsets.ModelViewSet):
         )
         
         return Response({'status': 'success'})
+
+    @action(detail=True, methods=['post'])
+    def bloquear(self, request, pk=None):
+        """Bloqueia documento para acesso do setor."""
+        documento = self.get_object()
+        if not _usuario_pode_bloquear_documento(request.user, documento):
+            return Response({'error': 'Sem permissao para bloquear documento.'}, status=403)
+
+        if documento.bloqueado and documento.bloqueado_por == request.user:
+            return Response({'status': 'already_locked'})
+
+        motivo = (request.data.get('motivo') or '').strip()
+        documento.bloqueado = True
+        documento.bloqueado_por = request.user
+        documento.bloqueado_em = timezone.now()
+        documento.motivo_bloqueio = motivo
+        documento.save(update_fields=['bloqueado', 'bloqueado_por', 'bloqueado_em', 'motivo_bloqueio'])
+
+        HistoricoCaixaEntrada.objects.create(
+            documento=documento,
+            acao='STATUS_ALTERADO',
+            usuario=request.user,
+            detalhes='Documento bloqueado' if not motivo else f'Documento bloqueado: {motivo}',
+            dados_novos={'bloqueado': True, 'motivo_bloqueio': motivo},
+        )
+
+        return Response({'status': 'success'})
+
+    @action(detail=True, methods=['post'])
+    def desbloquear(self, request, pk=None):
+        """Desbloqueia documento."""
+        documento = self.get_object()
+        if not _usuario_pode_bloquear_documento(request.user, documento):
+            return Response({'error': 'Sem permissao para desbloquear documento.'}, status=403)
+
+        if not documento.bloqueado:
+            return Response({'status': 'already_unlocked'})
+
+        documento.bloqueado = False
+        documento.bloqueado_por = None
+        documento.bloqueado_em = None
+        documento.motivo_bloqueio = ''
+        documento.save(update_fields=['bloqueado', 'bloqueado_por', 'bloqueado_em', 'motivo_bloqueio'])
+
+        HistoricoCaixaEntrada.objects.create(
+            documento=documento,
+            acao='STATUS_ALTERADO',
+            usuario=request.user,
+            detalhes='Documento desbloqueado',
+            dados_novos={'bloqueado': False},
+        )
+
+        return Response({'status': 'success'})
     
 
     @action(detail=False, methods=['get'])
@@ -902,22 +1121,29 @@ class CaixaEntradaViewSet(viewsets.ModelViewSet):
     def encaminhar(self, request, pk=None):
         """Encaminha documento para outro setor"""
         documento = self.get_object()
+        destino_tipo = (request.data.get('destino_tipo') or 'setor').strip().lower()
         setor_destino = request.data.get('setor_destino')
-        responsavel_id = request.data.get('responsavel')
+        destinatario_id = request.data.get('destinatario_direto') or request.data.get('responsavel')
         motivo_predefinido = request.data.get('motivo_predefinido', '')
         assinatura = request.data.get('assinatura', '')
         observacoes_livres = request.data.get('observacoes', '')
 
-        if not setor_destino:
-            return Response({'error': 'Setor destino e obrigatorio'}, status=400)
+        if destino_tipo not in {'setor', 'usuario'}:
+            return Response({'error': 'Destino invalido. Use "setor" ou "usuario".'}, status=400)
 
         responsavel = None
-        if responsavel_id:
-            from django.contrib.auth.models import User
+        if destino_tipo == 'usuario':
+            if not destinatario_id:
+                return Response({'error': 'Destinatario direto obrigatorio para destino pessoal.'}, status=400)
             try:
-                responsavel = User.objects.get(id=responsavel_id)
+                responsavel = User.objects.get(id=destinatario_id)
             except (User.DoesNotExist, ValueError):
-                return Response({'error': 'Responsavel informado nao foi encontrado'}, status=400)
+                return Response({'error': 'Destinatario informado nao foi encontrado'}, status=400)
+            if not setor_destino:
+                setor_destino = _obter_setor_preferencial_usuario(responsavel) or documento.setor_destino
+        else:
+            if not setor_destino:
+                return Response({'error': 'Setor destino e obrigatorio'}, status=400)
 
         partes_mensagem = []
         if motivo_predefinido:
@@ -950,7 +1176,8 @@ class CaixaEntradaViewSet(viewsets.ModelViewSet):
             detalhes='Encaminhado para {}'.format(setor_destino),
             dados_novos={
                 'setor_destino': setor_destino,
-                'responsavel': responsavel_id,
+                'destino_tipo': destino_tipo,
+                'destinatario_direto': destinatario_id,
                 'motivo_predefinido': motivo_predefinido,
                 'assinatura': assinatura,
             }
@@ -1290,6 +1517,8 @@ class EstatisticasAPIView(APIView):
                 documentos = documentos.filter(tipo_documento=tipo_documento)
             if status_param:
                 documentos = documentos.filter(status=status_param)
+            else:
+                documentos = documentos.exclude(status='ENCAMINHADO')
             if prioridade:
                 documentos = documentos.filter(prioridade=prioridade)
             if destinatario:
@@ -1361,14 +1590,3 @@ class EstatisticasAPIView(APIView):
             return Response(estatisticas)
         except Exception as e:
             return Response({'error': str(e)}, status=500)
-
-
-
-
-
-
-
-
-
-
-

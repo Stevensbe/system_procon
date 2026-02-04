@@ -2,6 +2,10 @@
 Gerador de Relatórios em PDF para o módulo PPA
 """
 from io import BytesIO
+import logging
+import shutil
+import subprocess
+import tempfile
 from reportlab.lib.pagesizes import letter, A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
@@ -13,7 +17,12 @@ from reportlab.platypus import (
 )
 from reportlab.lib.colors import HexColor
 from django.utils import timezone
+from django.conf import settings
+from pathlib import Path
+from docx import Document
 from .models import ProcedimentoPreAdministrativo
+
+logger = logging.getLogger(__name__)
 
 
 class PPAReportGenerator:
@@ -79,7 +88,6 @@ class PPAReportGenerator:
             ppa = ProcedimentoPreAdministrativo.objects.select_related(
                 'analista_responsavel',
                 'supervisor',
-                'auto_constatacao_origem'
             ).prefetch_related(
                 'movimentacoes',
                 'anexos',
@@ -134,6 +142,48 @@ class PPAReportGenerator:
             
         except ProcedimentoPreAdministrativo.DoesNotExist:
             raise ValueError(f'PPA {ppa_id} não encontrado')
+
+    def gerar_pdf_capa(self, ppa_id):
+        """
+        Gera PDF de capa do PPA no layout simplificado.
+
+        Args:
+            ppa_id: ID do PPA
+        Returns:
+            BytesIO com o PDF gerado
+        """
+        try:
+            ppa = ProcedimentoPreAdministrativo.objects.select_related(
+                'analista_responsavel',
+                'supervisor',
+            ).prefetch_related(
+                'movimentacoes',
+                'anexos',
+                'pareceres'
+            ).get(id=ppa_id)
+
+            buffer = BytesIO()
+            doc = SimpleDocTemplate(
+                buffer,
+                pagesize=A4,
+                rightMargin=inch*0.7,
+                leftMargin=inch*0.7,
+                topMargin=inch,
+                bottomMargin=inch*0.7
+            )
+
+            story = []
+            story.extend(self._criar_cabecalho_capa(ppa))
+            story.append(Spacer(1, 0.2*inch))
+            story.extend(self._criar_campos_capa(ppa))
+            story.append(Spacer(1, 0.2*inch))
+            story.extend(self._criar_tabela_movimento_capa(ppa))
+
+            doc.build(story)
+            buffer.seek(0)
+            return buffer
+        except ProcedimentoPreAdministrativo.DoesNotExist:
+            raise ValueError(f'PPA {ppa_id} não encontrado')
     
     def _criar_cabecalho(self, ppa):
         """Cria o cabeçalho do relatório"""
@@ -158,6 +208,24 @@ class PPAReportGenerator:
             self.styles['CustomTitle']
         ))
         
+        return elements
+
+    def _criar_cabecalho_capa(self, ppa):
+        """Cria o cabeçalho simples da capa"""
+        elements = []
+
+        tabela = Table(
+            [
+                [f"PROCESSO Nº: {ppa.numero}", f"SIGLA: {ppa.get_sigla_display()}"]
+            ],
+            colWidths=[4.2*inch, 2.3*inch]
+        )
+        tabela.setStyle(TableStyle([
+            ('FONTNAME', (0, 0), (-1, -1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 11),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        ]))
+        elements.append(tabela)
         return elements
     
     def _criar_dados_ppa(self, ppa):
@@ -212,6 +280,73 @@ class PPAReportGenerator:
             elements.append(Paragraph("<b>OBSERVAÇÕES:</b>", self.styles['Label']))
             elements.append(Paragraph(ppa.observacoes, self.styles['CustomBody']))
         
+        return elements
+
+    def _criar_campos_capa(self, ppa):
+        """Cria os campos da capa no estilo do template PPA"""
+        elements = []
+
+        elements.append(Paragraph("<b>ASSUNTO:</b>", self.styles['Label']))
+        elements.append(Paragraph(ppa.assunto or "-", self.styles['CustomBody']))
+        elements.append(Spacer(1, 0.1*inch))
+
+        elements.append(Paragraph("<b>INTERESSADO:</b>", self.styles['Label']))
+        elements.append(Paragraph(ppa.interessado or "-", self.styles['CustomBody']))
+        elements.append(Spacer(1, 0.1*inch))
+
+        anexos = []
+        for anexo in ppa.anexos.order_by('data_anexacao'):
+            numero = anexo.numero_documento or anexo.get_tipo_documento_display()
+            detalhe = f"{numero}".strip()
+            if anexo.descricao:
+                detalhe = f"{detalhe} - {anexo.descricao}"
+            anexos.append(detalhe)
+        anexos_texto = "; ".join(anexos) if anexos else "-"
+
+        elements.append(Paragraph("<b>ANEXO:</b>", self.styles['Label']))
+        elements.append(Paragraph(anexos_texto, self.styles['CustomBody']))
+
+        return elements
+
+    def _criar_tabela_movimento_capa(self, ppa):
+        """Cria a tabela de movimento do processo para a capa"""
+        elements = []
+
+        elements.append(Paragraph("MOVIMENTO DO PROCESSO", self.styles['CustomHeading']))
+
+        movimentacoes = ppa.movimentacoes.order_by('data', 'hora')
+
+        if not movimentacoes.exists():
+            elements.append(Paragraph("Nenhuma movimentação registrada.", self.styles['Normal']))
+            return elements
+
+        data = [
+            [
+                Paragraph("<b>DATA</b>", self.styles['Normal']),
+                Paragraph("<b>HORA</b>", self.styles['Normal']),
+                Paragraph("<b>ATENDIMENTO</b>", self.styles['Normal'])
+            ]
+        ]
+
+        for mov in movimentacoes:
+            hora = mov.hora.strftime('%H:%M') if mov.hora else '-'
+            data.append([
+                mov.data.strftime('%d/%m/%Y') if mov.data else '-',
+                hora,
+                Paragraph(mov.atendimento, self.styles['CustomBody'])
+            ])
+
+        table = Table(data, colWidths=[1.2*inch, 0.9*inch, 4.4*inch])
+        table.setStyle(TableStyle([
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+            ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+        ]))
+
+        elements.append(table)
         return elements
     
     def _criar_tabela_movimentacoes(self, ppa):
@@ -375,7 +510,7 @@ class PPAReportGenerator:
 
 def gerar_pdf_ppa(ppa_id):
     """
-    Função auxiliar para gerar PDF do PPA
+    Função auxiliar para gerar PDF do PPA (capa simplificada)
     
     Args:
         ppa_id: ID do PPA
@@ -383,6 +518,125 @@ def gerar_pdf_ppa(ppa_id):
     Returns:
         BytesIO com o PDF gerado
     """
+    docx_bytes = gerar_docx_ppa(ppa_id)
+    pdf_bytes = _converter_docx_para_pdf(docx_bytes, f"PPA_{ppa_id}")
+    if pdf_bytes:
+        buffer = BytesIO(pdf_bytes)
+        buffer.seek(0)
+        return buffer
+
+    logger.warning("Conversao DOCX->PDF indisponivel. Usando renderizacao simplificada.")
     generator = PPAReportGenerator()
-    return generator.gerar_pdf_completo(ppa_id)
+    return generator.gerar_pdf_capa(ppa_id)
+
+
+def _set_cell_text(cell, text):
+    cell.text = text or ''
+
+
+def _set_cell_label_value(cell, label, value):
+    cell.text = label
+    if value:
+        cell.add_paragraph(str(value))
+
+
+def _converter_docx_para_pdf(docx_bytes, nome_base):
+    """Converte um DOCX em PDF e retorna os bytes, ou None se falhar."""
+    if not docx_bytes:
+        return None
+    safe_name = (nome_base or 'PPA').replace('/', '_')
+    with tempfile.TemporaryDirectory() as tmpdir:
+        docx_path = Path(tmpdir) / f"{safe_name}.docx"
+        pdf_path = Path(tmpdir) / f"{safe_name}.pdf"
+        docx_path.write_bytes(docx_bytes)
+
+        try:
+            from docx2pdf import convert
+
+            convert(str(docx_path), str(tmpdir))
+            if pdf_path.exists():
+                return pdf_path.read_bytes()
+        except Exception:
+            pass
+
+        converter = shutil.which('soffice') or shutil.which('libreoffice')
+        if converter:
+            try:
+                subprocess.run(
+                    [converter, '--headless', '--convert-to', 'pdf', '--outdir', tmpdir, str(docx_path)],
+                    check=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                )
+                if pdf_path.exists():
+                    return pdf_path.read_bytes()
+            except Exception:
+                return None
+    return None
+
+
+def gerar_docx_ppa(ppa_id):
+    """
+    Gera DOCX de capa do PPA usando template.
+    """
+    try:
+        ppa = ProcedimentoPreAdministrativo.objects.select_related(
+            'analista_responsavel',
+            'supervisor',
+        ).prefetch_related(
+            'movimentacoes',
+            'anexos',
+            'pareceres'
+        ).get(id=ppa_id)
+    except ProcedimentoPreAdministrativo.DoesNotExist:
+        raise ValueError(f'PPA {ppa_id} não encontrado')
+
+    template_path = Path(settings.BASE_DIR) / 'ppa' / 'templates' / 'docs' / 'PPA.docx'
+    doc = Document(template_path)
+
+    if doc.tables:
+        # Tabela 0: Processo e Sigla
+        table0 = doc.tables[0]
+        if len(table0.rows) > 1 and len(table0.columns) > 1:
+            _set_cell_text(table0.cell(1, 0), ppa.numero)
+            _set_cell_text(table0.cell(1, 1), ppa.get_sigla_display())
+
+        # Assunto, Interessado, Anexo
+        if len(doc.tables) > 1:
+            _set_cell_label_value(doc.tables[1].cell(0, 0), "ASSUNTO:", ppa.assunto or "-")
+        if len(doc.tables) > 2:
+            _set_cell_label_value(doc.tables[2].cell(0, 0), "INTERESSADO:", ppa.interessado or "-")
+        if len(doc.tables) > 3:
+            anexos = []
+            for anexo in ppa.anexos.order_by('data_anexacao'):
+                numero = anexo.numero_documento or anexo.get_tipo_documento_display()
+                detalhe = f"{numero}".strip()
+                if anexo.descricao:
+                    detalhe = f"{detalhe} - {anexo.descricao}"
+                anexos.append(detalhe)
+            anexos_texto = "; ".join(anexos) if anexos else "-"
+            _set_cell_label_value(doc.tables[3].cell(0, 0), "ANEXO:", anexos_texto)
+
+        # Tabela de movimento
+        if len(doc.tables) > 4:
+            table_mov = doc.tables[4]
+            linhas_disponiveis = max(len(table_mov.rows) - 2, 0)
+            movimentacoes = list(ppa.movimentacoes.order_by('data', 'hora'))
+
+            # Adiciona linhas extras se necessário
+            while len(movimentacoes) > linhas_disponiveis:
+                table_mov.add_row()
+                linhas_disponiveis += 1
+
+            for idx, mov in enumerate(movimentacoes):
+                row = table_mov.rows[2 + idx]
+                _set_cell_text(row.cells[0], mov.data.strftime('%d/%m/%Y') if mov.data else '-')
+                hora = mov.hora.strftime('%H:%M') if mov.hora else '-'
+                _set_cell_text(row.cells[3], hora)
+                _set_cell_text(row.cells[5], mov.atendimento or '')
+
+    buffer = BytesIO()
+    doc.save(buffer)
+    buffer.seek(0)
+    return buffer.getvalue()
 

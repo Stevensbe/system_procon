@@ -194,60 +194,6 @@ def criar_documento_caixa_entrada_processo_juridico(sender, instance, created, *
             logger.exception("Failed to create inbox document for process %s", instance.numero)
 
 
-@receiver(post_save, sender='portal_cidadao.DenunciaCidadao')
-def criar_documento_caixa_entrada_denuncia(sender, instance, created, **kwargs):
-    """
-    Cria documento na caixa de entrada quando uma denúncia é criada via Portal do Cidadão
-    """
-    if getattr(settings, "TESTING", False):
-        return
-    if created:
-        try:
-            # Preparar dados do remetente baseado no anonimato
-            if instance.denuncia_anonima:
-                remetente_nome = "Denunciante Anônimo"
-                remetente_documento = "N/A"
-                remetente_email = "anonimo@procon.gov.br"
-                remetente_telefone = "N/A"
-                assunto = f'Denúncia Anônima - {instance.empresa_denunciada}'
-            else:
-                remetente_nome = instance.nome_denunciante
-                remetente_documento = instance.cpf_cnpj
-                remetente_email = instance.email
-                remetente_telefone = instance.telefone
-                assunto = f'Denúncia - {instance.empresa_denunciada}'
-            
-            # Criar documento na caixa de entrada para DENÚNCIAS
-            documento = CaixaEntrada.objects.create(
-                tipo_documento='DENUNCIA',
-                assunto=assunto,
-                descricao=instance.descricao_fatos,
-                prioridade='ALTA',
-                remetente_nome=remetente_nome,
-                remetente_documento=remetente_documento,
-                remetente_email=remetente_email,
-                remetente_telefone=remetente_telefone,
-                empresa_nome=instance.empresa_denunciada,
-                empresa_cnpj=instance.cnpj_empresa,
-                setor_destino='Fiscalização',
-                origem='PORTAL_CIDADAO',
-                content_type=ContentType.objects.get_for_model(instance),
-                object_id=instance.id
-            )
-            
-            # Registrar no histórico
-            HistoricoCaixaEntrada.objects.create(
-                documento=documento,
-                acao='CRIADO',
-                detalhes=f'Denúncia criada via Portal do Cidadão - {instance.numero_denuncia}'
-            )
-            
-            logger.info("Document %s created in complaints inbox for report %s", documento.numero_protocolo, instance.numero_denuncia)
-            
-        except Exception:
-            logger.exception("Failed to create inbox document for report %s", instance.numero_denuncia)
-
-
 @receiver(post_save, sender='fiscalizacao.AutoInfracao')
 def criar_documento_caixa_entrada_auto_fiscal(sender, instance, created, **kwargs):
     """
@@ -290,6 +236,69 @@ def criar_documento_caixa_entrada_auto_fiscal(sender, instance, created, **kwarg
 
     except Exception:
         logger.exception("Failed to create inbox document for auto %s", getattr(instance, "numero", ""))
+
+
+@receiver(post_save, sender='fiscalizacao.Processo')
+def criar_documento_caixa_entrada_processo_fiscal(sender, instance, created, **kwargs):
+    """
+    Cria documento na caixa de entrada quando um processo administrativo é criado.
+    """
+    if getattr(settings, "TESTING", False):
+        return
+    if not created:
+        return
+
+    try:
+        content_type = ContentType.objects.get_for_model(instance)
+        if CaixaEntrada.objects.filter(content_type=content_type, object_id=instance.id).exists():
+            return
+
+        status = (instance.status or '').lower()
+        if status in {
+            'aguardando_defesa',
+            'defesa_apresentada',
+            'em_analise',
+            'aguardando_recurso',
+            'recurso_apresentado',
+            'julgamento',
+        }:
+            setor_destino = 'Juridico 1'
+        else:
+            setor_destino = 'Fiscalizacao'
+
+        documento = CaixaEntrada.objects.create(
+            tipo_documento='PROTOCOLO',
+            assunto=f'Processo Administrativo {instance.numero_processo}',
+            descricao=f'Processo {instance.numero_processo} - {instance.autuado}',
+            prioridade='NORMAL',
+            remetente_nome=instance.autuado,
+            remetente_documento=instance.cnpj or '',
+            remetente_email='',
+            empresa_nome=instance.autuado,
+            empresa_cnpj=instance.cnpj or '',
+            setor_destino=setor_destino,
+            origem='FISCALIZACAO',
+            content_type=content_type,
+            object_id=instance.id
+        )
+
+        if documento.protocolo_id and documento.protocolo.processo_fiscalizacao_id != instance.id:
+            documento.protocolo.processo_fiscalizacao = instance
+            documento.protocolo.save(update_fields=['processo_fiscalizacao'])
+
+        HistoricoCaixaEntrada.objects.create(
+            documento=documento,
+            acao='CRIADO',
+            detalhes=f'Processo administrativo {instance.numero_processo} criado'
+        )
+
+        logger.info(
+            "Document %s created in inbox for process %s",
+            documento.numero_protocolo,
+            instance.numero_processo,
+        )
+    except Exception:
+        logger.exception("Failed to create inbox document for process %s", instance.numero_processo)
 
 
 # Signal para atualizar status da caixa de entrada quando documento relacionado é atualizado

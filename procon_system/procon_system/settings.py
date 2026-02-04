@@ -8,6 +8,25 @@ import os
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Carregar .env (desenvolvimento) se existir
+def _load_env_file(path: Path) -> None:
+    if not path.exists():
+        return
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        if key and key not in os.environ:
+            os.environ[key] = value
+
+_load_env_file(BASE_DIR.parent / ".env")
+_load_env_file(BASE_DIR.parent / "frontend" / ".env.local")
+_load_env_file(BASE_DIR.parent / "frontend" / ".env")
+
+
 # ===================================================================
 # CONFIGURAÇÕES DE SEGURANÇA
 # ===================================================================
@@ -37,6 +56,21 @@ if not SECRET_KEY:
         )
 ALLOWED_HOSTS_STR = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1')
 ALLOWED_HOSTS = [host.strip() for host in ALLOWED_HOSTS_STR.split(',') if host.strip()]
+
+# ===================================================================
+# SUPABASE (Auth)
+# ===================================================================
+SUPABASE_URL = os.environ.get('SUPABASE_URL') or os.environ.get('VITE_SUPABASE_URL')
+SUPABASE_JWT_AUD = os.environ.get('SUPABASE_JWT_AUD', 'authenticated')
+SUPABASE_JWT_ISS = os.environ.get('SUPABASE_JWT_ISS')
+SUPABASE_JWKS_URL = os.environ.get('SUPABASE_JWKS_URL')
+
+if SUPABASE_URL:
+    SUPABASE_URL = SUPABASE_URL.rstrip('/')
+    if not SUPABASE_JWT_ISS:
+        SUPABASE_JWT_ISS = f"{SUPABASE_URL}/auth/v1"
+    if not SUPABASE_JWKS_URL:
+        SUPABASE_JWKS_URL = f"{SUPABASE_URL}/auth/v1/.well-known/jwks.json"
 
 # ===================================================================
 # APLICATIVOS INSTALADOS
@@ -229,6 +263,7 @@ def _get_int_env(name: str) -> int | None:
 
 TRIAGEM_ANALISTA_PADRAO_ID = _get_int_env('TRIAGEM_ANALISTA_PADRAO_ID')
 TRIAGEM_ANALISTA_PADRAO_USERNAME = os.environ.get('TRIAGEM_ANALISTA_PADRAO_USERNAME')
+TRIAGEM_CAPTURADORES_ATIVOS = os.environ.get('TRIAGEM_CAPTURADORES_ATIVOS', 'False').lower() in ('true', '1', 'yes')
 
 # Configurações de Email para Desenvolvimento (Console)
 if DEBUG and not EMAIL_HOST_USER:
@@ -328,6 +363,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
+        'core.authentication.SupabaseJWTAuthentication',
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',

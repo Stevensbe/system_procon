@@ -39,3 +39,14 @@ def atribuir_numero_auto(auto) -> None:
     auto.sincronizado_em = timezone.now()
     auto.save()
 
+
+@transaction.atomic
+def gerar_numero_processo_sei() -> str:
+    """Gera o próximo número sequencial para processos administrativos no padrão SEI."""
+    return utils.gerar_proximo_numero_processo_sei()
+
+
+def prever_numero_processo_sei() -> str:
+    """Retorna uma previsão do próximo número de processo SEI sem consumir a sequência."""
+    return utils.obter_proximo_numero_processo_sei_preview()
+

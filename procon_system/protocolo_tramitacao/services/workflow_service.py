@@ -48,6 +48,38 @@ def _obter_documento_caixa(protocolo: ProtocoloDocumento):
     )
 
 
+def _setor_eh_daf(setor: Optional[Setor]) -> bool:
+    if not setor:
+        return False
+    texto = f"{setor.sigla or ''} {setor.nome or ''}".upper()
+    return "DAF" in texto or "FINANCEIR" in texto or "ADMINISTRATIVA" in texto
+
+
+def _usuario_nome(usuario) -> str:
+    if not usuario:
+        return "sistema"
+    if getattr(usuario, "is_authenticated", False):
+        return usuario.get_full_name() or usuario.username
+    return "sistema"
+
+
+def _gerar_grm_se_recebido_no_daf(tramitacao: TramitacaoDocumento, usuario, observacoes: str = ""):
+    if not _setor_eh_daf(tramitacao.setor_destino):
+        return
+
+    processo = getattr(tramitacao.protocolo, "processo_fiscalizacao", None)
+    if not processo:
+        return
+
+    try:
+        from fiscalizacao.views.processo_views import _criar_grm_automatico  # import local evita ciclo
+    except Exception:
+        return
+
+    usuario_nome = _usuario_nome(usuario)
+    _criar_grm_automatico(processo, usuario_nome, observacoes)
+
+
 def _registrar_historico(documento, acao: str, usuario, detalhes: str = ""):
     if HistoricoCaixaEntrada is None or documento is None:
         return
@@ -413,6 +445,8 @@ class WorkflowProtocoloService:
             usuario=usuario,
             observacoes=observacoes,
         )
+
+        _gerar_grm_se_recebido_no_daf(tramitacao, usuario, observacoes)
 
         GerenciadorNotificacoes.notificar_recebimento(tramitacao, usuario_acao=usuario)
 

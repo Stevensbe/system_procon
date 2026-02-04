@@ -148,3 +148,36 @@ class ConfiguracaoSistema(models.Model):
     
     def __str__(self):
         return f"{self.chave} = {self.valor}"
+
+    @staticmethod
+    def _parse_bool(valor):
+        if isinstance(valor, bool):
+            return valor
+        if valor is None:
+            return False
+        texto = str(valor).strip().lower()
+        return texto in {"true", "1", "yes", "sim", "on", "ativo"}
+
+    @classmethod
+    def get_bool(cls, chave, default=False):
+        config = cls.objects.filter(chave=chave).first()
+        if not config:
+            return default
+        return cls._parse_bool(config.valor)
+
+    @classmethod
+    def ensure_defaults(cls):
+        defaults = [
+            {
+                "chave": "triagem_capturadores_ativos",
+                "valor": "false",
+                "descricao": "Ativa capturadores de demanda (email/telefone/presencial).",
+                "tipo": "boolean",
+                "categoria": "triagem",
+                "editavel": True,
+            },
+        ]
+        for item in defaults:
+            chave = item["chave"]
+            data = {k: v for k, v in item.items() if k != "chave"}
+            cls.objects.get_or_create(chave=chave, defaults=data)

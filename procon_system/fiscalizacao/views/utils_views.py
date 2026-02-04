@@ -353,6 +353,10 @@ def upload_anexo(request):
 # VIEWS DE GERAÇÃO DE DOCUMENTOS
 # ========================================
 
+
+
+
+
 @api_view(['GET'])
 def gerar_documento_banco(request, pk):
     """
@@ -426,25 +430,95 @@ def gerar_documento_posto(request, pk):
     """
     try:
         auto = get_object_or_404(AutoPosto, pk=pk)
-        
-        # Similar ao banco, mas específico para posto
-        doc = Document()
-        
-        titulo = doc.add_heading('AUTO DE CONSTATAÇÃO - POSTO DE COMBUSTÍVEL', 0)
-        titulo.alignment = 1
-        
-        # ... implementação similar
-        
+
+        template_path = os.path.join(
+            settings.BASE_DIR,
+            'fiscalizacao',
+            'templates',
+            'docs',
+            'Posto.docx',
+        )
+        if not os.path.exists(template_path):
+            return Response({'error': 'Template do Auto de Posto nao encontrado.'}, status=500)
+
+        doc = Document(template_path)
+
+        def format_date(value):
+            if not value:
+                return '____/____/____'
+            if isinstance(value, str):
+                return value
+            return value.strftime('%d/%m/%Y')
+
+        def format_time(value):
+            if not value:
+                return '_____:_____'
+            if isinstance(value, str):
+                return value[:5]
+            return value.strftime('%H:%M')
+
+        def mark_checkbox(value):
+            return '(X)' if value else '( )'
+
+        origem = auto.origem or ''
+        replacements = {
+            '{{numero}}': auto.numero or '',
+            '{{razao_social}}': auto.razao_social or '',
+            '{{nome_fantasia}}': auto.nome_fantasia or '',
+            '{{porte}}': auto.porte or '',
+            '{{atuacao}}': auto.atuacao or '',
+            '{{atividade}}': auto.atividade or '',
+            '{{endereco}}': auto.endereco or '',
+            '{{cep}}': auto.cep or '',
+            '{{municipio}}': auto.municipio or '',
+            '{{cnpj}}': auto.cnpj or '',
+            '{{telefone}}': auto.telefone or '',
+            '{{origem_outros}}': auto.origem_outros or '',
+            '{{hora_fiscalizacao}}': format_time(auto.hora_fiscalizacao),
+            '{{data_fiscalizacao}}': format_date(auto.data_fiscalizacao),
+            '{{prazo_envio_documentos}}': str(auto.prazo_envio_documentos or ''),
+            '{{info_adicionais}}': auto.info_adicionais or '',
+            '{{outras_irregularidades}}': auto.outras_irregularidades or '',
+            '{{dispositivos_legais}}': auto.dispositivos_legais or '',
+            '{{responsavel_nome}}': auto.responsavel_nome or '',
+            '{{fiscal_nome_1}}': auto.fiscal_nome_1 or '',
+            '{{responsavel_cpf}}': auto.responsavel_cpf or '',
+            '{{cb_origem_acao}}': mark_checkbox(origem == 'acao'),
+            '{{cb_origem_denuncia}}': mark_checkbox(origem == 'denuncia'),
+            '{{cb_origem_forca_tarefa}}': mark_checkbox(origem == 'forca_tarefa'),
+            '{{cb_origem_outros}}': mark_checkbox(origem == 'outros'),
+            'ESTADO: AM': f"ESTADO: {auto.estado or 'AM'}",
+        }
+
+        def apply_replacements(text_value):
+            for key, value in replacements.items():
+                if key in text_value:
+                    text_value = text_value.replace(key, value)
+            return text_value
+
+        for paragraph in doc.paragraphs:
+            updated = apply_replacements(paragraph.text)
+            if updated != paragraph.text:
+                paragraph.text = updated
+
+        for table in doc.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    updated = apply_replacements(cell.text)
+                    if updated != cell.text:
+                        cell.text = updated
+
         buffer = io.BytesIO()
         doc.save(buffer)
         buffer.seek(0)
-        
+
         response = HttpResponse(
             buffer.getvalue(),
-            content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         )
-        response['Content-Disposition'] = f'attachment; filename="auto_posto_{auto.numero}.docx"'
-        
+        safe_numero = (auto.numero or '').replace('/', '_')
+        response['Content-Disposition'] = f'attachment; filename="auto_posto_{safe_numero}.docx"'
+
         return response
         
     except Exception as e:
@@ -460,27 +534,201 @@ def gerar_documento_supermercado(request, pk):
     """
     try:
         auto = get_object_or_404(AutoSupermercado, pk=pk)
-        
-        # Implementação similar para supermercado
-        doc = Document()
-        
-        titulo = doc.add_heading('AUTO DE CONSTATAÇÃO - SUPERMERCADO', 0)
-        titulo.alignment = 1
-        
-        # ... implementação específica
-        
+
+        template_path = os.path.join(
+            settings.BASE_DIR,
+            'fiscalizacao',
+            'templates',
+            'docs',
+            'AutoConstatacaoSupermercado.docx',
+        )
+        if not os.path.exists(template_path):
+            return Response({'error': 'Template do Auto de Supermercado nao encontrado.'}, status=500)
+
+        doc = Document(template_path)
+
+        def format_date(value):
+            if not value:
+                return '____/____/____'
+            if isinstance(value, str):
+                return value
+            return value.strftime('%d/%m/%Y')
+
+        def format_time(value):
+            if not value:
+                return '_____:_____'
+            if isinstance(value, str):
+                return value[:5]
+            return value.strftime('%H:%M')
+
+        def mark_checkbox(value):
+            return '(X)' if value else '( )'
+
+        def mark_yes_no(value):
+            if value is True:
+                return '(X)', '( )'
+            if value is False:
+                return '( )', '(X)'
+            return '( )', '( )'
+
+        def build_origem_text():
+            origem = auto.origem or ''
+            outros_texto = auto.origem_outros or ''
+            return (
+                'EM CUMPRIMENTO À:\n'
+                f"{mark_checkbox(origem == 'acao')} AÇÃO FISCALIZATÓRIA  "
+                f"{mark_checkbox(origem == 'denuncia')} DENÚNCIA  "
+                f"{mark_checkbox(origem == 'forca_tarefa')} FORÇA TAREFA\n\n"
+                f"OUTROS: {outros_texto}"
+            )
+
+        def build_cominacao_text():
+            data_texto = format_date(auto.data_fiscalizacao)
+            hora_texto = format_time(auto.hora_fiscalizacao)
+            texto = (
+                'COMINAÇÃO LEGAL:\n'
+                f"Às {hora_texto} horas do dia {data_texto}, no exercício das competências dispostas no art. 55 e seguintes da "
+                'Lei Federal nº 8.078/90, legalmente atribuídas ao Instituto de Defesa do Consumidor - PROCON AMAZONAS, '
+                'neste ato fiscalizatório, constatamos que:\n'
+                f"          {mark_checkbox(auto.nada_consta)} Não houve nenhuma irregularidade consumerista.\n"
+                'O estabelecimento visitado praticou as seguintes irregularidades e/ou violou as seguintes disposições legais:\n'
+                f"          {mark_checkbox(auto.comercializar_produtos_vencidos)} Comercializar produtos vencidos - art. 8º caput; art. 18 caput, §6º, incisos I e III; art. 39, inciso VIII, todos do CDC;\n"
+                f"          {mark_checkbox(auto.comercializar_embalagem_violada)} Comercializar produtos com embalagem violada - art. 8º caput; art. 18 caput, §6º, incisos II e III; art. 39, inciso VIII, todos do CDC;\n"
+                f"          {mark_checkbox(auto.comercializar_lata_amassada)} Comercializar produtos com lata amassada - art. 8º caput; art. 18 caput, §6º, incisos II e III; art. 39, inciso VIII, todos do CDC;\n"
+                f"          {mark_checkbox(auto.comercializar_sem_validade)} Comercializar produtos sem validade ou com validade ilegível - art. 8º caput; art. 18 caput, §6º, incisos II e III; art. 31 caput e parágrafo único; art. 37 caput, §1º e §3º; art. 39, inciso VIII, todos do CDC;\n"
+                f"          {mark_checkbox(auto.comercializar_mal_armazenados)} Comercializar produtos mal armazenados - art. 8º caput; art. 18 caput, §6º, inciso II; art. 39, inciso VIII do CDC;\n"
+                f"          {mark_checkbox(auto.comercializar_descongelados)} Comercializar produtos parcialmente/totalmente descongelados - art. 8º caput; art. 18 caput, §6º, inciso II; art. 39, inciso VIII do CDC;\n"
+                f"          {mark_checkbox(auto.publicidade_enganosa)} Publicidade enganosa - art. 37 caput, §1º e §3º; art. 38 do CDC;\n"
+                f"          {mark_checkbox(auto.obstrucao_monitor)} Obstrução do monitor, impossibilitando o consumidor de visualizá-lo - art. 1º; art. 2º e art. 3º da Lei Estadual nº 4.777/2019;\n"
+                f"          {mark_checkbox(auto.afixacao_precos_fora_padrao)} Afixação de preços fora do padrão estabelecido na Lei nº 10.962/2004 - art. 2º, incisos I e II da Lei nº 10.962/2004;\n"
+                f"          {mark_checkbox(auto.ausencia_afixacao_precos)} Ausência de afixação de preços - art. 2º, incisos I e II da Lei nº 10.962/2004;\n"
+                f"          {mark_checkbox(auto.afixacao_precos_fracionados_fora_padrao)} Afixação de preços na venda a varejo de produtos fracionados fora do padrão estabelecido na Lei nº 10.962/2004 - art. 2º-A da Lei nº 10.962/2010;\n"
+                f"          {mark_checkbox(auto.ausencia_visibilidade_descontos)} Ausência de visibilidade de descontos oferecidos em função do prazo ou instrumento de pagamento utilizado - art. 5º-A da Lei nº 10.962/2010;\n"
+                f"          {mark_checkbox(auto.ausencia_placas_promocao_vencimento)} Descumprimento do Art. 1º da Lei nº 7.355/2025 - ausência das placas ou cartazes informativos acerca da data de validade de produtos em promoção que estiverem a menos de dez dias do seu vencimento."
+            )
+            if auto.cominacao_legal:
+                texto = f"{texto}\n{auto.cominacao_legal}"
+            return texto
+
+        def build_instrucoes_text():
+            prazo = auto.prazo_cumprimento_dias if auto.prazo_cumprimento_dias is not None else '____'
+            texto = (
+                'De acordo com a Lei Federal Nº 8.078/90, Decreto Estadual Nº 18.606/98 e Legislação Complementar, '
+                f"fica o autuado intimado ao cumprimento da obrigação abaixo descrita no prazo de {prazo} dia(s) a partir da lavratura do presente Auto."
+            )
+            if auto.instrucoes_fiscalizado:
+                texto = f"{texto}\n\n{auto.instrucoes_fiscalizado}"
+            return texto
+
+        def build_outras_irregularidades_text():
+            outras = auto.outras_irregularidades or ''
+            return 'OUTRAS IRREGULARIDADES CONSTATADAS/OUTRAS COMINAÇÕES LEGAIS:\n\n' + outras
+
+        def build_narrativa_text():
+            narrativa = auto.narrativa_fatos or ''
+            return 'NARRATIVA DOS FATOS\n\n' + narrativa
+
+        def build_anexos_text():
+            anexo_sim, anexo_nao = mark_yes_no(auto.possui_anexo)
+            apreensao_sim, apreensao_nao = mark_yes_no(auto.auto_apreensao)
+            pericia_sim, pericia_nao = mark_yes_no(auto.necessita_pericia)
+            vicios = mark_checkbox(auto.vicios_aparentes)
+            numero = auto.auto_apreensao_numero or '____________'
+            return (
+                f"POSSUI ANEXO: SIM {anexo_sim} NÃO {anexo_nao}\n"
+                f"POSSUI AUTO DE APREENSÃO / INUTILIZAÇÃO  SIM {apreensao_sim} NÃO {apreensao_nao}  Nº{numero}\n"
+                'O procedimento administrativo será regulado nos termos do Decreto Estadual 43.614/21 para fins de prazos e impugnações.\n'
+                f"Os itens apreendidos e/ou descartados necessitam de perícia; {pericia_sim} SIM  {pericia_nao} NÃO, todos os vícios que os tornam impróprios estavam aparentes. {vicios}"
+            )
+
+        replacements = {
+            'RAZÃO SOCIAL:': f"RAZÃO SOCIAL: {auto.razao_social or ''}",
+            'NOME FANTASIA:': f"NOME FANTASIA: {auto.nome_fantasia or ''}",
+            'PORTE:': f"PORTE: {auto.porte or ''}",
+            'ATUAÇÃO:': f"ATUAÇÃO: {auto.atuacao or ''}",
+            'ATIVIDADE:': f"ATIVIDADE: {auto.atividade or ''}",
+            'ENDEREÇO:': f"ENDEREÇO: {auto.endereco or ''}",
+            'CEP:': f"CEP: {auto.cep or ''}",
+            'MUNICÍPIO:': f"MUNICÍPIO: {auto.municipio or ''}",
+            'ESTADO: AMAZONAS': f"ESTADO: {auto.estado or 'AM'}",
+            'CNPJ:': f"CNPJ: {auto.cnpj or ''}",
+            'TELEFONE:': f"TELEFONE: {auto.telefone or ''}",
+        }
+
+        def apply_replacements(text_value):
+            text_value = re.sub(
+                r'AUTO DE CONSTATAÇÃO Nº\s*/\s*\.',
+                f"AUTO DE CONSTATAÇÃO Nº {auto.numero or ''}",
+                text_value,
+            )
+            for key, value in replacements.items():
+                if key in text_value:
+                    text_value = text_value.replace(key, value)
+            return text_value
+
+        for paragraph in doc.paragraphs:
+            updated = apply_replacements(paragraph.text)
+            if 'EM CUMPRIMENTO' in updated:
+                paragraph.text = build_origem_text()
+                continue
+            if 'COMINAÇÃO LEGAL' in updated:
+                paragraph.text = build_cominacao_text()
+                continue
+            if 'De acordo com a Lei Federal' in updated:
+                paragraph.text = build_instrucoes_text()
+                continue
+            if 'OUTRAS IRREGULARIDADES CONSTATADAS/OUTRAS COMINAÇÕES LEGAIS' in updated:
+                paragraph.text = build_outras_irregularidades_text()
+                continue
+            if 'NARRATIVA DOS FATOS' in updated:
+                paragraph.text = build_narrativa_text()
+                continue
+            if 'POSSUI ANEXO' in updated:
+                paragraph.text = build_anexos_text()
+                continue
+            if updated != paragraph.text:
+                paragraph.text = updated
+
+        for table in doc.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    texto = cell.text
+                    if 'EM CUMPRIMENTO' in texto:
+                        cell.text = build_origem_text()
+                        continue
+                    if 'COMINAÇÃO LEGAL' in texto:
+                        cell.text = build_cominacao_text()
+                        continue
+                    if 'De acordo com a Lei Federal' in texto:
+                        cell.text = build_instrucoes_text()
+                        continue
+                    if 'OUTRAS IRREGULARIDADES CONSTATADAS/OUTRAS COMINAÇÕES LEGAIS' in texto:
+                        cell.text = build_outras_irregularidades_text()
+                        continue
+                    if 'NARRATIVA DOS FATOS' in texto:
+                        cell.text = build_narrativa_text()
+                        continue
+                    if 'POSSUI ANEXO' in texto:
+                        cell.text = build_anexos_text()
+                        continue
+
+                    updated = apply_replacements(texto)
+                    if updated != texto:
+                        cell.text = updated
+
         buffer = io.BytesIO()
         doc.save(buffer)
         buffer.seek(0)
-        
+
         response = HttpResponse(
             buffer.getvalue(),
-            content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         )
-        response['Content-Disposition'] = f'attachment; filename="auto_supermercado_{auto.numero}.docx"'
-        
+        safe_numero = (auto.numero or '').replace('/', '_')
+        response['Content-Disposition'] = f'attachment; filename="auto_supermercado_{safe_numero}.docx"'
+
         return response
-        
+
     except Exception as e:
         return Response({
             'error': str(e)
@@ -494,25 +742,103 @@ def gerar_documento_diversos(request, pk):
     """
     try:
         auto = get_object_or_404(AutoDiversos, pk=pk)
-        
-        # Implementação para diversos
-        doc = Document()
-        
-        titulo = doc.add_heading('AUTO DE CONSTATAÇÃO - LEGISLAÇÃO DIVERSA', 0)
-        titulo.alignment = 1
-        
-        # ... implementação específica
-        
+
+        template_path = os.path.join(
+            settings.BASE_DIR,
+            'fiscalizacao',
+            'templates',
+            'docs',
+            'Diversos.docx',
+        )
+        if not os.path.exists(template_path):
+            return Response({'error': 'Template do Auto Diversos nao encontrado.'}, status=500)
+
+        doc = Document(template_path)
+
+        def format_date(value):
+            if not value:
+                return '____/____/____'
+            if isinstance(value, str):
+                return value
+            return value.strftime('%d/%m/%Y')
+
+        def format_time(value):
+            if not value:
+                return '_____:_____'
+            if isinstance(value, str):
+                return value[:5]
+            return value.strftime('%H:%M')
+
+        def mark_checkbox(value):
+            return '(X)' if value else '( )'
+
+        origem = auto.origem or ''
+        replacements = {
+            '{{numero}}': auto.numero or '',
+            '{{razao_social}}': auto.razao_social or '',
+            '{{nome_fantasia}}': auto.nome_fantasia or '',
+            '{{porte}}': auto.porte or '',
+            '{{atuacao}}': auto.atuacao or '',
+            '{{atividade}}': auto.atividade or '',
+            '{{endereco}}': auto.endereco or '',
+            '{{cep}}': auto.cep or '',
+            '{{municipio}}': auto.municipio or '',
+            '{{cnpj}}': auto.cnpj or '',
+            '{{telefone}}': auto.telefone or '',
+            '{{hora_fiscalizacao}}': format_time(auto.hora_fiscalizacao),
+            '{{data_fiscalizacao}}': format_date(auto.data_fiscalizacao),
+            '{{outras_irregularidades}}': auto.outras_irregularidades or '',
+            '{{narrativa_fatos}}': auto.narrativa_fatos or '',
+            '{{origem_outros}}': auto.origem_outros or '',
+            '{{responsavel_nome}}': auto.responsavel_nome or '',
+            '{{fiscal_nome_1}}': auto.fiscal_nome_1 or '',
+            '{{responsavel_cpf}}': auto.responsavel_cpf or '',
+            '{{cb_publicidade_enganosa}}': mark_checkbox(auto.publicidade_enganosa),
+            '{{cb_afixacao_fora_padrao}}': mark_checkbox(auto.afixacao_precos_fora_padrao),
+            '{{cb_ausencia_afixacao}}': mark_checkbox(auto.ausencia_afixacao_precos),
+            '{{cb_eletronico_fora_padrao}}': mark_checkbox(auto.afixacao_precos_eletronico_fora_padrao),
+            '{{cb_ausencia_eletronico}}': mark_checkbox(auto.ausencia_afixacao_precos_eletronico),
+            '{{cb_fracionados_fora_padrao}}': mark_checkbox(auto.afixacao_precos_fracionados_fora_padrao),
+            '{{cb_ausencia_descontos}}': mark_checkbox(auto.ausencia_visibilidade_descontos),
+            '{{cb_ausencia_cdc}}': mark_checkbox(auto.ausencia_exemplar_cdc),
+            '{{cb_substituicao_troco}}': mark_checkbox(auto.substituicao_troco),
+            '{{cb_advertencia}}': mark_checkbox(auto.advertencia),
+            '{{cb_origem_acao}}': mark_checkbox(origem == 'acao'),
+            '{{cb_origem_denuncia}}': mark_checkbox(origem == 'denuncia'),
+            '{{cb_origem_forca_tarefa}}': mark_checkbox(origem == 'forca_tarefa'),
+            '{{cb_origem_outros}}': mark_checkbox(origem == 'outros'),
+            'ESTADO: AM': f"ESTADO: {auto.estado or 'AM'}",
+        }
+
+        def apply_replacements(text_value):
+            for key, value in replacements.items():
+                if key in text_value:
+                    text_value = text_value.replace(key, value)
+            return text_value
+
+        for paragraph in doc.paragraphs:
+            updated = apply_replacements(paragraph.text)
+            if updated != paragraph.text:
+                paragraph.text = updated
+
+        for table in doc.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    updated = apply_replacements(cell.text)
+                    if updated != cell.text:
+                        cell.text = updated
+
         buffer = io.BytesIO()
         doc.save(buffer)
         buffer.seek(0)
-        
+
         response = HttpResponse(
             buffer.getvalue(),
-            content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         )
-        response['Content-Disposition'] = f'attachment; filename="auto_diversos_{auto.numero}.docx"'
-        
+        safe_numero = (auto.numero or '').replace('/', '_')
+        response['Content-Disposition'] = f'attachment; filename=\"auto_diversos_{safe_numero}.docx\"'
+
         return response
         
     except Exception as e:

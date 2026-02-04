@@ -4,12 +4,80 @@ from .models import (
 )
 from .constants import DESPACHO_PREDEFINIDOS
 
+try:
+    from protocolo_tramitacao.models import TramitacaoDocumento
+except ImportError:  # pragma: no cover - dependencia opcional
+    TramitacaoDocumento = None
+
+
+def _obter_tramitacoes(obj):
+    protocolo = getattr(obj, 'protocolo', None)
+    if not protocolo or not TramitacaoDocumento:
+        return []
+    if hasattr(protocolo, 'tramitacoes_ordenadas'):
+        return protocolo.tramitacoes_ordenadas
+    return protocolo.tramitacoes.select_related(
+        'setor_origem',
+        'setor_destino',
+        'usuario',
+        'recebido_por',
+    ).order_by('-data_tramitacao')
+
+
+def _obter_ultima_tramitacao(obj):
+    tramitacoes = _obter_tramitacoes(obj)
+    if isinstance(tramitacoes, list):
+        return tramitacoes[0] if tramitacoes else None
+    return tramitacoes.first()
+
+
+def _serializar_tramitacao(tramitacao):
+    if not tramitacao:
+        return None
+    usuario_nome = ''
+    if getattr(tramitacao, 'usuario', None):
+        usuario_nome = tramitacao.usuario.get_full_name() or tramitacao.usuario.username
+    return {
+        'id': tramitacao.id,
+        'acao': tramitacao.acao,
+        'acao_display': tramitacao.get_acao_display(),
+        'setor_origem_nome': getattr(tramitacao.setor_origem, 'nome', ''),
+        'setor_destino_nome': getattr(tramitacao.setor_destino, 'nome', ''),
+        'motivo': tramitacao.motivo,
+        'observacoes': tramitacao.observacoes,
+        'prazo_dias': tramitacao.prazo_dias,
+        'usuario_nome': usuario_nome,
+        'data_tramitacao': tramitacao.data_tramitacao,
+    }
+
+
+def _obter_processo(obj):
+    protocolo = getattr(obj, 'protocolo', None)
+    if not protocolo:
+        return None
+    processo = getattr(protocolo, 'processo_fiscalizacao', None)
+    if processo:
+        return processo
+    auto_infracao = getattr(protocolo, 'auto_infracao', None)
+    if not auto_infracao:
+        return None
+    try:
+        from fiscalizacao.models import Processo
+    except Exception:  # pragma: no cover - dependencia opcional
+        return None
+    return Processo.objects.filter(auto_infracao=auto_infracao).first()
+
 
 class CaixaEntradaSerializer(serializers.ModelSerializer):
     """Serializer básico para caixa de entrada"""
     
     responsavel_atual_nome = serializers.CharField(source='responsavel_atual.get_full_name', read_only=True)
     destinatario_direto_nome = serializers.CharField(source='destinatario_direto.get_full_name', read_only=True)
+    bloqueado_por_nome = serializers.CharField(source='bloqueado_por.get_full_name', read_only=True)
+    pode_bloquear = serializers.SerializerMethodField()
+    ultima_tramitacao = serializers.SerializerMethodField()
+    processo_id = serializers.SerializerMethodField()
+    processo_numero = serializers.SerializerMethodField()
     
     class Meta:
         model = CaixaEntrada
@@ -19,10 +87,37 @@ class CaixaEntradaSerializer(serializers.ModelSerializer):
             'remetente_email', 'remetente_telefone', 'empresa_nome', 'empresa_cnpj',
             'setor_destino', 'setor_lotacao', 'responsavel_atual', 'responsavel_atual_nome',
             'destinatario_direto', 'destinatario_direto_nome', 'notificado_dte',
-            'data_entrada', 'prazo_resposta', 'versao'
+            'bloqueado', 'bloqueado_por', 'bloqueado_por_nome', 'bloqueado_em', 'motivo_bloqueio',
+            'pode_bloquear', 'data_entrada', 'prazo_resposta', 'versao',
+            'ultima_tramitacao', 'processo_id', 'processo_numero'
         ]
         read_only_fields = ['id', 'numero_protocolo', 'data_entrada', 'versao', 'protocolo',
-                             'responsavel_atual_nome', 'destinatario_direto', 'destinatario_direto_nome']
+                             'responsavel_atual_nome', 'destinatario_direto', 'destinatario_direto_nome',
+                             'bloqueado', 'bloqueado_por', 'bloqueado_por_nome', 'bloqueado_em', 'motivo_bloqueio',
+                             'pode_bloquear']
+
+    def get_pode_bloquear(self, obj):
+        request = self.context.get('request')
+        func = self.context.get('pode_bloquear_func')
+        if not request or not func or not getattr(request, 'user', None):
+            return False
+        if not request.user.is_authenticated:
+            return False
+        return bool(func(request.user, obj))
+
+    def get_ultima_tramitacao(self, obj):
+        tramitacao = _obter_ultima_tramitacao(obj)
+        return _serializar_tramitacao(tramitacao)
+
+    def get_processo_id(self, obj):
+        processo = _obter_processo(obj)
+        return processo.id if processo else None
+
+    def get_processo_numero(self, obj):
+        processo = _obter_processo(obj)
+        if not processo:
+            return None
+        return getattr(processo, 'numero_processo', None)
 
 
 class CaixaEntradaDetailSerializer(serializers.ModelSerializer):
@@ -31,8 +126,14 @@ class CaixaEntradaDetailSerializer(serializers.ModelSerializer):
     responsavel_atual_nome = serializers.CharField(source='responsavel_atual.get_full_name', read_only=True)
     destinatario_direto_nome = serializers.CharField(source='destinatario_direto.get_full_name', read_only=True)
     lido_por_nome = serializers.CharField(source='lido_por.get_full_name', read_only=True)
+    bloqueado_por_nome = serializers.CharField(source='bloqueado_por.get_full_name', read_only=True)
+    pode_bloquear = serializers.SerializerMethodField()
     dias_para_vencimento = serializers.SerializerMethodField()
     esta_atrasado = serializers.SerializerMethodField()
+    ultima_tramitacao = serializers.SerializerMethodField()
+    tramitacoes = serializers.SerializerMethodField()
+    processo_id = serializers.SerializerMethodField()
+    processo_numero = serializers.SerializerMethodField()
     
     class Meta:
         model = CaixaEntrada
@@ -43,13 +144,19 @@ class CaixaEntradaDetailSerializer(serializers.ModelSerializer):
             'remetente_telefone', 'empresa_nome', 'empresa_cnpj', 'setor_destino',
             'setor_lotacao', 'responsavel_atual', 'responsavel_atual_nome',
             'destinatario_direto', 'destinatario_direto_nome', 'origem', 'ip_origem',
-            'notificado_dte', 'prazo_resposta', 'data_entrada', 'data_atualizacao', 'versao',
-            'dias_para_vencimento', 'esta_atrasado'
+            'notificado_dte', 'bloqueado', 'bloqueado_por', 'bloqueado_por_nome',
+            'bloqueado_em', 'motivo_bloqueio', 'pode_bloquear', 'prazo_resposta', 'data_entrada',
+            'data_atualizacao', 'versao',
+            'dias_para_vencimento', 'esta_atrasado',
+            'ultima_tramitacao', 'tramitacoes',
+            'processo_id', 'processo_numero'
         ]
         read_only_fields = [
             'id', 'numero_protocolo', 'data_entrada', 'data_atualizacao',
             'versao', 'dias_para_vencimento', 'esta_atrasado', 'protocolo_id', 'protocolo_numero',
-            'responsavel_atual_nome', 'destinatario_direto', 'destinatario_direto_nome'
+            'responsavel_atual_nome', 'destinatario_direto', 'destinatario_direto_nome',
+            'bloqueado', 'bloqueado_por', 'bloqueado_por_nome', 'bloqueado_em', 'motivo_bloqueio',
+            'pode_bloquear'
         ]
     
     def get_dias_para_vencimento(self, obj):
@@ -57,6 +164,37 @@ class CaixaEntradaDetailSerializer(serializers.ModelSerializer):
     
     def get_esta_atrasado(self, obj):
         return obj.esta_atrasado()
+
+    def get_pode_bloquear(self, obj):
+        request = self.context.get('request')
+        func = self.context.get('pode_bloquear_func')
+        if not request or not func or not getattr(request, 'user', None):
+            return False
+        if not request.user.is_authenticated:
+            return False
+        return bool(func(request.user, obj))
+
+    def get_ultima_tramitacao(self, obj):
+        tramitacao = _obter_ultima_tramitacao(obj)
+        return _serializar_tramitacao(tramitacao)
+
+    def get_tramitacoes(self, obj):
+        tramitacoes = _obter_tramitacoes(obj)
+        if isinstance(tramitacoes, list):
+            lista = tramitacoes[:20]
+        else:
+            lista = list(tramitacoes[:20])
+        return [_serializar_tramitacao(item) for item in lista if item]
+
+    def get_processo_id(self, obj):
+        processo = _obter_processo(obj)
+        return processo.id if processo else None
+
+    def get_processo_numero(self, obj):
+        processo = _obter_processo(obj)
+        if not processo:
+            return None
+        return getattr(processo, 'numero_processo', None)
 
 
 class AnexoCaixaEntradaSerializer(serializers.ModelSerializer):
@@ -163,8 +301,10 @@ class ConsultarDocumentoSerializer(serializers.Serializer):
 class EncaminharDocumentoSerializer(serializers.Serializer):
     """Serializer para encaminhar documento"""
     
-    setor_destino = serializers.CharField(max_length=100)
+    destino_tipo = serializers.ChoiceField(choices=['setor', 'usuario'], required=False, default='setor')
+    setor_destino = serializers.CharField(max_length=100, required=False)
     responsavel = serializers.IntegerField(required=False)
+    destinatario_direto = serializers.IntegerField(required=False)
     observacoes = serializers.CharField(max_length=500, required=False)
     
     def validate_setor_destino(self, value):
@@ -173,13 +313,22 @@ class EncaminharDocumentoSerializer(serializers.Serializer):
             'Jurídico', 'Fiscalização', 'Cobrança', 'Atendimento',
             'Protocolo', 'Administrativo', 'Financeiro'
         ]
-        if value not in setores_validos:
+        if value and value not in setores_validos:
             raise serializers.ValidationError(
                 f"Setor deve ser um dos seguintes: {', '.join(setores_validos)}"
             )
         return value
 
     def validate(self, attrs):
+        destino_tipo = (attrs.get('destino_tipo') or 'setor').lower()
+        setor_destino = attrs.get('setor_destino')
+        destinatario = attrs.get('destinatario_direto') or attrs.get('responsavel')
+
+        if destino_tipo == 'usuario' and not destinatario:
+            raise serializers.ValidationError({'destinatario_direto': 'Destinatario obrigatorio para destino pessoal.'})
+        if destino_tipo == 'setor' and not setor_destino:
+            raise serializers.ValidationError({'setor_destino': 'Setor destino obrigatorio.'})
+
         motivo = (attrs.get('motivo_predefinido') or '').strip()
         if motivo and motivo not in [opcao for opcao, _ in DESPACHO_PREDEFINIDOS]:
             raise serializers.ValidationError({'motivo_predefinido': 'Motivo predefinido invalido.'})

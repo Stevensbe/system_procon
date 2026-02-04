@@ -10,6 +10,12 @@ from .models import AutoInfracao, HistoricoProcesso, Processo
 
 logger = logging.getLogger(__name__)
 
+def _auto_infracao_esta_notificada(auto_infracao) -> bool:
+    if getattr(auto_infracao, "data_notificacao", None):
+        return True
+    status = (getattr(auto_infracao, "status", "") or "").lower()
+    return status in {"notificado", "em_defesa", "em_recurso", "julgado", "pago", "finalizado"}
+
 
 @receiver(post_save, sender=AutoInfracao)
 def criar_processo_automatico(sender, instance, created, **kwargs):
@@ -20,42 +26,52 @@ def criar_processo_automatico(sender, instance, created, **kwargs):
     if getattr(settings, "TESTING", False):
         return
 
-    if created:
-        try:
-            if hasattr(instance, "processo"):
+    if not _auto_infracao_esta_notificada(instance):
+        return
+
+    try:
+        if Processo.objects.filter(auto_infracao=instance).exists():
+            return
+        if getattr(instance, "content_type", None) and getattr(instance, "object_id", None):
+            if Processo.objects.filter(
+                auto_constatacao_content_type=instance.content_type,
+                auto_constatacao_id=instance.object_id,
+            ).exists():
                 return
 
-            processo = Processo.objects.create(
-                auto_infracao=instance,
-                autuado=instance.razao_social,
-                cnpj=instance.cnpj,
-                status="aguardando_defesa",
-                prioridade="normal",
-                valor_multa=instance.valor_multa,
-                fiscal_responsavel=instance.fiscal_nome,
-                prazo_defesa=calcular_prazo_defesa(instance.data_fiscalizacao),
-                data_notificacao=timezone.now().date(),
-            )
+        data_notificacao = instance.data_notificacao or timezone.now().date()
 
-            HistoricoProcesso.objects.create(
-                processo=processo,
-                status_anterior=None,
-                status_novo=processo.status,
-                observacao=f"Processo criado automaticamente a partir do Auto de Infracao {instance.numero}",
-                usuario="Sistema Automatico",
-            )
+        processo = Processo.objects.create(
+            auto_infracao=instance,
+            autuado=instance.razao_social,
+            cnpj=instance.cnpj,
+            status="aguardando_defesa",
+            prioridade="normal",
+            valor_multa=instance.valor_multa,
+            fiscal_responsavel=instance.fiscal_nome,
+            prazo_defesa=calcular_prazo_defesa(data_notificacao),
+            data_notificacao=data_notificacao,
+        )
 
-            logger.info(
-                "Process %s created automatically for auto %s",
-                processo.numero_processo,
-                instance.numero,
-            )
+        HistoricoProcesso.objects.create(
+            processo=processo,
+            status_anterior=None,
+            status_novo=processo.status,
+            observacao=f"Processo criado automaticamente a partir do Auto de Infracao {instance.numero}",
+            usuario="Sistema Automatico",
+        )
 
-        except Exception:
-            logger.exception(
-                "Failed to create process automatically for auto %s",
-                instance.numero,
-            )
+        logger.info(
+            "Process %s created automatically for auto %s",
+            processo.numero_processo,
+            instance.numero,
+        )
+
+    except Exception:
+        logger.exception(
+            "Failed to create process automatically for auto %s",
+            instance.numero,
+        )
 
 
 @receiver(post_save, sender=Processo)

@@ -27,7 +27,7 @@ from .integrations import (
     criar_ai_de_ppa,
     vincular_ai_ao_ppa
 )
-from .reports import gerar_pdf_ppa
+from .reports import gerar_pdf_ppa, gerar_docx_ppa
 from django.http import HttpResponse
 
 
@@ -433,7 +433,7 @@ class ProcedimentoPreAdministrativoViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['get'])
     def gerar_pdf(self, request, pk=None):
         """
-        Gera PDF completo do PPA
+        Gera PDF do PPA (capa simplificada)
         
         Returns:
             Arquivo PDF para download
@@ -445,6 +445,30 @@ class ProcedimentoPreAdministrativoViewSet(viewsets.ModelViewSet):
             response = HttpResponse(pdf_buffer, content_type='application/pdf')
             response['Content-Disposition'] = f'attachment; filename="PPA_{ppa.numero.replace("/", "-")}.pdf"'
             
+            return response
+        except Exception as e:
+            return Response(
+                {'erro': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=True, methods=['get'])
+    def gerar_docx(self, request, pk=None):
+        """
+        Gera DOCX de capa do PPA
+
+        Returns:
+            Arquivo DOCX para download
+        """
+        try:
+            ppa = self.get_object()
+            docx_bytes = gerar_docx_ppa(ppa.id)
+
+            response = HttpResponse(
+                docx_bytes,
+                content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            )
+            response['Content-Disposition'] = f'attachment; filename="PPA_{ppa.numero.replace("/", "-")}.docx"'
             return response
         except Exception as e:
             return Response(
@@ -559,3 +583,46 @@ class ParecerPPAViewSet(viewsets.ModelViewSet):
         
         serializer = self.get_serializer(parecer)
         return Response(serializer.data)
+    
+    @action(detail=True, methods=['get'])
+    def gerar_documento(self, request, pk=None):
+        """Gera documento Word do parecer no formato institucional"""
+        from django.http import HttpResponse
+        from django.conf import settings
+        import os
+        import tempfile
+        
+        parecer = self.get_object()
+        
+        try:
+            # Gerar documento Word
+            doc = parecer.gerar_documento_word()
+            
+            # Salvar em arquivo temporário
+            temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.docx')
+            doc.save(temp_file.name)
+            temp_file.close()
+            
+            # Ler arquivo
+            with open(temp_file.name, 'rb') as f:
+                response = HttpResponse(
+                    f.read(),
+                    content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+                )
+                response['Content-Disposition'] = f'attachment; filename="Parecer_{parecer.numero_parecer.replace("/", "_")}.docx"'
+            
+            # Remover arquivo temporário
+            os.unlink(temp_file.name)
+            
+            return response
+            
+        except ImportError:
+            return Response(
+                {'erro': 'python-docx não está instalado. Instale com: pip install python-docx'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        except Exception as e:
+            return Response(
+                {'erro': f'Erro ao gerar documento: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )

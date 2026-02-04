@@ -18,6 +18,7 @@ from .views import (
     AutoInfracaoRetrieveUpdateDestroyAPIView,
     gerar_documento_infracao_docx,
     criar_infracao_de_auto,
+    validar_formal_infracao,
     infrações_por_auto,
     autos_com_potencial_infracao,
     atualizar_status_infracao,
@@ -26,6 +27,12 @@ from .views import (
     ProcessoListCreateAPIView,
     ProcessoDetailAPIView,
     atualizar_status_processo,
+    registrar_calculo_multa,
+    registrar_impugnacao_valor,
+    registrar_recalculo_multa,
+    despachar_para_daf,
+    tramitar_processo,
+    registrar_dosimetria_excel,
     historico_processo,
     processos_dashboard,
     relatorio_mensal_processos,
@@ -38,6 +45,10 @@ from .views import (
     operacoes_lote,
     DocumentoProcessoListCreateAPIView,
     upload_documento_processo,
+    ParecerProcessoListCreateAPIView,
+    ParecerProcessoDetailAPIView,
+    gerar_parecer_processo_docx,
+    gerar_parecer_processo_pdf,
     buscar_processo_unificado,
     listar_todos_processos,
     processos_dashboard_cached,
@@ -116,6 +127,7 @@ urlpatterns = [
     path('infracoes/', AutoInfracaoListCreateAPIView.as_view(), name='infracao_list_create'),
     path('infracoes/<int:pk>/', AutoInfracaoRetrieveUpdateDestroyAPIView.as_view(), name='infracao_detail'),
     path('infracoes/<int:pk>/documento/', gerar_documento_infracao_docx, name='gerar_documento_infracao'),
+    path('infracoes/<int:pk>/validacao-formal/', validar_formal_infracao, name='validacao_formal_infracao'),
     path('infracoes/criar-de-auto/', criar_infracao_de_auto, name='criar_infracao_de_auto'),
     path('infracoes/por-auto/<str:auto_tipo>/<int:auto_id>/', infrações_por_auto, name='infracoes_por_auto'),
     path('infracoes/autos-com-irregularidades/', autos_com_potencial_infracao, name='autos_com_potencial_infracao'),
@@ -147,6 +159,12 @@ urlpatterns = [
     
     # Ações específicas em processos
     path('processos/<int:pk>/atualizar-status/', atualizar_status_processo, name='atualizar_status_processo'),
+    path('processos/<int:pk>/calculo-multa/', registrar_calculo_multa, name='registrar_calculo_multa'),
+    path('processos/<int:pk>/impugnacao-valor/', registrar_impugnacao_valor, name='registrar_impugnacao_valor'),
+    path('processos/<int:pk>/recalculo-multa/', registrar_recalculo_multa, name='registrar_recalculo_multa'),
+    path('processos/<int:pk>/despachar-daf/', despachar_para_daf, name='despachar_para_daf'),
+    path('processos/<int:pk>/tramitar/', tramitar_processo, name='tramitar_processo'),
+    path('processos/<int:pk>/dosimetria-excel/', registrar_dosimetria_excel, name='registrar_dosimetria_excel'),
     path('processos/<int:pk>/historico/', historico_processo, name='historico_processo'),
     
     # Dashboard e relatórios de processos
@@ -169,6 +187,11 @@ urlpatterns = [
     
     # Listar e criar documentos de um processo
     path('processos/<int:processo_id>/documentos/', DocumentoProcessoListCreateAPIView.as_view(), name='documentos_processo'),
+    # Parecer técnico do processo
+    path('processos/<int:processo_id>/pareceres/', ParecerProcessoListCreateAPIView.as_view(), name='pareceres_processo'),
+    path('processos/pareceres/<int:pk>/', ParecerProcessoDetailAPIView.as_view(), name='parecer_processo_detail'),
+    path('processos/pareceres/<int:pk>/docx/', gerar_parecer_processo_docx, name='parecer_processo_docx'),
+    path('processos/pareceres/<int:pk>/pdf/', gerar_parecer_processo_pdf, name='parecer_processo_pdf'),
     
     # === ENDPOINTS PARA AUTO DE APREENSÃO/INUTILIZAÇÃO ===
     path('fiscalizacao/apreensao-inutilizacao/', AutoApreensaoInutilizacaoViewSet.as_view({'get': 'list', 'post': 'create'}), name='apreensao_inutilizacao_list'),

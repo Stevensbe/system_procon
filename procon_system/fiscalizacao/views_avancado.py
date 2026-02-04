@@ -145,6 +145,13 @@ class AutoInfracaoAvancadoViewSet(viewsets.ModelViewSet):
             auto_avancado.status_workflow = 'NOTIFICADO'
             auto_avancado.calcular_prazos()
             auto_avancado.save()
+
+            if auto_avancado.auto_infracao_id:
+                auto_base = auto_avancado.auto_infracao
+                auto_base.status = 'notificado'
+                if not auto_base.data_notificacao:
+                    auto_base.data_notificacao = timezone.now().date()
+                auto_base.save()
             
             # Registrar no histórico
             HistoricoAutoInfracao.objects.create(

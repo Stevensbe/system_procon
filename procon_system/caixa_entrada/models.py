@@ -87,6 +87,19 @@ class CaixaEntrada(models.Model):
     
     # Setor de lotação do destinatário
     setor_lotacao = models.CharField("Setor de Lotação", max_length=100, blank=True)
+
+    # Controle de bloqueio (trava)
+    bloqueado = models.BooleanField("Bloqueado", default=False)
+    bloqueado_por = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='documentos_bloqueados',
+        verbose_name="Bloqueado por"
+    )
+    bloqueado_em = models.DateTimeField("Bloqueado em", null=True, blank=True)
+    motivo_bloqueio = models.TextField("Motivo do bloqueio", blank=True)
     
     # Controle DTE
     notificado_dte = models.BooleanField("Notificado no DTE", default=False)
@@ -120,6 +133,7 @@ class CaixaEntrada(models.Model):
             models.Index(fields=['tipo_documento']),
             models.Index(fields=['setor_destino']),
             models.Index(fields=['prioridade']),
+            models.Index(fields=['bloqueado']),
             models.Index(fields=['data_entrada']),
             models.Index(fields=['prazo_resposta']),
             models.Index(fields=['remetente_documento']),

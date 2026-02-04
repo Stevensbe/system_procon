@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema Integrado de Gestão PROCON-AM - Apresentação Executiva</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #1e40af 0%, #7c3aed 100%);
+            color: white;
+            padding: 60px 40px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+
+        .header p {
+            font-size: 1.3em;
+            opacity: 0.95;
+        }
+
+        .content {
+            padding: 40px;
+        }
+
+        .section {
+            margin-bottom: 50px;
+            padding: 30px;
+            background: #f8fafc;
+            border-radius: 15px;
+            border-left: 5px solid #1e40af;
+        }
+
+        .section h2 {
+            color: #1e40af;
+            font-size: 2em;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section h3 {
+            color: #4c1d95;
+            font-size: 1.5em;
+            margin-top: 25px;
+            margin-bottom: 15px;
+        }
+
+        .section p {
+            font-size: 1.1em;
+            margin-bottom: 15px;
+            text-align: justify;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin: 25px 0;
+        }
+
+        .card {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .card h4 {
+            color: #1e40af;
+            font-size: 1.3em;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .card p {
+            color: #64748b;
+            font-size: 1em;
+        }
+
+        .metric {
+            text-align: center;
+            padding: 20px;
+        }
+
+        .metric-value {
+            font-size: 3em;
+            font-weight: 700;
+            color: #059669;
+            display: block;
+        }
+
+        .metric-label {
+            font-size: 1.1em;
+            color: #64748b;
+            margin-top: 5px;
+        }
+
+        .highlight {
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            padding: 25px;
+            border-radius: 12px;
+            border-left: 5px solid #f59e0b;
+            margin: 25px 0;
+        }
+
+        .highlight h3 {
+            color: #92400e;
+        }
+
+        .list {
+            list-style: none;
+            margin: 20px 0;
+        }
+
+        .list li {
+            padding: 12px;
+            margin-bottom: 10px;
+            background: white;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 1.1em;
+        }
+
+        .list li::before {
+            content: "✓";
+            display: inline-block;
+            width: 25px;
+            height: 25px;
+            background: #059669;
+            color: white;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 25px;
+            font-weight: bold;
+            flex-shrink: 0;
+        }
+
+        .cta {
+            background: linear-gradient(135deg, #1e40af 0%, #7c3aed 100%);
+            color: white;
+            padding: 50px;
+            text-align: center;
+            border-radius: 15px;
+            margin-top: 40px;
+        }
+
+        .cta h2 {
+            font-size: 2.2em;
+            margin-bottom: 20px;
+        }
+
+        .cta p {
+            font-size: 1.2em;
+            margin-bottom: 30px;
+        }
+
+        .cta-button {
+            display: inline-block;
+            padding: 15px 40px;
+            background: white;
+            color: #1e40af;
+            text-decoration: none;
+            border-radius: 50px;
+            font-size: 1.2em;
+            font-weight: 600;
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+
+        .cta-button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+        }
+
+        .footer {
+            background: #1e293b;
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .footer a {
+            color: #60a5fa;
+            text-decoration: none;
+        }
+
+        .icon {
+            font-size: 1.5em;
+        }
+
+        @media print {
+            body {
+                background: white;
+                padding: 0;
+            }
+            .container {
+                box-shadow: none;
+            }
+            .cta-button {
+                display: none;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 1.8em;
+            }
+            .header p {
+                font-size: 1.1em;
+            }
+            .section {
+                padding: 20px;
+            }
+            .content {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏛️ Sistema Integrado de Gestão PROCON-AM</h1>
+            <p>Transformação Digital para a Proteção ao Consumidor</p>
+        </div>
+
+        <div class="content">
+            <!-- Seção: Visão Geral -->
+            <div class="section">
+                <h2><span class="icon">🎯</span> Visão Geral</h2>
+                <p>
+                    O <strong>Sistema Integrado de Gestão PROCON-AM</strong> é uma plataforma digital completa que revoluciona a forma como órgãos de proteção ao consumidor operam. Desenvolvido com tecnologias de ponta e arquitetura escalável, o sistema integra todos os processos operacionais em uma única solução moderna, intuitiva e eficiente.
+                </p>
+                <p>
+                    Mais do que um software, é uma solução estratégica que traz <strong>eficiência operacional, transparência para o cidadão e controle executivo</strong> — tudo em tempo real e com segurança enterprise.
+                </p>
+            </div>
+
+            <!-- Seção: O Desafio -->
+            <div class="section">
+                <h2><span class="icon">⚠️</span> O Desafio</h2>
+                <p>
+                    Órgãos de proteção ao consumidor enfrentam desafios crescentes na gestão tradicional:
+                </p>
+                <div class="grid">
+                    <div class="card">
+                        <h4>📋 Processos Manuais</h4>
+                        <p>Tramitação lenta, propensa a erros e perda de documentos</p>
+                    </div>
+                    <div class="card">
+                        <h4>🔍 Falta de Visibilidade</h4>
+                        <p>Dificuldade em acompanhar status e gargalos operacionais</p>
+                    </div>
+                    <div class="card">
+                        <h4>💰 Controle Financeiro</h4>
+                        <p>Ausência de dados consolidados de arrecadação e inadimplência</p>
+                    </div>
+                    <div class="card">
+                        <h4>🌐 Baixa Transparência</h4>
+                        <p>Cidadão precisa se deslocar ou ligar para consultas simples</p>
+                    </div>
+                    <div class="card">
+                        <h4>📊 Sem Dados Estratégicos</h4>
+                        <p>Decisões baseadas em intuição, não em dados reais</p>
+                    </div>
+                    <div class="card">
+                        <h4>⏱️ Tempo Desperdiçado</h4>
+                        <p>Tarefas repetitivas consomem tempo da equipe qualificada</p>
+                    </div>
+                </div>
+                <p>
+                    <strong>A transformação digital deixou de ser uma opção para se tornar uma necessidade urgente.</strong>
+                </p>
+            </div>
+
+            <!-- Seção: Nossa Solução -->
+            <div class="section">
+                <h2><span class="icon">✅</span> Nossa Solução</h2>
+                <h3>6 Módulos Perfeitamente Integrados</h3>
+                <div class="grid">
+                    <div class="card">
+                        <h4>🕵️ Fiscalização</h4>
+                        <p>Autos especializados (bancos, supermercados, postos) com processos automatizados e numeração inteligente</p>
+                    </div>
+                    <div class="card">
+                        <h4>🌐 Portal do Cidadão</h4>
+                        <p>Acesso 24/7 para denúncias, consultas públicas e acompanhamento de processos</p>
+                    </div>
+                    <div class="card">
+                        <h4>💰 Financeiro</h4>
+                        <p>Dashboard executivo com KPIs, gráficos e relatórios em tempo real</p>
+                    </div>
+                    <div class="card">
+                        <h4>🏦 Cobrança</h4>
+                        <p>Boletos automáticos, integração bancária e controle de vencimentos</p>
+                    </div>
+                    <div class="card">
+                        <h4>⚖️ Jurídico</h4>
+                        <p>Análise de recursos, controle de prazos legais e gestão de processos complexos</p>
+                    </div>
+                    <div class="card">
+                        <h4>📊 Business Intelligence</h4>
+                        <p>Métricas estratégicas, projeções e insights para tomada de decisão</p>
+                    </div>
+                </div>
+                <div class="highlight">
+                    <h3>🔄 Integração Total</h3>
+                    <p>
+                        Todos os módulos compartilham dados em tempo real. Um auto de infração vira multa, que gera boleto, que alimenta o financeiro, que atualiza o dashboard. <strong>Fluxo contínuo, sem interrupção, zero retrabalho.</strong>
+                    </p>
+                </div>
+            </div>
+
+            <!-- Seção: Tecnologia -->
+            <div class="section">
+                <h2><span class="icon">🛠️</span> Tecnologia de Ponta</h2>
+                <div class="grid">
+                    <div class="card">
+                        <h4>🐍 Backend Robusto</h4>
+                        <p><strong>Django 5.2</strong> + PostgreSQL + Redis<br>
+                        API REST completa com Swagger/OpenAPI<br>
+                        Processamento assíncrono com Celery</p>
+                    </div>
+                    <div class="card">
+                        <h4>⚛️ Frontend Moderno</h4>
+                        <p><strong>React 19</strong> + Tailwind CSS<br>
+                        Interface responsiva e intuitiva<br>
+                        PWA com funcionalidade offline</p>
+                    </div>
+                    <div class="card">
+                        <h4>☁️ Cloud Native</h4>
+                        <p>Arquitetura escalável<br>
+                        Deploy automatizado (CI/CD)<br>
+                        Alta disponibilidade garantida</p>
+                    </div>
+                    <div class="card">
+                        <h4>🔒 Segurança Enterprise</h4>
+                        <p>JWT + Rate Limiting<br>
+                        Conformidade com LGPD<br>
+                        Backup automático + Auditoria completa</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Seção: Resultados -->
+            <div class="section">
+                <h2><span class="icon">📈</span> Resultados Comprovados</h2>
+                <h3>Eficiência Operacional</h3>
+                <div class="grid">
+                    <div class="metric">
+                        <span class="metric-value">70%</span>
+                        <span class="metric-label">⬇️ Redução no tempo de processamento</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-value">90%</span>
+                        <span class="metric-label">⚡ Automação de processos</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-value">100%</span>
+                        <span class="metric-label">🔄 Integração entre módulos</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-value">60%</span>
+                        <span class="metric-label">📈 Aumento na eficiência geral</span>
+                    </div>
+                </div>
+
+                <h3>Impacto Financeiro</h3>
+                <div class="grid">
+                    <div class="metric">
+                        <span class="metric-value" style="color: #059669;">-40%</span>
+                        <span class="metric-label">💰 Custos operacionais</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-value" style="color: #059669;">+25%</span>
+                        <span class="metric-label">📈 Arrecadação</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-value" style="color: #059669;">+200%</span>
+                        <span class="metric-label">🚀 Produtividade</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-value" style="color: #059669;">12</span>
+                        <span class="metric-label">📅 Meses para ROI positivo</span>
+                    </div>
+                </div>
+
+                <div class="highlight">
+                    <h3>💼 ROI Extraordinário</h3>
+                    <p>
+                        O sistema não é um custo, mas um <strong>investimento estratégico</strong> que se paga em 12 meses e continua gerando valor crescente. Economia de 40% nos custos + Aumento de 25% na arrecadação = <strong>Retorno financeiro comprovado.</strong>
+                    </p>
+                </div>
+            </div>
+
+            <!-- Seção: Benefícios ao Cidadão -->
+            <div class="section">
+                <h2><span class="icon">👥</span> Benefícios ao Cidadão</h2>
+                <ul class="list">
+                    <li>Portal disponível 24 horas por dia, 7 dias por semana</li>
+                    <li>Interface 100% responsiva para mobile</li>
+                    <li>Consulta pública instantânea de processos</li>
+                    <li>Notificações automáticas por email</li>
+                    <li>Redução de 50% no tempo de resposta</li>
+                    <li>Registro de denúncias sem sair de casa</li>
+                    <li>Transparência total no acompanhamento</li>
+                    <li>Anexo de documentos digitalmente</li>
+                </ul>
+            </div>
+
+            <!-- Seção: Diferenciais -->
+            <div class="section">
+                <h2><span class="icon">🏆</span> Diferenciais Competitivos</h2>
+                <div class="grid">
+                    <div class="card">
+                        <h4>🎯 Especialização PROCON</h4>
+                        <p>Desenvolvido especificamente para órgãos de proteção ao consumidor, com legislação integrada e processos otimizados</p>
+                    </div>
+                    <div class="card">
+                        <h4>🚀 Tecnologia Superior</h4>
+                        <p>Versões mais recentes e estáveis do mercado (React 19, Django 5.2), arquitetura escalável e performance superior</p>
+                    </div>
+                    <div class="card">
+                        <h4>🤝 Suporte Dedicado</h4>
+                        <p>Equipe especializada 24/7, treinamento de 40h incluído, atualizações contínuas sem custo adicional</p>
+                    </div>
+                    <div class="card">
+                        <h4>⚡ Implementação Ágil</h4>
+                        <p>Sistema operacional em apenas 4 semanas, com migração completa de dados históricos</p>
+                    </div>
+                    <div class="card">
+                        <h4>🔒 Segurança Total</h4>
+                        <p>Conformidade com LGPD, auditoria completa, backup automático e criptografia enterprise</p>
+                    </div>
+                    <div class="card">
+                        <h4>📊 BI Integrado</h4>
+                        <p>Dashboard executivo com métricas em tempo real, relatórios automáticos e insights estratégicos</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Seção: Implementação -->
+            <div class="section">
+                <h2><span class="icon">🚀</span> Implementação em 4 Semanas</h2>
+                <div class="grid">
+                    <div class="card">
+                        <h4>Semana 1 - Planejamento</h4>
+                        <p>✓ Levantamento de necessidades<br>
+                        ✓ Configuração inicial<br>
+                        ✓ Preparação de ambientes</p>
+                    </div>
+                    <div class="card">
+                        <h4>Semanas 2-3 - Implementação</h4>
+                        <p>✓ Configuração completa dos módulos<br>
+                        ✓ Migração de dados históricos<br>
+                        ✓ Testes exaustivos</p>
+                    </div>
+                    <div class="card">
+                        <h4>Semana 4 - Go-Live</h4>
+                        <p>✓ Treinamento (40 horas)<br>
+                        ✓ Lançamento oficial<br>
+                        ✓ Acompanhamento intensivo</p>
+                    </div>
+                </div>
+                <div class="highlight">
+                    <p>
+                        <strong>Minimizamos riscos e garantimos transição suave.</strong> Você não para de operar enquanto implementamos. Temos plano de contingência e nossa equipe está presente em todas as etapas.
+                    </p>
+                </div>
+            </div>
+
+            <!-- Seção: Investimento -->
+            <div class="section">
+                <h2><span class="icon">💰</span> Proposta de Investimento</h2>
+                <h3>Modelo Claro e Transparente</h3>
+                <p><strong>Implementação:</strong> R$ 50.000 (pagamento único)</p>
+                <ul class="list">
+                    <li>Instalação e configuração completa</li>
+                    <li>Migração de todos os dados históricos</li>
+                    <li>Treinamento presencial de 40 horas</li>
+                    <li>Go-live com acompanhamento intensivo</li>
+                </ul>
+                <p><strong>Licença Anual:</strong> R$ 50.000/ano</p>
+                <ul class="list">
+                    <li>Suporte técnico 24/7</li>
+                    <li>Todas as atualizações de sistema</li>
+                    <li>Infraestrutura cloud completa</li>
+                    <li>Backup automático e segurança</li>
+                    <li>Monitoramento e manutenção</li>
+                </ul>
+                <div class="highlight">
+                    <h3>🎯 Sem Custos Escondidos</h3>
+                    <p>
+                        O que você vê é o que você paga. <strong>Não há custos adicionais</strong> para suporte, atualizações ou infraestrutura. Tudo incluído em um modelo simples e previsível.
+                    </p>
+                </div>
+            </div>
+
+            <!-- Seção: Próximos Passos -->
+            <div class="section">
+                <h2><span class="icon">📋</span> Próximos Passos</h2>
+                <div class="grid">
+                    <div class="card">
+                        <h4>1️⃣ Demonstração Personalizada</h4>
+                        <p>30 minutos online focado nas suas necessidades específicas</p>
+                    </div>
+                    <div class="card">
+                        <h4>2️⃣ Visita Técnica</h4>
+                        <p>Análise detalhada no local e proposta customizada</p>
+                    </div>
+                    <div class="card">
+                        <h4>3️⃣ Período de Teste</h4>
+                        <p>30 dias gratuitos em ambiente dedicado</p>
+                    </div>
+                    <div class="card">
+                        <h4>4️⃣ Implementação</h4>
+                        <p>Início imediato com equipe dedicada</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CTA -->
+            <div class="cta">
+                <h2>🚀 Transforme a Gestão Pública Agora</h2>
+                <p>
+                    Cada dia sem o sistema é uma oportunidade perdida de servir melhor o cidadão e usar melhor os recursos públicos.
+                </p>
+                <p><strong>O momento de transformar é AGORA.</strong></p>
+                <a href="mailto:suporte@procon.am.gov.br" class="cta-button">Agendar Demonstração Gratuita</a>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <h3>📞 Contato</h3>
+            <p>
+                <strong>Email:</strong> <a href="mailto:suporte@procon.am.gov.br">suporte@procon.am.gov.br</a><br>
+                <strong>WhatsApp:</strong> (92) 99999-9999<br>
+                <strong>Portal:</strong> <a href="https://sistema.procon.am.gov.br">https://sistema.procon.am.gov.br</a>
+            </p>
+            <p style="margin-top: 20px; opacity: 0.8;">
+                Sistema Procon-AM - Tecnologia a serviço do cidadão 🏛️<br>
+                © 2025 - Todos os direitos reservados
+            </p>
+        </div>
+    </div>
+</body>
+</html>
+

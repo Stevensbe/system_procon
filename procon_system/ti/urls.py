@@ -4,6 +4,7 @@ from . import views
 
 router = DefaultRouter()
 router.register(r'usuarios', views.TIUserViewSet, basename='ti-usuarios')
+router.register(r'configuracoes', views.ConfiguracaoSistemaViewSet, basename='ti-configuracoes')
 
 urlpatterns = [
     path('', include(router.urls)),

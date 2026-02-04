@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from .models import (
     BoletoMulta, PagamentoMulta, CobrancaMulta, ConfiguracaoCobranca,
-    TemplateCobranca, LogCobranca, Remessa, Banco
+    TemplateCobranca, LogCobranca, Remessa, Banco, GuiaRecolhimentoMulta
 )
 
 
@@ -101,6 +101,40 @@ class BancoSerializer(serializers.ModelSerializer):
         model = Banco
         fields = ['id', 'codigo', 'nome', 'ativo']
         read_only_fields = ['id']
+
+
+class GuiaRecolhimentoMultaSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = GuiaRecolhimentoMulta
+        fields = [
+            'id',
+            'processo',
+            'auto_infracao',
+            'multa',
+            'numero_guia',
+            'departamento_emissor',
+            'recebedor_nome',
+            'recebedor_cnpj',
+            'banco_nome',
+            'banco_agencia',
+            'banco_conta',
+            'autuado_nome',
+            'autuado_documento',
+            'numero_auto_infracao',
+            'numero_processo',
+            'valor_integral',
+            'valor_a_vista',
+            'valor_parcelado',
+            'quantidade_parcelas',
+            'valor_parcela',
+            'vencimento',
+            'observacao_texto',
+            'arquivo_grm',
+            'criado_em',
+            'atualizado_em',
+            'criado_por',
+        ]
+        read_only_fields = ['id', 'numero_guia', 'arquivo_grm', 'criado_em', 'atualizado_em']
 
 
 class RemessaSerializer(serializers.ModelSerializer):

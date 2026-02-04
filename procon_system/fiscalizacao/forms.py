@@ -34,7 +34,7 @@ def next_numero(model, prefix):
 # --- FORMS PARA AUTO BANCO ---
 class AutoBancoForm(forms.ModelForm):
     numero = forms.CharField(
-        label="Número do Auto",
+        label="Numero do Auto",
         disabled=True,
         required=False,
         help_text="Gerado automaticamente"
@@ -46,21 +46,22 @@ class AutoBancoForm(forms.ModelForm):
             'numero', 'razao_social', 'nome_fantasia', 'porte', 'atuacao', 'atividade',
             'endereco', 'cep', 'municipio', 'estado', 'cnpj', 'telefone',
             'data_fiscalizacao', 'hora_fiscalizacao', 'origem', 'origem_outros',
-            'nada_consta', 'sem_irregularidades', 'todos_caixas_funcionando',
-            'distribuiu_senha', 'distribuiu_senha_fora_padrao', 
+            'cominacao_legal', 'nada_consta', 'sem_irregularidades',
+            'todos_caixas_funcionando', 'distribuiu_senha', 'distribuiu_senha_fora_padrao',
             'senha_sem_nome_estabelecimento', 'senha_sem_horarios', 'senha_sem_rubrica',
-            'ausencia_cartaz_informativo', 'ausencia_profissional_libras',
-            'observacoes', 'fiscal_nome_1', 'fiscal_nome_2', 
+            'ausencia_cartaz_informativo', 'ausencia_profissional_libras', 'relogio_exposto',
+            'observacoes', 'fiscal_nome_1', 'fiscal_nome_2',
             'responsavel_nome', 'responsavel_cpf'
         ]
         widgets = {
             'data_fiscalizacao': forms.DateInput(attrs={'type': 'date'}),
             'hora_fiscalizacao': forms.TimeInput(attrs={'type': 'time'}),
             'observacoes': forms.Textarea(attrs={'rows': 4}),
-            # Radio buttons para campos booleanos
-            'todos_caixas_funcionando': forms.RadioSelect(choices=[(True, 'Sim'), (False, 'Não')]),
-            'distribuiu_senha': forms.RadioSelect(choices=[(True, 'Sim'), (False, 'Não')]),
-            'distribuiu_senha_fora_padrao': forms.RadioSelect(choices=[(True, 'Sim'), (False, 'Não')]),
+            'cominacao_legal': forms.Textarea(attrs={'rows': 4}),
+            'todos_caixas_funcionando': forms.RadioSelect(choices=[(True, 'Sim'), (False, 'Nao')]),
+            'distribuiu_senha': forms.RadioSelect(choices=[(True, 'Sim'), (False, 'Nao')]),
+            'distribuiu_senha_fora_padrao': forms.RadioSelect(choices=[(True, 'Sim'), (False, 'Nao')]),
+            'relogio_exposto': forms.RadioSelect(choices=[(True, 'Sim'), (False, 'Nao')]),
         }
 
     def __init__(self, *args, **kwargs):
@@ -71,7 +72,7 @@ class AutoBancoForm(forms.ModelForm):
 class AtendimentoCaixaBancoForm(forms.ModelForm):
     class Meta:
         model = AtendimentoCaixaBanco
-        fields = ['letra_senha', 'horario_chegada', 'horario_atendimento', 'tempo_decorrido']
+        fields = ['letra_senha', 'horario_chegada', 'horario_atendimento', 'tempo_decorrido', 'tipo_servico', 'limite_tempo']
         widgets = {
             'horario_chegada': forms.TimeInput(attrs={'type': 'time'}),
             'horario_atendimento': forms.TimeInput(attrs={'type': 'time'}),
@@ -177,7 +178,7 @@ class AutoSupermercadoForm(forms.ModelForm):
     class Meta:
         model = AutoSupermercado
         fields = [
-            'numero', 'razao_social', 'nome_fantasia', 'atividade',
+            'numero', 'razao_social', 'nome_fantasia', 'porte', 'atuacao', 'atividade',
             'endereco', 'cep', 'municipio', 'estado', 'cnpj', 'telefone',
             'data_fiscalizacao', 'hora_fiscalizacao', 'origem', 'origem_outros',
             'nada_consta',
@@ -190,14 +191,16 @@ class AutoSupermercadoForm(forms.ModelForm):
             'afixacao_precos_fracionados_fora_padrao', 'ausencia_visibilidade_descontos',
             'ausencia_placas_promocao_vencimento',
             # Campos adicionais
-            'prazo_cumprimento_dias', 'outras_irregularidades', 'narrativa_fatos',
-            'possui_anexo', 'auto_apreensao', 'auto_apreensao_numero', 'necessita_pericia',
+            'prazo_cumprimento_dias', 'cominacao_legal', 'instrucoes_fiscalizado', 'outras_irregularidades', 'narrativa_fatos',
+            'possui_anexo', 'auto_apreensao', 'auto_apreensao_numero', 'necessita_pericia', 'vicios_aparentes',
             'receita_bruta_notificada',
             'fiscal_nome_1', 'fiscal_nome_2', 'responsavel_nome', 'responsavel_cpf'
         ]
         widgets = {
             'data_fiscalizacao': forms.DateInput(attrs={'type': 'date'}),
             'hora_fiscalizacao': forms.TimeInput(attrs={'type': 'time'}),
+            'cominacao_legal': forms.Textarea(attrs={'rows': 4}),
+            'instrucoes_fiscalizado': forms.Textarea(attrs={'rows': 4}),
             'outras_irregularidades': forms.Textarea(attrs={'rows': 4}),
             'narrativa_fatos': forms.Textarea(attrs={'rows': 4}),
         }

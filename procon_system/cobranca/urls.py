@@ -12,6 +12,7 @@ router.register(r'templates', views.TemplateCobrancaViewSet, basename='template'
 router.register(r'geral', views.CobrancaViewSet, basename='cobranca-geral')
 router.register(r'remessas', views.RemessaViewSet, basename='remessa')
 router.register(r'bancos', views.BancoViewSet, basename='banco')
+router.register(r'grm', views.GuiaRecolhimentoMultaViewSet, basename='grm')
 
 app_name = 'cobranca'
 

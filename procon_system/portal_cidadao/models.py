@@ -471,9 +471,23 @@ class DenunciaCidadao(models.Model):
         ('encaminhada_fiscal', 'Encaminhada para Fiscal'),
         ('auto_criado', 'Auto de Infração Criado'),
         ('arquivada', 'Arquivada'),
+        ('respondida', 'Respondida'),
     ]
     status = models.CharField("Status", max_length=20, choices=STATUS_CHOICES, default='denuncia_recebida')
     origem_denuncia = models.CharField("Origem da Denúncia", max_length=20, default='PORTAL_CIDADAO')
+
+    # Resposta ao denunciante
+    competencia_procon = models.BooleanField("Competencia do PROCON", null=True, blank=True)
+    orientacao_destino = models.TextField("Orientacao ao cidadao", blank=True)
+    resposta_fiscal = models.TextField("Resposta do fiscal", blank=True)
+    respondido_em = models.DateTimeField("Respondido em", null=True, blank=True)
+    respondido_por = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='denuncias_cidadao_respondidas',
+    )
     
     # Metadados
     ip_origem = models.GenericIPAddressField("IP de Origem", null=True, blank=True)
@@ -799,3 +813,60 @@ class HistoricoReclamacao(models.Model):
     
     def __str__(self):
         return f"{self.reclamacao.numero_protocolo} - {self.acao}"
+
+
+class HistoricoAtividade(models.Model):
+    """Histórico de atividades do usuário no Portal do Cidadão"""
+    
+    TIPO_CHOICES = [
+        ('denuncia', 'Denúncia'),
+        ('consulta', 'Consulta'),
+        ('peticao', 'Petição'),
+        ('download', 'Download'),
+        ('contato', 'Contato'),
+    ]
+    
+    # Usuário (pode ser None para atividades anônimas)
+    usuario = models.ForeignKey(
+        'auth.User', 
+        on_delete=models.CASCADE, 
+        null=True, 
+        blank=True,
+        related_name='historico_atividades'
+    )
+    
+    # Email ou CPF para identificar usuários não autenticados
+    identificador = models.CharField("Identificador (Email/CPF)", max_length=255, blank=True)
+    
+    # Tipo de atividade
+    tipo = models.CharField("Tipo", max_length=20, choices=TIPO_CHOICES)
+    
+    # Título e descrição
+    titulo = models.CharField("Título", max_length=255)
+    descricao = models.TextField("Descrição", blank=True)
+    
+    # Dados relacionados (pode ser número de protocolo, denúncia, etc)
+    numero_protocolo = models.CharField("Número do Protocolo", max_length=50, blank=True)
+    denuncia_id = models.IntegerField("ID da Denúncia", null=True, blank=True)
+    peticao_id = models.IntegerField("ID da Petição", null=True, blank=True)
+    
+    # Metadados
+    ip_origem = models.GenericIPAddressField("IP de Origem", null=True, blank=True)
+    user_agent = models.TextField("User Agent", blank=True)
+    
+    # Timestamps
+    criado_em = models.DateTimeField("Criado em", auto_now_add=True)
+    
+    class Meta:
+        verbose_name = "Histórico de Atividade"
+        verbose_name_plural = "Histórico de Atividades"
+        ordering = ['-criado_em']
+        indexes = [
+            models.Index(fields=['usuario', '-criado_em']),
+            models.Index(fields=['identificador', '-criado_em']),
+            models.Index(fields=['tipo', '-criado_em']),
+        ]
+    
+    def __str__(self):
+        usuario_str = self.usuario.username if self.usuario else self.identificador or 'Anônimo'
+        return f"{usuario_str} - {self.get_tipo_display()} - {self.titulo}"

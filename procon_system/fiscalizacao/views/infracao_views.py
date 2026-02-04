@@ -6,9 +6,14 @@ incluindo criação, listagem, atualização de status e relacionamentos com Aut
 """
 
 from django.http import JsonResponse
+from django.conf import settings
+from pathlib import Path
 from django.shortcuts import get_object_or_404
 from django.db.models import Count, Q
+from django.utils import timezone
 from django.contrib.contenttypes.models import ContentType
+from django.core.files.base import ContentFile
+import logging
 from rest_framework import generics, status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
@@ -20,9 +25,14 @@ from ..models import (
     AutoSupermercado,
     AutoDiversos,
     AutoInfracao,
+    Processo,
+    DocumentoProcesso,
+    NotificacaoEletronica,
     HistoricoStatusInfracao,
     STATUS_INFRACAO_CHOICES,
 )
+
+logger = logging.getLogger(__name__)
 
 from ..serializers import (
     AutoInfracaoSerializer,
@@ -42,12 +52,23 @@ class AutoInfracaoListCreateAPIView(generics.ListCreateAPIView):
         if self.request.method == 'POST':
             return AutoInfracaoCreateSerializer
         return AutoInfracaoSerializer
+
+    def perform_create(self, serializer):
+        auto_tipo = serializer.validated_data.get('auto_tipo')
+        auto_id = serializer.validated_data.get('auto_id')
+        infracao = serializer.save()
+
+        if auto_tipo and auto_id:
+            auto_obj = _buscar_auto_constatacao(auto_tipo, auto_id)
+            if auto_obj:
+                _vincular_auto_infracao_ao_processo(infracao, auto_obj, self.request)
     
     def get_queryset(self):
         queryset = super().get_queryset()
         
         # Filtros específicos
         status_filter = self.request.query_params.get('status')
+        numero = self.request.query_params.get('numero') or self.request.query_params.get('search')
         razao_social = self.request.query_params.get('razao_social')
         cnpj = self.request.query_params.get('cnpj')
         data_inicio = self.request.query_params.get('data_inicio')
@@ -55,6 +76,8 @@ class AutoInfracaoListCreateAPIView(generics.ListCreateAPIView):
         
         if status_filter:
             queryset = queryset.filter(status=status_filter)
+        if numero:
+            queryset = queryset.filter(numero__icontains=numero.strip())
         if razao_social:
             queryset = queryset.filter(razao_social__icontains=razao_social)
         if cnpj:
@@ -81,169 +104,266 @@ def gerar_documento_infracao_docx(request, pk):
         auto = AutoInfracao.objects.get(pk=pk)
     except AutoInfracao.DoesNotExist:
         return Response({'error': 'Auto de Infração não encontrado'}, status=404)
-    
+
     try:
         from django.http import HttpResponse
-        from django.template.loader import get_template
-        import os
-        from docx import Document
-        from docx.shared import Inches
-        from io import BytesIO
-        import locale
-        
-        # Configura locale para português
-        try:
-            locale.setlocale(locale.LC_TIME, 'pt_BR.UTF-8')
-        except:
-            pass
-        
-        # Cria o documento
-        doc = Document()
-        
-        # Cabeçalho
-        header = doc.sections[0].header
-        header_para = header.paragraphs[0]
-        header_para.text = "GOVERNO DO ESTADO DO AMAZONAS\nInstituto de Defesa do Consumidor\nPROCON-AM"
-        
-        # Título
-        title = doc.add_heading(f'AUTO DE INFRAÇÃO Nº {auto.numero}', 0)
-        title.alignment = 1  # Centralizado
-        
-        # Dados básicos
-        doc.add_heading('DADOS DO ESTABELECIMENTO', level=1)
-        
-        p = doc.add_paragraph()
-        p.add_run('RAZÃO SOCIAL: ').bold = True
-        p.add_run(auto.razao_social or '')
-        
-        if auto.nome_fantasia:
-            p = doc.add_paragraph()
-            p.add_run('NOME FANTASIA: ').bold = True
-            p.add_run(auto.nome_fantasia)
-        
-        p = doc.add_paragraph()
-        p.add_run('ATIVIDADE: ').bold = True
-        p.add_run(auto.atividade or '')
-        
-        p = doc.add_paragraph()
-        p.add_run('ENDEREÇO: ').bold = True
-        p.add_run(auto.endereco or '')
-        
-        p = doc.add_paragraph()
-        p.add_run('CNPJ: ').bold = True
-        p.add_run(auto.cnpj or '')
-        
-        if auto.telefone:
-            p = doc.add_paragraph()
-            p.add_run('TELEFONE: ').bold = True
-            p.add_run(auto.telefone)
-        
-        # Data e local
-        doc.add_heading('FISCALIZAÇÃO', level=1)
-        
-        p = doc.add_paragraph()
-        p.add_run('MUNICÍPIO: ').bold = True
-        p.add_run(f"{auto.municipio}, {auto.estado}")
-        
-        p = doc.add_paragraph()
-        p.add_run('DATA: ').bold = True
-        p.add_run(auto.data_fiscalizacao.strftime('%d/%m/%Y'))
-        
-        p = doc.add_paragraph()
-        p.add_run('HORA: ').bold = True
-        p.add_run(auto.hora_fiscalizacao.strftime('%H:%M'))
-        
-        # Parecer prévio
-        if auto.parecer_numero:
-            doc.add_heading('PARECER PRÉVIO', level=1)
-            p = doc.add_paragraph()
-            p.add_run('NÚMERO: ').bold = True
-            p.add_run(auto.parecer_numero)
-            
-            p = doc.add_paragraph()
-            p.add_run('ORIGEM: ').bold = True
-            p.add_run(auto.parecer_origem)
-        
-        # Relatório
-        doc.add_heading('RELATÓRIO', level=1)
-        doc.add_paragraph(auto.relatorio or '')
-        
-        # Base legal
-        doc.add_heading('BASE LEGAL', level=1)
-        if auto.base_legal_cdc:
-            p = doc.add_paragraph()
-            p.add_run('CDC: ').bold = True
-            p.add_run(auto.base_legal_cdc)
-        
-        if auto.base_legal_outras:
-            p = doc.add_paragraph()
-            p.add_run('OUTRAS BASES LEGAIS: ').bold = True
-            p.add_run(auto.base_legal_outras)
-        
-        # Infrações
-        doc.add_heading('INFRAÇÕES CONSTATADAS', level=1)
-        
-        infracoes = []
-        if auto.infracao_art_34:
-            infracoes.append("Art. 34 do CDC")
-        if auto.infracao_art_35:
-            infracoes.append("Art. 35 do CDC")
-        if auto.infracao_art_36:
-            infracoes.append("Art. 36 do CDC")
-        if auto.infracao_art_55:
-            infracoes.append("Art. 55 do CDC")
-        if auto.infracao_art_56:
-            infracoes.append("Art. 56 do CDC")
-        if auto.infracao_publicidade_enganosa:
-            infracoes.append("Publicidade Enganosa")
-        if auto.infracao_precos_abusivos:
-            infracoes.append("Preços Abusivos")
-        if auto.infracao_produtos_vencidos:
-            infracoes.append("Produtos Vencidos")
-        if auto.infracao_falta_informacao:
-            infracoes.append("Falta de Informação")
-        
-        for infracao in infracoes:
-            doc.add_paragraph(f"• {infracao}", style='List Bullet')
-        
-        if auto.outras_infracoes:
-            p = doc.add_paragraph()
-            p.add_run('OUTRAS INFRAÇÕES: ').bold = True
-            p.add_run(auto.outras_infracoes)
-        
-        # Valor da multa
-        doc.add_heading('PENALIDADE', level=1)
-        p = doc.add_paragraph()
-        p.add_run('VALOR DA MULTA: ').bold = True
-        p.add_run(auto.valor_multa_formatado)
-        
-        # Responsáveis
-        doc.add_heading('RESPONSÁVEIS', level=1)
-        
-        p = doc.add_paragraph()
-        p.add_run('AUTORIDADE FISCALIZADORA: ').bold = True
-        p.add_run(f"{auto.fiscal_nome} - {auto.fiscal_cargo}")
-        
-        p = doc.add_paragraph()
-        p.add_run('ESTABELECIMENTO FISCALIZADO: ').bold = True
-        p.add_run(f"{auto.responsavel_nome} - CPF: {auto.responsavel_cpf}")
-        
-        # Salva em buffer
-        buffer = BytesIO()
-        doc.save(buffer)
-        buffer.seek(0)
-        
-        # Retorna como download
+        docx_bytes = _gerar_docx_auto_infracao(auto)
+        if not docx_bytes:
+            return Response({'error': 'Erro ao gerar documento do Auto de Infração.'}, status=500)
+
         response = HttpResponse(
-            buffer.getvalue(),
+            docx_bytes,
             content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
         )
-        response['Content-Disposition'] = f'attachment; filename="Auto_Infracao_{auto.numero.replace("/", "_")}.docx"'
-        
+        response['Content-Disposition'] = f"attachment; filename=\"Auto_Infracao_{auto.numero.replace('/', '_')}\".docx"
+
         return response
-        
+
     except Exception as e:
         return Response({'error': f'Erro ao gerar documento: {str(e)}'}, status=500)
+
+
+def _gerar_docx_auto_infracao(auto):
+    """Gera bytes do DOCX do Auto de Infração."""
+    from docx import Document
+    from io import BytesIO
+
+    template_path = Path(settings.BASE_DIR) / 'fiscalizacao' / 'templates' / 'docs' / 'AutoInfracao.docx'
+    if not template_path.exists():
+        return None
+
+    doc = Document(template_path)
+
+    def set_cell_text(cell, text, bold=False):
+        cell.text = ""
+        paragraph = cell.paragraphs[0]
+        run = paragraph.add_run(text)
+        run.bold = bold
+
+    if doc.paragraphs:
+        title = doc.paragraphs[0]
+        title.text = ""
+        title_run = title.add_run(f"AUTO DE INFRAÇÃO Nº {auto.numero}")
+        title_run.bold = True
+
+    if not doc.tables:
+        return None
+
+    table = doc.tables[0]
+    set_cell_text(table.cell(0, 0), f"RAZÃO SOCIAL: {auto.razao_social or ''}".strip(), bold=True)
+    set_cell_text(table.cell(1, 0), f"NOME FANTASIA: {auto.nome_fantasia or ''}".strip(), bold=True)
+    set_cell_text(table.cell(2, 0), f"ATIVIDADE: {auto.atividade or ''}".strip(), bold=True)
+    set_cell_text(table.cell(3, 0), f"ENDEREÇO: {auto.endereco or ''}".strip(), bold=True)
+
+    estado = auto.estado or "AM"
+    estado_sigla = estado if len(estado) <= 2 else estado[:2]
+    set_cell_text(table.cell(4, 0), f"CEP: {auto.cep or ''}".strip(), bold=True)
+    set_cell_text(table.cell(4, 1), f"MUNICIPIO: {auto.municipio or ''}".strip(), bold=True)
+    set_cell_text(table.cell(4, 3), f"ESTADO: {estado_sigla}".strip(), bold=True)
+
+    set_cell_text(table.cell(5, 0), f"CNPJ: {auto.cnpj or ''}".strip(), bold=True)
+    set_cell_text(table.cell(5, 2), f"TELEFONE: {auto.telefone or ''}".strip(), bold=True)
+
+    intro_cell = table.cell(6, 0)
+    intro_cell.text = ""
+    intro_paragraph = intro_cell.paragraphs[0]
+    intro_paragraph.add_run("     ")
+
+    if auto.texto_origem:
+        intro_paragraph.add_run(auto.texto_origem)
+    else:
+        origem_numero = auto.auto_constatacao_numero or "____/____"
+        intro_paragraph.add_run("O presente Auto originou-se e a partir de ")
+        if auto.notificacao_numero:
+            origem_run = intro_paragraph.add_run(
+                f"Auto de Constatação Nº {origem_numero},"
+            )
+            origem_run.bold = True
+            intro_paragraph.add_run(
+                f" referente a notificação nº {auto.notificacao_numero}."
+            )
+        else:
+            origem_run = intro_paragraph.add_run(
+                f"Auto de Constatação Nº {origem_numero}."
+            )
+            origem_run.bold = True
+
+        intro_paragraph.add_run(
+            " A Autuada fica pelo presente intimada para cumprir ou impugnar o Auto de Infração no prazo de 10 (dez) dias. "
+            "No caso de impugnação, deverá ser encaminhada ao Chefe do Setor de Fiscalização do "
+        )
+        procon_run = intro_paragraph.add_run("PROCON/AM")
+        procon_run.bold = True
+        intro_paragraph.add_run(
+            " no endereço de e-mail: fiscalizacaoprocon@procon.am.gov.br"
+        )
+
+    relatorio_cell = table.cell(7, 0)
+    relatorio_cell.text = ""
+    relatorio_title = relatorio_cell.paragraphs[0]
+    relatorio_title_run = relatorio_title.add_run("Relatório")
+    relatorio_title_run.bold = True
+
+    relatorio_body = relatorio_cell.add_paragraph()
+    relatorio_body.add_run(f"     {auto.relatorio or ''}".rstrip())
+
+    buffer = BytesIO()
+    doc.save(buffer)
+    buffer.seek(0)
+    return buffer.getvalue()
+
+
+def _buscar_auto_constatacao(auto_tipo, auto_id):
+    model_map = {
+        'banco': AutoBanco,
+        'posto': AutoPosto,
+        'supermercado': AutoSupermercado,
+        'autobanco': AutoBanco,
+        'autoposto': AutoPosto,
+        'autosupermercado': AutoSupermercado,
+        'autodiversos': AutoDiversos,
+        'diversos': AutoDiversos,
+    }
+    model_class = model_map.get(auto_tipo)
+    if not model_class:
+        return None
+    try:
+        return model_class.objects.get(pk=auto_id)
+    except model_class.DoesNotExist:
+        return None
+
+
+def _vincular_auto_infracao_ao_processo(infracao, auto_obj, request=None):
+    try:
+        content_type = ContentType.objects.get_for_model(auto_obj)
+        processo = Processo.objects.filter(
+            auto_constatacao_content_type=content_type,
+            auto_constatacao_id=auto_obj.id
+        ).first()
+        if not processo:
+            return
+
+        processo.auto_infracao = infracao
+        processo.valor_multa = infracao.valor_multa
+        if processo.status == 'aguardando_auto_infracao':
+            processo.status = 'aguardando_defesa'
+        processo.observacoes = (
+            f"{processo.observacoes}\nAuto de Infração {infracao.numero} vinculado ao processo."
+            if processo.observacoes else f"Auto de Infração {infracao.numero} vinculado ao processo."
+        )
+        processo.save(update_fields=['auto_infracao', 'valor_multa', 'status', 'observacoes'])
+
+        docx_bytes = _gerar_docx_auto_infracao(infracao)
+        if docx_bytes:
+            nome_arquivo = f"Auto_Infracao_{infracao.numero.replace('/', '_')}.docx"
+            DocumentoProcesso.objects.update_or_create(
+                processo=processo,
+                tipo='auto_infracao',
+                titulo=f"Auto de Infração {infracao.numero}",
+                defaults={
+                    'arquivo': ContentFile(docx_bytes, name=nome_arquivo),
+                    'descricao': 'Auto de Infração gerado automaticamente',
+                    'usuario_upload': (
+                        request.user.get_full_name() if request and request.user.is_authenticated else 'Sistema'
+                    )
+                }
+            )
+    except Exception as exc:
+        logger.exception("Erro ao vincular auto de infração ao processo: %s", exc)
+
+
+# ========================================
+# === VALIDAÇÃO FORMAL ===
+# ========================================
+
+@api_view(['POST'])
+def validar_formal_infracao(request, pk):
+    """
+    Registra validação formal do Auto de Infração.
+    Espera:
+    - status: 'valido' | 'erro' | 'pendente'
+    - motivo: obrigatório quando status='erro'
+    """
+    auto = get_object_or_404(AutoInfracao, pk=pk)
+
+    status_formal = (request.data.get('status') or request.data.get('validacao_formal_status') or '').strip().lower()
+    motivo = (request.data.get('motivo') or request.data.get('validacao_formal_motivo') or '').strip()
+
+    if status_formal not in {'valido', 'erro', 'pendente'}:
+        return Response({'error': 'Status inválido para validação formal.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if status_formal == 'erro' and not motivo:
+        return Response({'motivo': 'Informe o motivo do erro formal.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    auto.validacao_formal_status = status_formal
+    auto.validacao_formal_motivo = motivo if status_formal == 'erro' else ''
+    auto.validado_em = timezone.now()
+    if request.user and request.user.is_authenticated:
+        auto.validado_por = request.user
+    else:
+        auto.validado_por = None
+
+    if status_formal == 'erro' and auto.status != 'cancelado':
+        auto.status = 'cancelado'
+
+    auto.save()
+
+    processo = Processo.objects.filter(auto_infracao=auto).first()
+    if processo and status_formal == 'erro':
+        motivo_txt = auto.validacao_formal_motivo or 'Sem motivo informado'
+        linha = f"AI {auto.numero}: erro formal. Motivo: {motivo_txt}"
+        processo.atualizar_status('arquivado', linha)
+        processo.observacoes = (f"{processo.observacoes}\n{linha}".strip()
+                                if processo.observacoes else linha)
+        processo.save(update_fields=['observacoes'])
+
+        try:
+            referencia = NotificacaoEletronica.objects.filter(
+                Q(processo=processo) | Q(auto_infracao=auto)
+            ).order_by('-data_envio', '-id').first()
+            destinatario_email = (referencia.destinatario_email or '').strip() if referencia else ''
+            destinatario_nome = (referencia.destinatario_nome or '').strip() if referencia else (auto.razao_social or '')
+
+            assunto = f"Processo {processo.numero_processo} arquivado"
+            corpo = (
+                f"Prezado(a) {destinatario_nome or 'interessado'},\n\n"
+                f"Informamos que o processo {processo.numero_processo} "
+                f"foi arquivado por erro formal no Auto de Infração {auto.numero}.\n\n"
+                f"Motivo: {motivo_txt}\n\n"
+                "Em caso de dúvidas, procure o PROCON/AM."
+            )
+
+            pendente = NotificacaoEletronica.objects.filter(
+                tipo_notificacao='arquivamento',
+                processo=processo,
+                auto_infracao=auto,
+                status__in=['pendente', 'erro'],
+            ).order_by('-id').first()
+
+            if pendente:
+                pendente.destinatario_nome = destinatario_nome or pendente.destinatario_nome
+                pendente.destinatario_email = destinatario_email or pendente.destinatario_email
+                pendente.assunto = assunto
+                pendente.mensagem = corpo
+                pendente.status = 'pendente'
+                pendente.save(update_fields=['destinatario_nome', 'destinatario_email', 'assunto', 'mensagem', 'status'])
+            else:
+                NotificacaoEletronica.objects.create(
+                    processo=processo,
+                    auto_infracao=auto,
+                    tipo_notificacao='arquivamento',
+                    destinatario_nome=destinatario_nome or 'Interessado',
+                    destinatario_email=destinatario_email or None,
+                    destinatario_cpf_cnpj=auto.cnpj or '',
+                    representante_legal='',
+                    assunto=assunto,
+                    mensagem=corpo,
+                    status='pendente',
+                )
+        except Exception as exc:
+            logger.exception("Falha ao criar notificacao pendente de arquivamento %s: %s", processo.numero_processo, exc)
+
+    return Response(AutoInfracaoSerializer(auto).data)
 
 
 # ========================================
@@ -270,6 +390,10 @@ def criar_infracao_de_auto(request):
             'posto': AutoPosto,
             'supermercado': AutoSupermercado,
             'diversos': AutoDiversos,
+            'autobanco': AutoBanco,
+            'autoposto': AutoPosto,
+            'autosupermercado': AutoSupermercado,
+            'autodiversos': AutoDiversos,
         }
         
         if auto_tipo not in model_map:
@@ -282,22 +406,29 @@ def criar_infracao_de_auto(request):
         model_class = model_map[auto_tipo]
         auto_obj = get_object_or_404(model_class, id=auto_id)
         
-        # Obter ContentType
-        content_type = ContentType.objects.get_for_model(model_class)
-        
         # Criar dados da infração
         infracao_data = request.data.copy()
-        infracao_data['content_type'] = content_type.id
-        infracao_data['object_id'] = auto_id
+        infracao_data.setdefault('auto_constatacao_numero', getattr(auto_obj, 'numero', ''))
         
-        # Pré-preencher alguns campos do auto
-        infracao_data['data_fiscalizacao'] = auto_obj.data_fiscalizacao
-        infracao_data['hora_fiscalizacao'] = auto_obj.hora_fiscalizacao
+        # Pré-preencher campos do auto de constatação
+        infracao_data.setdefault('data_fiscalizacao', auto_obj.data_fiscalizacao)
+        infracao_data.setdefault('hora_fiscalizacao', auto_obj.hora_fiscalizacao)
+        infracao_data.setdefault('municipio', auto_obj.municipio)
+        infracao_data.setdefault('estado', auto_obj.estado)
+        infracao_data.setdefault('razao_social', auto_obj.razao_social)
+        infracao_data.setdefault('nome_fantasia', getattr(auto_obj, 'nome_fantasia', ''))
+        infracao_data.setdefault('atividade', getattr(auto_obj, 'atividade', ''))
+        infracao_data.setdefault('endereco', auto_obj.endereco)
+        infracao_data.setdefault('cep', getattr(auto_obj, 'cep', ''))
+        infracao_data.setdefault('cnpj', auto_obj.cnpj)
+        infracao_data.setdefault('telefone', getattr(auto_obj, 'telefone', ''))
         
         # Usar serializer para criar
         serializer = AutoInfracaoCreateSerializer(data=infracao_data)
         if serializer.is_valid():
             infracao = serializer.save()
+
+            _vincular_auto_infracao_ao_processo(infracao, auto_obj, request)
             return Response(
                 AutoInfracaoSerializer(infracao).data,
                 status=status.HTTP_201_CREATED
@@ -336,12 +467,14 @@ def infrações_por_auto(request, auto_tipo, auto_id):
             )
         
         model_class = model_map[auto_tipo]
-        content_type = ContentType.objects.get_for_model(model_class)
-        
-        # Buscar infrações
+        auto_obj = get_object_or_404(model_class, id=auto_id)
+        numero_auto = getattr(auto_obj, 'numero', None)
+
+        if not numero_auto:
+            return Response([])
+
         infracoes = AutoInfracao.objects.filter(
-            content_type=content_type,
-            object_id=auto_id
+            auto_constatacao_numero=numero_auto
         ).order_by('-data_fiscalizacao')
         
         serializer = AutoInfracaoSimpleSerializer(infracoes, many=True)
@@ -365,14 +498,11 @@ def autos_com_potencial_infracao(request):
         # AutoBanco com irregularidades
         bancos_irregulares = AutoBanco.objects.exclude(
             Q(nada_consta=True) | Q(sem_irregularidades=True)
-        ).exclude(
-            # Excluir os que já têm infração
-            id__in=AutoInfracao.objects.filter(
-                content_type=ContentType.objects.get_for_model(AutoBanco)
-            ).values_list('object_id', flat=True)
         )
         
         for banco in bancos_irregulares:
+            if banco.numero and AutoInfracao.objects.filter(auto_constatacao_numero=banco.numero).exists():
+                continue
             resultado.append({
                 'tipo': 'banco',
                 'id': banco.id,
@@ -385,13 +515,11 @@ def autos_com_potencial_infracao(request):
         # AutoPosto com irregularidades
         postos_irregulares = AutoPosto.objects.exclude(
             Q(nada_consta=True) | Q(sem_irregularidades=True)
-        ).exclude(
-            id__in=AutoInfracao.objects.filter(
-                content_type=ContentType.objects.get_for_model(AutoPosto)
-            ).values_list('object_id', flat=True)
         )
         
         for posto in postos_irregulares:
+            if posto.numero and AutoInfracao.objects.filter(auto_constatacao_numero=posto.numero).exists():
+                continue
             resultado.append({
                 'tipo': 'posto',
                 'id': posto.id,
@@ -404,13 +532,11 @@ def autos_com_potencial_infracao(request):
         # AutoSupermercado com irregularidades
         supermercados_irregulares = AutoSupermercado.objects.exclude(
             nada_consta=True
-        ).exclude(
-            id__in=AutoInfracao.objects.filter(
-                content_type=ContentType.objects.get_for_model(AutoSupermercado)
-            ).values_list('object_id', flat=True)
         )
         
         for supermercado in supermercados_irregulares:
+            if supermercado.numero and AutoInfracao.objects.filter(auto_constatacao_numero=supermercado.numero).exists():
+                continue
             resultado.append({
                 'tipo': 'supermercado',
                 'id': supermercado.id,
@@ -451,6 +577,8 @@ def atualizar_status_infracao(request, pk):
         
         status_anterior = infracao.status
         infracao.status = novo_status
+        if novo_status == 'notificado' and not infracao.data_notificacao:
+            infracao.data_notificacao = timezone.now().date()
         infracao.save()
         
         # Registrar no histórico

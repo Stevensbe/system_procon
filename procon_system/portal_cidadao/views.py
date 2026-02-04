@@ -1,26 +1,37 @@
 from django.shortcuts import render, get_object_or_404, redirect
-from django.http import JsonResponse, HttpResponse
+from django.http import JsonResponse, HttpResponse, FileResponse
 from django.db.models import Count, Q
 from django.utils import timezone
 from django.core.paginator import Paginator
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_exempt
+from django.conf import settings
 from rest_framework.views import APIView
 from rest_framework.response import Response
+from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework import status
 from django.contrib import messages
 import json
-from datetime import datetime
+import os
+import re
+import unicodedata
+import logging
+from urllib.parse import urlencode
+from datetime import datetime, date
 from django.contrib.contenttypes.models import ContentType
 
 # Importar modelos de peticionamento
 from peticionamento.models import PeticaoEletronica, TipoPeticao, AnexoPeticao
 from protocolo_tramitacao.models import ProtocoloDocumento, TipoDocumento
+from fiscalizacao.models import Processo, DocumentoProcesso
 
 from .models import (
     CategoriaConteudo, ConteudoPortal, FormularioPublico, BannerPortal,
     ConsultaPublica, AvaliacaoServico, ConfiguracaoPortal, EstatisticaPortal,
-    DenunciaCidadao
+    DenunciaCidadao, HistoricoAtividade
 )
+
+logger = logging.getLogger(__name__)
 
 
 # === VIEWS PRINCIPAIS ===
@@ -289,6 +300,10 @@ def nova_peticao_cidadao(request):
     """Nova peticao pelo portal do cidadao"""
     if request.method == 'POST':
         try:
+            usuario_criacao = request.user if request.user.is_authenticated else _get_usuario_sistema()
+            if not usuario_criacao:
+                raise ValueError('Nenhum usuário do sistema disponível para registrar a petição.')
+
             # Recuperar ou criar tipo de peticao baseado no tipo selecionado
             tipo_peticao_nome = request.POST.get('tipo_peticao')
             tipo_peticao, created = TipoPeticao.objects.get_or_create(
@@ -299,6 +314,13 @@ def nova_peticao_cidadao(request):
                 }
             )
             
+            numero_processo = (
+                request.POST.get('numero_processo')
+                or request.POST.get('numero_protocolo')
+                or request.POST.get('protocolo_numero')
+                or ''
+            ).strip()
+
             # Criar peticao eletronica
             peticao = PeticaoEletronica.objects.create(
                 tipo_peticao=tipo_peticao,
@@ -317,14 +339,21 @@ def nova_peticao_cidadao(request):
                 # Dados da empresa (se aplicvel)
                 empresa_nome=request.POST.get('empresa_envolvida', ''),
                 empresa_cnpj=request.POST.get('cnpj_empresa', ''),
-                
+
                 # Dados adicionais
                 valor_causa=float(request.POST.get('valor_envolvido', 0)) if request.POST.get('valor_envolvido') else None,
                 data_fato=datetime.strptime(request.POST.get('data_ocorrencia'), '%Y-%m-%d').date() if request.POST.get('data_ocorrencia') else None,
-                
+                protocolo_numero=numero_processo,
+
                 # Controle
-                ip_origem=request.META.get('REMOTE_ADDR')
+                ip_origem=request.META.get('REMOTE_ADDR'),
+                usuario_criacao=usuario_criacao
             )
+
+            if numero_processo:
+                peticao.dados_especificos = peticao.dados_especificos or {}
+                peticao.dados_especificos['numero_processo'] = numero_processo
+                peticao.save(update_fields=['dados_especificos'])
             
             messages.success(request, f'Peticao enviada com sucesso! Nmero: {peticao.numero_peticao}')
             return redirect('portal_cidadao:peticao_sucesso', numero_peticao=peticao.numero_peticao)
@@ -365,8 +394,8 @@ def nova_reclamacao(request):
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework.permissions import AllowAny
-from django.contrib.auth.models import User
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from django.contrib.auth import get_user_model
 from agenda.models import Fiscal
 from notificacoes.models import Notificacao, TipoNotificacao
 from caixa_entrada.models import CaixaEntrada
@@ -383,16 +412,6 @@ PETICOES_PORTAL_CONFIG = [
         "setor_destino": "JURIDICO_1",
         "tipo_caixa": "PETICAO",
         "prioridade": "NORMAL",
-        "prazo_resposta_dias": 10
-    },
-    {
-        "slug": "RECURSO_PRIMEIRA_INSTANCIA",
-        "nome": "Recurso Administrativo - 1 instncia",
-        "descricao": "Recurso contra deciso em primeira instncia, encaminhado ao Jurdico 1.",
-        "categoria": "RECURSO",
-        "setor_destino": "JURIDICO_1",
-        "tipo_caixa": "RECURSO",
-        "prioridade": "ALTA",
         "prazo_resposta_dias": 10
     },
     {
@@ -488,12 +507,204 @@ PETICOES_PORTAL_CONFIG = [
 ]
 
 
+def _normalizar_numero_processo(numero_processo):
+    numero = (numero_processo or '').strip()
+    if not numero:
+        return ''
+    return re.sub(r'[^0-9A-Za-z]', '', numero).upper()
+
+
+def _buscar_processo_por_numero(numero_processo):
+    numero = (numero_processo or '').strip()
+    if not numero:
+        return None
+
+    processo = Processo.objects.filter(numero_processo__iexact=numero).first()
+    if processo:
+        return processo
+
+    numero_normalizado = _normalizar_numero_processo(numero)
+    if not numero_normalizado:
+        return None
+
+    candidatos = Processo.objects.filter(numero_processo__icontains=numero_normalizado[-6:])
+    for candidato in candidatos:
+        if _normalizar_numero_processo(candidato.numero_processo) == numero_normalizado:
+            return candidato
+
+    return None
+
+
+def _peticao_existe(numero_processo, slugs):
+    if not numero_processo:
+        return False
+    return PeticaoEletronica.objects.filter(
+        Q(dados_especificos__numero_processo=numero_processo) | Q(protocolo_numero__iexact=numero_processo),
+        dados_especificos__portal_slug__in=slugs
+    ).exists()
+
+
+def _filtrar_tipos_por_processo(numero_processo):
+    processo = _buscar_processo_por_numero(numero_processo)
+    if not processo:
+        return None, [], {'detail': 'Processo nao encontrado.'}
+
+    tipos = preparar_tipospeticao_portal()
+    hoje = timezone.localdate()
+
+    defesa_ja = _peticao_existe(numero_processo, ['DEFESA_PREVIA'])
+    recurso_ja = _peticao_existe(numero_processo, ['RECURSO_PRIMEIRA_INSTANCIA', 'RECURSO_SEGUNDA_INSTANCIA'])
+
+    # Se o prazo de recurso venceu e nao ha recurso, finaliza como procedente.
+    try:
+        if (
+            (processo.status or '').lower() == 'aguardando_recurso'
+            and not recurso_ja
+            and processo.prazo_recurso
+            and processo.prazo_recurso < hoje
+        ):
+            status_anterior = processo.status
+            processo.status = 'finalizado_procedente'
+            processo.data_julgamento = processo.data_julgamento or processo.prazo_recurso
+            processo.save()
+            try:
+                from fiscalizacao.models import HistoricoProcesso
+
+                HistoricoProcesso.objects.create(
+                    processo=processo,
+                    status_anterior=status_anterior,
+                    status_novo=processo.status,
+                    observacao='Prazo de recurso encerrado sem apresentacao de recurso.',
+                    usuario='sistema_portal',
+                )
+            except Exception:
+                pass
+    except Exception:
+        logger.exception('Falha ao finalizar processo por prazo de recurso: %s', getattr(processo, 'id', None))
+
+    # Se o prazo de defesa venceu e não há defesa, marca revelia e encaminha para análise.
+    try:
+        if (
+            (processo.status or '').lower() == 'aguardando_defesa'
+            and not defesa_ja
+            and processo.prazo_defesa
+            and processo.prazo_defesa < hoje
+        ):
+            status_anterior = processo.status
+            processo.status = 'em_analise'
+            processo.save()
+            try:
+                from fiscalizacao.models import HistoricoProcesso
+
+                HistoricoProcesso.objects.create(
+                    processo=processo,
+                    status_anterior=status_anterior,
+                    status_novo=processo.status,
+                    observacao='Revelia: prazo de defesa encerrado sem apresentação.',
+                    usuario='sistema_portal',
+                )
+            except Exception:
+                pass
+    except Exception:
+        logger.exception('Falha ao registrar revelia por prazo de defesa: %s', getattr(processo, 'id', None))
+
+    prazo_defesa_ok = not processo.prazo_defesa or processo.prazo_defesa >= hoje
+    prazo_recurso_ok = not processo.prazo_recurso or processo.prazo_recurso >= hoje
+
+    permitidos = {'JUNTADA_DOCUMENTOS', 'PEDIDO_VISTA_AUTOS'}
+
+    status_atual = (processo.status or '').lower()
+
+    if status_atual == 'aguardando_defesa' and prazo_defesa_ok and not defesa_ja:
+        permitidos.update({'DEFESA_PREVIA', 'PEDIDO_DILACAO_PRAZO'})
+
+    decisao_instancia = ''
+    try:
+        if isinstance(getattr(processo, 'dados_especificos', None), dict):
+            decisao_instancia = (processo.dados_especificos.get('decisao_instancia') or '').lower()
+    except Exception:
+        decisao_instancia = ''
+
+    if (
+        status_atual == 'aguardando_recurso'
+        and prazo_recurso_ok
+        and not recurso_ja
+        and decisao_instancia in {'juridico_1', 'juridico1'}
+    ):
+        permitidos.update({'RECURSO_SEGUNDA_INSTANCIA', 'PEDIDO_DILACAO_PRAZO'})
+
+    tipos_filtrados = [tipo for tipo in tipos if tipo.get('slug') in permitidos]
+
+    meta = {
+        'numero_processo': processo.numero_processo,
+        'status': processo.status,
+        'status_display': processo.get_status_display(),
+        'prazo_defesa': processo.prazo_defesa.isoformat() if processo.prazo_defesa else None,
+        'prazo_recurso': processo.prazo_recurso.isoformat() if processo.prazo_recurso else None,
+        'defesa_ja_apresentada': defesa_ja,
+        'recurso_ja_apresentado': recurso_ja,
+        'permitidos': sorted(list(permitidos)),
+    }
+
+    return processo, tipos_filtrados, meta
+
+
 def get_peticao_config_by_slug(slug):
     codigo = (slug or '').upper()
     for item in PETICOES_PORTAL_CONFIG:
         if item['slug'] == codigo:
             return item
     return None
+
+
+def _get_usuario_sistema():
+    """Retorna um usuário do sistema para criar registros quando o portal é anônimo."""
+    User = get_user_model()
+    usuario = User.objects.filter(is_staff=True, is_active=True).order_by('id').first()
+    if usuario:
+        return usuario
+    usuario = User.objects.filter(is_superuser=True, is_active=True).order_by('id').first()
+    if usuario:
+        return usuario
+    usuario, created = User.objects.get_or_create(
+        username='sistema_portal',
+        defaults={
+            'first_name': 'Sistema',
+            'last_name': 'Portal',
+            'email': 'sistema@procon.am.gov.br',
+            'is_staff': True,
+            'is_active': True,
+        }
+    )
+    if created:
+        usuario.set_unusable_password()
+        usuario.save(update_fields=['password'])
+    return usuario
+
+
+def mapear_setor_destino(codigo_setor):
+    """
+    Mapeia código de setor para nome completo usado na caixa de entrada.
+    Garante que cada tipo de petição vá para o setor correto.
+    Usa os mesmos nomes definidos em caixa_entrada/services.py SETOR_LABELS
+    """
+    mapeamento = {
+        'JURIDICO_1': 'Juridico 1 - Peticoes',
+        'JURIDICO_2_RECURSOS': 'Juridico 2 - Recursos',
+        'JURIDICO_2': 'Juridico 2 - Recursos',
+        'DAF': 'Diretoria Administrativa Financeira',
+        'FINANCEIRO': 'Financeiro',
+        'FISCALIZACAO': 'Fiscalizacao',
+        'FISCALIZACAO_DENUNCIAS': 'Fiscalizacao - Denuncias',
+        'FISCALIZACAO_PROPRIO': 'Fiscalizacao - Setor Proprio',
+        'ATENDIMENTO': 'Atendimento/Protocolo',
+        'COBRANCA': 'Cobranca',
+        'DIRETORIA': 'Diretoria',
+        'GERAL': 'Acesso Geral',
+    }
+    
+    codigo_upper = (codigo_setor or '').upper().strip()
+    return mapeamento.get(codigo_upper, codigo_setor or 'Juridico 1 - Peticoes')
 
 
 def ensure_tipo_peticao(config):
@@ -526,17 +737,12 @@ def ensure_tipo_peticao(config):
             setattr(tipo, campo, valor)
             atualizou = True
 
-    dados = tipo.dados_especificos or {}
-    nova_config = {
-        'portal_slug': config['slug'],
-        'setor_destino': config['setor_destino'],
-        'tipo_caixa': config['tipo_caixa'],
-        'prioridade': config.get('prioridade', 'NORMAL')
-    }
-    if dados != {**dados, **nova_config}:
-        dados.update(nova_config)
-        tipo.dados_especificos = dados
-        atualizou = True
+    # TipoPeticao não tem dados_especificos, então vamos usar um campo JSONField se existir
+    # ou armazenar em outro lugar. Por enquanto, vamos apenas garantir que o tipo existe
+    # e usar o nome para mapear o slug
+    # Se o modelo tiver um campo JSONField para dados extras, usar aqui
+    # Por enquanto, vamos apenas garantir que o tipo está correto
+    pass  # Não há campo dados_especificos em TipoPeticao
 
     if atualizou:
         tipo.save()
@@ -600,7 +806,7 @@ class DenunciaCidadaoAPIView(APIView):
                 # Dados da infrao
                 descricao_fatos=dados.get('descricao_fatos', ''),
                 data_ocorrencia=datetime.strptime(dados.get('data_ocorrencia'), '%Y-%m-%d').date() if dados.get('data_ocorrencia') else None,
-                tipo_infracao='outros',  # Ser definido pelo fiscal
+                tipo_infracao=(dados.get('tipo_infracao') or 'outros'),
                 
                 # Dados do denunciante
                 nome_denunciante=nome_denunciante,
@@ -638,10 +844,44 @@ class DenunciaCidadaoAPIView(APIView):
 
             # NOTIFICAR FISCAIS
             self._notificar_fiscais(denuncia, documento_caixa=documento_caixa)
-            
+
+            # Registrar atividade no histórico
+            self._registrar_atividade_historico(
+                request=request,
+                tipo='denuncia',
+                titulo=f'Denúncia registrada - {denuncia.numero_denuncia}',
+                descricao=f'Denúncia contra {denuncia.empresa_denunciada}',
+                numero_protocolo=denuncia.numero_denuncia,
+                denuncia_id=denuncia.id,
+                email=email,
+                cpf_cnpj=cpf_cnpj
+            )
+
+            # Recuperar dados da triagem/PPA criados automaticamente
+            triagem_relacionada = (
+                denuncia.triagens.order_by('-id').select_related('ppa').first()
+            )
+            triagem_payload = None
+            ppa_payload = None
+
+            if triagem_relacionada:
+                triagem_payload = {
+                    'numero_protocolo': triagem_relacionada.numero_protocolo,
+                    'status': triagem_relacionada.status,
+                    'prioridade': triagem_relacionada.prioridade_sugerida,
+                }
+                if triagem_relacionada.ppa:
+                    ppa_payload = {
+                        'numero': triagem_relacionada.ppa.numero,
+                        'status': triagem_relacionada.ppa.status,
+                        'sigla': triagem_relacionada.ppa.sigla,
+                    }
+
             return Response({
                 'success': True,
                 'numero_denuncia': denuncia.numero_denuncia,
+                'triagem': triagem_payload,
+                'ppa': ppa_payload,
                 'message': 'Denuncia recebida com sucesso! Ser analisada por nossos fiscais.'
             }, status=status.HTTP_201_CREATED)
             
@@ -698,6 +938,32 @@ class DenunciaCidadaoAPIView(APIView):
         empresa_cnpj = getattr(peticao, 'empresa_cnpj', None) or getattr(peticao, 'cnpj_empresa', '')
 
         try:
+            # Mapear código do setor para nome completo do setor
+            codigo_setor = config.get('setor_destino', 'FISCALIZACAO_DENUNCIAS')
+            setor_destino_nome = mapear_setor_destino(codigo_setor)
+
+            protocolo = None
+            responsavel_atual = None
+            numero_processo = (getattr(peticao, 'protocolo_numero', '') or '').strip()
+            if numero_processo:
+                try:
+                    from protocolo_tramitacao.models import ProtocoloDocumento
+                    protocolo = (
+                        ProtocoloDocumento.objects
+                        .select_related('setor_atual', 'responsavel_atual')
+                        .filter(numero_protocolo__iexact=numero_processo)
+                        .first()
+                    )
+                    if protocolo and protocolo.setor_atual:
+                        setor_destino_nome = protocolo.setor_atual.nome or setor_destino_nome
+                        responsavel_atual = protocolo.responsavel_atual
+                except Exception:
+                    protocolo = None
+
+            if numero_processo and not protocolo:
+                setor_destino_nome = mapear_setor_destino('ATENDIMENTO')
+                descricao = f"[TRIAGEM] Processo nao localizado: {numero_processo}\n{descricao}"
+            
             return CaixaEntrada.objects.create(
                 tipo_documento=config.get('tipo_caixa', 'PETICAO'),
                 assunto=f"{config['nome']} - {numero_documento}"[:200],
@@ -709,8 +975,11 @@ class DenunciaCidadaoAPIView(APIView):
                 remetente_telefone=remetente_telefone or '',
                 empresa_nome=empresa_nome or '',
                 empresa_cnpj=empresa_cnpj or '',
-                setor_destino=config.get('setor_destino', 'Jurídico'),
-                setor_lotacao=config.get('setor_destino', 'Jurídico'),
+                setor_destino=setor_destino_nome,
+                setor_lotacao=setor_destino_nome,
+                responsavel_atual=responsavel_atual,
+                destinatario_direto=responsavel_atual,
+                protocolo=protocolo,
                 content_type=ContentType.objects.get_for_model(peticao),
                 object_id=peticao.id,
                 origem='PORTAL_CIDADAO',
@@ -718,13 +987,21 @@ class DenunciaCidadaoAPIView(APIView):
                 user_agent=getattr(peticao, 'user_agent', ''),
             )
         except Exception as exc:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Erro ao registrar documento na caixa de entrada: {exc}")
             print(f"Erro ao registrar documento na caixa de entrada: {exc}")
             return None
 
     def _notificar_destino(self, peticao, config, documento_caixa=None):
         """Notifica o setor responsavel sobre a nova peticao"""
         try:
-            setor_destino = (config.get('setor_destino') or '').upper()
+            setor_base = ''
+            if documento_caixa and documento_caixa.setor_destino:
+                setor_base = documento_caixa.setor_destino
+            else:
+                setor_base = config.get('setor_destino') or ''
+            setor_destino = setor_base.upper()
             if 'JURIDICO' in setor_destino:
                 grupo = 'juridico'
             elif any(sigla in setor_destino for sigla in ['FIN', 'DAF']):
@@ -801,17 +1078,207 @@ class DenunciaCidadaoAPIView(APIView):
         except Exception as exc:
             print(f"Erro ao notificar destino da peticao: {exc}")
 
+    def _registrar_atividade_historico(self, request, tipo, titulo, descricao='', 
+                                       numero_protocolo='', denuncia_id=None, 
+                                       peticao_id=None, email='', cpf_cnpj=''):
+        """Registra atividade no histórico do usuário"""
+        try:
+            usuario = None
+            identificador = ''
+            
+            # Se o usuário está autenticado, usar o usuário
+            if request.user.is_authenticated:
+                usuario = request.user
+            else:
+                # Caso contrário, usar email ou CPF como identificador
+                identificador = email or cpf_cnpj or ''
+            
+            HistoricoAtividade.objects.create(
+                usuario=usuario,
+                identificador=identificador,
+                tipo=tipo,
+                titulo=titulo,
+                descricao=descricao,
+                numero_protocolo=numero_protocolo,
+                denuncia_id=denuncia_id,
+                peticao_id=peticao_id,
+                ip_origem=request.META.get('REMOTE_ADDR'),
+                user_agent=request.META.get('HTTP_USER_AGENT', ''),
+            )
+        except Exception as e:
+            # Não falhar se houver erro ao registrar histórico
+            print(f"Erro ao registrar atividade no histórico: {e}")
+
     def _notificar_fiscais(self, denuncia, documento_caixa=None):
         """
         Reaproveita o mecanismo de notificação para alertar a fiscalização sobre novas denúncias.
         """
         config = {
             'nome': 'Denúncia Portal do Cidadão',
-            'setor_destino': 'Fiscalização - Denúncias',
+            'setor_destino': 'FISCALIZACAO_DENUNCIAS',  # Código do setor
             'tipo_caixa': 'DENUNCIA',
             'prioridade': 'ALTA',
         }
         self._notificar_destino(denuncia, config, documento_caixa=documento_caixa)
+
+
+
+class DenunciaCidadaoConsultaAPIView(APIView):
+    """Consulta publica da resposta da denuncia."""
+
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        data = getattr(request, 'data', None) or request.POST
+        numero = (data.get('numero_denuncia') or data.get('numero') or '').strip()
+        documento = (data.get('documento') or data.get('cpf_cnpj') or '').strip()
+        email = (data.get('email') or '').strip()
+
+        if not numero:
+            return Response(
+                {'encontrado': False, 'detail': 'Informe o numero da denuncia.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        denuncia = DenunciaCidadao.objects.filter(numero_denuncia__iexact=numero).first()
+        if not denuncia:
+            return Response(
+                {'encontrado': False, 'detail': 'Denuncia nao encontrada.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        if not denuncia.denuncia_anonima:
+            if not documento and not email:
+                return Response(
+                    {'encontrado': False, 'detail': 'Informe CPF/CNPJ ou e-mail para consultar.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            if documento:
+                doc_normalizado = self._normalize_documento(documento)
+                doc_registrado = self._normalize_documento(denuncia.cpf_cnpj)
+                if doc_registrado and doc_normalizado and doc_registrado != doc_normalizado:
+                    return Response(
+                        {'encontrado': False, 'detail': 'Documento nao confere com a denuncia.'},
+                        status=status.HTTP_404_NOT_FOUND,
+                    )
+
+            if email:
+                email_registrado = (denuncia.email or '').strip().lower()
+                if email_registrado and email_registrado != email.strip().lower():
+                    return Response(
+                        {'encontrado': False, 'detail': 'E-mail nao confere com a denuncia.'},
+                        status=status.HTTP_404_NOT_FOUND,
+                    )
+
+        payload = self._build_payload(denuncia)
+        return Response(payload, status=status.HTTP_200_OK)
+
+    def _build_payload(self, denuncia):
+        return {
+            'encontrado': True,
+            'numero_denuncia': denuncia.numero_denuncia,
+            'status': denuncia.status,
+            'status_display': denuncia.get_status_display(),
+            'empresa_denunciada': denuncia.empresa_denunciada,
+            'tipo_infracao': denuncia.tipo_infracao,
+            'descricao_fatos': denuncia.descricao_fatos,
+            'data_ocorrencia': denuncia.data_ocorrencia.isoformat() if denuncia.data_ocorrencia else None,
+            'denuncia_anonima': denuncia.denuncia_anonima,
+            'competencia_procon': denuncia.competencia_procon,
+            'orientacao_destino': denuncia.orientacao_destino,
+            'resposta_fiscal': denuncia.resposta_fiscal,
+            'respondido_em': self._format_datetime(denuncia.respondido_em),
+            'respondido_por': self._format_usuario(denuncia.respondido_por),
+            'criado_em': self._format_datetime(denuncia.criado_em),
+            'atualizado_em': self._format_datetime(denuncia.atualizado_em),
+        }
+
+    def _normalize_documento(self, value):
+        texto = ''.join(ch for ch in str(value or '') if ch.isalnum())
+        somente_digitos = ''.join(ch for ch in texto if ch.isdigit())
+        return somente_digitos if somente_digitos else texto.upper()
+
+    def _format_datetime(self, value):
+        if not value:
+            return None
+        if hasattr(value, 'year') and not hasattr(value, 'hour'):
+            value = datetime.combine(value, datetime.min.time())
+        if timezone.is_naive(value):
+            value = timezone.make_aware(value, timezone.get_current_timezone())
+        return timezone.localtime(value).isoformat()
+
+    def _format_usuario(self, usuario):
+        if not usuario:
+            return None
+        nome = (usuario.get_full_name() or '').strip()
+        return nome or usuario.username
+
+
+class DenunciaCidadaoRespostaAPIView(APIView):
+    """Registra a resposta do fiscal para a denuncia."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, denuncia_id):
+        denuncia = get_object_or_404(DenunciaCidadao, id=denuncia_id)
+        payload = DenunciaCidadaoConsultaAPIView()._build_payload(denuncia)
+        return Response(payload, status=status.HTTP_200_OK)
+
+    def patch(self, request, denuncia_id):
+        denuncia = get_object_or_404(DenunciaCidadao, id=denuncia_id)
+        data = getattr(request, 'data', None) or request.POST
+
+        competencia_raw = data.get('competencia_procon', None)
+        competencia = self._parse_bool(competencia_raw)
+        if competencia_raw is not None and competencia is None:
+            return Response(
+                {'detail': 'Informe um valor valido para competencia_procon.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        atualizar = False
+        if competencia_raw is not None:
+            denuncia.competencia_procon = competencia
+            atualizar = True
+
+        if 'orientacao_destino' in data:
+            denuncia.orientacao_destino = (data.get('orientacao_destino') or '').strip()
+            atualizar = True
+
+        if 'resposta_fiscal' in data:
+            denuncia.resposta_fiscal = (data.get('resposta_fiscal') or '').strip()
+            atualizar = True
+
+        if not atualizar:
+            return Response(
+                {'detail': 'Nenhum dado enviado para atualizar a resposta.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        denuncia.respondido_em = timezone.now()
+        denuncia.respondido_por = request.user
+        if denuncia.status != 'respondida':
+            denuncia.status = 'respondida'
+
+        denuncia.save()
+        payload = DenunciaCidadaoConsultaAPIView()._build_payload(denuncia)
+        return Response(payload, status=status.HTTP_200_OK)
+
+    def _parse_bool(self, value):
+        if value is None or value == '':
+            return None
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, int):
+            return bool(value)
+        texto = str(value).strip().lower()
+        if texto in {'true', '1', 'sim', 'yes'}:
+            return True
+        if texto in {'false', '0', 'nao', 'no'}:
+            return False
+        return None
+
 
 class TiposPeticaoPortalAPIView(APIView):
     """Retorna os tipos de peticao disponveis para o portal do cidadao"""
@@ -819,6 +1286,13 @@ class TiposPeticaoPortalAPIView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request):
+        numero_processo = request.query_params.get('numero_processo', '').strip()
+        if numero_processo:
+            _, tipos, meta = _filtrar_tipos_por_processo(numero_processo)
+            if not tipos and meta.get('detail'):
+                return Response({'detail': meta['detail']}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'tipos': tipos, 'processo': meta})
+
         tipos = preparar_tipospeticao_portal()
         return Response({'tipos': tipos})
 
@@ -826,15 +1300,40 @@ class TiposPeticaoPortalAPIView(APIView):
 class PeticaoJuridicaAPIView(APIView):
     """API para peties jurdicas (advogados) - vai para JURDICO"""
     permission_classes = [AllowAny]
+    parser_classes = [MultiPartParser, FormParser]
     
     def post(self, request):
         try:
             from peticionamento.models import PeticaoEletronica, TipoPeticao
 
+            # Para multipart/form-data, usar request.data (DRF) ou request.POST (Django)
+            # DRF processa multipart automaticamente em request.data
             if hasattr(request, 'data') and request.data:
                 dados = request.data
             else:
                 dados = request.POST
+            
+            # Converter QueryDict para dict se necessário
+            if hasattr(dados, 'dict'):
+                dados = dados.dict()
+            
+            # Debug: log dos dados recebidos (apenas em desenvolvimento)
+            import logging
+            logger = logging.getLogger(__name__)
+            if settings.DEBUG:
+                logger.debug(f"=== DADOS RECEBIDOS NA API DE PETIÇÃO ===")
+                logger.debug(f"Dados completos: {dict(dados)}")
+                logger.debug(f"tipo_peticao_codigo: {dados.get('tipo_peticao_codigo')}")
+                logger.debug(f"tipo_peticao_id: {dados.get('tipo_peticao_id')}")
+                logger.debug(f"assunto: {dados.get('assunto')}")
+                logger.debug(f"descricao: {dados.get('descricao', '')[:50]}...")
+                logger.debug(f"nome_completo: {dados.get('nome_completo')}")
+                logger.debug(f"email: {dados.get('email')}")
+                logger.debug(f"telefone: {dados.get('telefone')}")
+                logger.debug(f"cpf_cnpj: {dados.get('cpf_cnpj')}")
+                logger.debug(f"Arquivos recebidos: {len(request.FILES.getlist('documentos'))} arquivo(s)")
+                logger.debug(f"Content-Type: {request.content_type}")
+                logger.debug(f"==========================================")
 
             codigo = (dados.get('tipo_peticao_codigo') or dados.get('tipo_peticao_slug') or '').upper()
             tipo_peticao = None
@@ -845,7 +1344,7 @@ class PeticaoJuridicaAPIView(APIView):
                 if not config:
                     return Response({
                         'success': False,
-                        'error': 'Tipo de peticao no reconhecido.'
+                        'error': f'Tipo de petição não reconhecido: {codigo}. Verifique se o código está correto.'
                     }, status=status.HTTP_400_BAD_REQUEST)
                 tipo_peticao = ensure_tipo_peticao(config)
             else:
@@ -853,41 +1352,154 @@ class PeticaoJuridicaAPIView(APIView):
                 if not tipo_id:
                     return Response({
                         'success': False,
-                        'error': 'Tipo de peticao  obrigatorio.'
+                        'error': 'Tipo de petição é obrigatório. Informe tipo_peticao_codigo ou tipo_peticao_id.'
                     }, status=status.HTTP_400_BAD_REQUEST)
-                tipo_peticao = TipoPeticao.objects.get(id=tipo_id)
-                info = tipo_peticao.dados_especificos or {}
-                slug = (info.get('portal_slug') or tipo_peticao.nome.upper().replace(' ', '_'))
-                config = get_peticao_config_by_slug(slug)
-                if not config:
-                    return Response({
-                        'success': False,
-                        'error': 'Tipo de peticao no est habilitado para o portal.'
-                    }, status=status.HTTP_400_BAD_REQUEST)
-                ensure_tipo_peticao(config)
-                codigo = config['slug']
+                
+                # Se tipo_id parece ser um slug (string não numérica), tentar usar como código
+                if isinstance(tipo_id, str) and not tipo_id.isdigit():
+                    codigo = tipo_id.upper()
+                    config = get_peticao_config_by_slug(codigo)
+                    if config:
+                        tipo_peticao = ensure_tipo_peticao(config)
+                    else:
+                        return Response({
+                            'success': False,
+                            'error': f'Tipo de petição não reconhecido: {tipo_id}. Verifique se o código está correto.'
+                        }, status=status.HTTP_400_BAD_REQUEST)
+                else:
+                    # Tentar buscar por ID numérico
+                    try:
+                        tipo_peticao = TipoPeticao.objects.get(id=tipo_id)
+                        # TipoPeticao não tem dados_especificos, então vamos usar o nome para gerar o slug
+                        # e tentar encontrar a configuração correspondente
+                        slug_candidato = tipo_peticao.nome.upper().replace(' ', '_').replace('-', '_')
+                        
+                        # Tentar encontrar config pelo slug gerado do nome
+                        config = get_peticao_config_by_slug(slug_candidato)
+                        
+                        # Se não encontrou, tentar buscar por nome similar
+                        if not config:
+                            # Buscar em todas as configs por nome similar
+                            for cfg in PETICOES_PORTAL_CONFIG:
+                                if cfg['nome'].upper() == tipo_peticao.nome.upper() or \
+                                   tipo_peticao.nome.upper() in cfg['nome'].upper() or \
+                                   cfg['nome'].upper() in tipo_peticao.nome.upper():
+                                    config = cfg
+                                    break
+                        
+                        if not config:
+                            return Response({
+                                'success': False,
+                                'error': f'Tipo de petição (ID: {tipo_id} - {tipo_peticao.nome}) não está habilitado para o portal. Use tipo_peticao_codigo em vez de tipo_peticao_id.'
+                            }, status=status.HTTP_400_BAD_REQUEST)
+                        
+                        # Garantir que o tipo existe e está atualizado
+                        tipo_peticao = ensure_tipo_peticao(config)
+                        codigo = config['slug']
+                    except TipoPeticao.DoesNotExist:
+                        return Response({
+                            'success': False,
+                            'error': f'Tipo de petição com ID {tipo_id} não encontrado.'
+                        }, status=status.HTTP_400_BAD_REQUEST)
+
+            numero_processo = (
+                dados.get('numero_processo')
+                or dados.get('numero_protocolo')
+                or dados.get('protocolo_numero')
+                or ''
+            ).strip()
+
+            # Validar processo e tipo permitido para o momento do fluxo
+            if not numero_processo:
+                return Response({
+                    'success': False,
+                    'error': 'Numero do processo e obrigatorio para peticao juridica.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            _, tipos_permitidos, meta = _filtrar_tipos_por_processo(numero_processo)
+            if not tipos_permitidos and meta.get('detail'):
+                return Response({
+                    'success': False,
+                    'error': meta.get('detail')
+                }, status=status.HTTP_404_NOT_FOUND)
+
+            permitidos_slugs = {tipo.get('slug') for tipo in tipos_permitidos}
+            if codigo and codigo not in permitidos_slugs:
+                return Response({
+                    'success': False,
+                    'error': 'Tipo de peticao nao permitido para o status atual do processo.',
+                    'permitidos': sorted(list(permitidos_slugs))
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            # Validar campos obrigatórios
+            campos_obrigatorios = {
+                'numero_processo': numero_processo,
+                'assunto': dados.get('assunto', '').strip(),
+                'descricao': dados.get('descricao', '').strip(),
+                'nome_completo': dados.get('nome_completo', '').strip(),
+                'cpf_cnpj': dados.get('cpf_cnpj', '').strip(),
+                'email': dados.get('email', '').strip(),
+                'telefone': dados.get('telefone', '').strip(),
+            }
+            
+            campos_faltando = [campo for campo, valor in campos_obrigatorios.items() if not valor]
+            if campos_faltando:
+                return Response({
+                    'success': False,
+                    'error': f'Campos obrigatórios não preenchidos: {", ".join(campos_faltando)}'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Validar tamanho mínimo da descrição
+            if len(campos_obrigatorios['descricao']) < 50:
+                return Response({
+                    'success': False,
+                    'error': 'A descrição deve ter pelo menos 50 caracteres.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            usuario_criacao = request.user if request.user.is_authenticated else _get_usuario_sistema()
+            if not usuario_criacao:
+                raise ValueError('Nenhum usuário do sistema disponível para registrar a petição.')
 
             peticao = PeticaoEletronica.objects.create(
                 tipo_peticao=tipo_peticao,
                 origem='PORTAL_CIDADAO',
-                assunto=dados.get('assunto', ''),
-                descricao=dados.get('descricao', ''),
-                peticionario_nome=dados.get('nome_completo', ''),
-                peticionario_documento=dados.get('cpf_cnpj', ''),
-                peticionario_email=dados.get('email', ''),
-                peticionario_telefone=dados.get('telefone', ''),
-                peticionario_endereco=dados.get('endereco', ''),
-                empresa_nome=dados.get('empresa_envolvida', ''),
-                empresa_cnpj=dados.get('cnpj_empresa', ''),
+                assunto=campos_obrigatorios['assunto'],
+                descricao=campos_obrigatorios['descricao'],
+                peticionario_nome=campos_obrigatorios['nome_completo'],
+                peticionario_documento=campos_obrigatorios['cpf_cnpj'],
+                peticionario_email=campos_obrigatorios['email'],
+                peticionario_telefone=campos_obrigatorios['telefone'],
+                peticionario_endereco=dados.get('endereco', '').strip(),
+                empresa_nome=dados.get('empresa_envolvida', '').strip(),
+                empresa_cnpj=dados.get('cnpj_empresa', '').strip(),
+                protocolo_numero=numero_processo,
                 status='ENVIADA',
                 prioridade=config.get('prioridade', 'NORMAL'),
                 ip_origem=request.META.get('REMOTE_ADDR'),
-                user_agent=request.META.get('HTTP_USER_AGENT', '')
+                user_agent=request.META.get('HTTP_USER_AGENT', ''),
+                usuario_criacao=usuario_criacao
             )
 
             peticao.dados_especificos = peticao.dados_especificos or {}
             peticao.dados_especificos['portal_slug'] = codigo
+            if numero_processo:
+                peticao.dados_especificos['numero_processo'] = numero_processo
+            if config and config.get('setor_destino'):
+                peticao.dados_especificos['setor_destino'] = config.get('setor_destino')
             peticao.save(update_fields=['prioridade', 'dados_especificos'])
+
+            # Atualizar processo quando defesa for apresentada
+            if codigo == 'DEFESA_PREVIA' and numero_processo:
+                processo = _buscar_processo_por_numero(numero_processo)
+                if processo:
+                    processo.atualizar_status('defesa_apresentada', 'Defesa apresentada via Portal Cidadao')
+                    processo.atualizar_status('em_analise', 'Encaminhado automaticamente para analise juridica')
+
+            # Atualizar processo quando recurso for apresentado
+            if codigo in {'RECURSO_PRIMEIRA_INSTANCIA', 'RECURSO_SEGUNDA_INSTANCIA'} and numero_processo:
+                processo = _buscar_processo_por_numero(numero_processo)
+                if processo:
+                    processo.atualizar_status('recurso_apresentado', 'Recurso apresentado via Portal Cidadao')
 
             anexos = request.FILES.getlist('documentos')
             for anexo in anexos:
@@ -902,11 +1514,23 @@ class PeticaoJuridicaAPIView(APIView):
             documento_caixa = self._registrar_caixa_entrada(peticao, config)
             self._notificar_destino(peticao, config, documento_caixa=documento_caixa)
 
+            # Registrar atividade no histórico
+            self._registrar_atividade_historico(
+                request=request,
+                tipo='peticao',
+                titulo=f'Petição registrada - {peticao.numero_peticao}',
+                descricao=f'Petição: {campos_obrigatorios["assunto"]}',
+                numero_protocolo=peticao.numero_peticao or peticao.protocolo_numero,
+                peticao_id=peticao.id,
+                email=campos_obrigatorios['email'],
+                cpf_cnpj=campos_obrigatorios['cpf_cnpj']
+            )
+
             return Response({
                 'success': True,
                 'numero_peticao': peticao.numero_peticao,
                 'protocolo_numero': peticao.protocolo_numero,
-                'setor_destino': config['setor_destino'],
+                'setor_destino': documento_caixa.setor_destino if documento_caixa else config['setor_destino'],
                 'tipo_caixa': config['tipo_caixa'],
                 'message': 'Peticao jurdica enviada com sucesso! Ser analisada pelo setor responsavel.'
             }, status=status.HTTP_201_CREATED)
@@ -914,14 +1538,53 @@ class PeticaoJuridicaAPIView(APIView):
         except TipoPeticao.DoesNotExist:
             return Response({
                 'success': False,
-                'error': 'Tipo de peticao informado no existe.'
+                'error': 'Tipo de petição informado não existe.'
             }, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
+        except ValueError as e:
             return Response({
                 'success': False,
-                'error': str(e)
+                'error': f'Erro de validação: {str(e)}'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            import traceback
+            error_trace = traceback.format_exc()
+            logger.error(f"Erro ao processar petição: {error_trace}")
+            return Response({
+                'success': False,
+                'error': f'Erro ao processar petição: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
+    def _registrar_atividade_historico(self, request, tipo, titulo, descricao='', 
+                                       numero_protocolo='', denuncia_id=None, 
+                                       peticao_id=None, email='', cpf_cnpj=''):
+        """Registra atividade no histórico do usuário"""
+        try:
+            usuario = None
+            identificador = ''
+            
+            # Se o usuário está autenticado, usar o usuário
+            if request.user.is_authenticated:
+                usuario = request.user
+            else:
+                # Caso contrário, usar email ou CPF como identificador
+                identificador = email or cpf_cnpj or ''
+            
+            HistoricoAtividade.objects.create(
+                usuario=usuario,
+                identificador=identificador,
+                tipo=tipo,
+                titulo=titulo,
+                descricao=descricao,
+                numero_protocolo=numero_protocolo,
+                denuncia_id=denuncia_id,
+                peticao_id=peticao_id,
+                ip_origem=request.META.get('REMOTE_ADDR'),
+                user_agent=request.META.get('HTTP_USER_AGENT', ''),
+            )
+        except Exception as e:
+            # Não falhar se houver erro ao registrar histórico
+            print(f"Erro ao registrar atividade no histórico: {e}")
+
     def _registrar_caixa_entrada(self, peticao, config):
         """Cria registro na caixa de entrada conforme o tipo da peticao"""
         try:
@@ -929,6 +1592,42 @@ class PeticaoJuridicaAPIView(APIView):
             titulo = f"{config['nome']} - {peticao.numero_peticao}"
             prioridade = config.get('prioridade', 'NORMAL')
             tipo_caixa = config.get('tipo_caixa', 'PETICAO')
+            
+            # Mapear código do setor para nome completo do setor
+            codigo_setor = config.get('setor_destino', 'JURIDICO_1')
+            setor_destino_nome = mapear_setor_destino(codigo_setor)
+
+            protocolo = None
+            responsavel_atual = None
+            numero_processo = (getattr(peticao, 'protocolo_numero', '') or '').strip()
+            if numero_processo:
+                try:
+                    from protocolo_tramitacao.models import ProtocoloDocumento
+                    protocolo = (
+                        ProtocoloDocumento.objects
+                        .select_related('setor_atual', 'responsavel_atual')
+                        .filter(numero_protocolo__iexact=numero_processo)
+                        .first()
+                    )
+                    if protocolo and protocolo.setor_atual:
+                        setor_destino_nome = protocolo.setor_atual.nome or setor_destino_nome
+                        responsavel_atual = protocolo.responsavel_atual
+                except Exception:
+                    protocolo = None
+
+            if numero_processo and not protocolo:
+                setor_destino_nome = mapear_setor_destino('ATENDIMENTO')
+                descricao = f"[TRIAGEM] Processo nao localizado: {numero_processo}\n{descricao}"
+            
+            # Log para debug
+            if settings.DEBUG:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.debug(f"Registrando petição na caixa de entrada:")
+                logger.debug(f"  - Tipo: {tipo_caixa}")
+                logger.debug(f"  - Código setor: {codigo_setor}")
+                logger.debug(f"  - Setor destino: {setor_destino_nome}")
+                logger.debug(f"  - Prioridade: {prioridade}")
 
             return CaixaEntrada.objects.create(
                 tipo_documento=tipo_caixa,
@@ -941,8 +1640,11 @@ class PeticaoJuridicaAPIView(APIView):
                 remetente_telefone=peticao.peticionario_telefone,
                 empresa_nome=peticao.empresa_nome or '',
                 empresa_cnpj=peticao.empresa_cnpj or '',
-                setor_destino=config['setor_destino'],
-                setor_lotacao=config['setor_destino'],
+                setor_destino=setor_destino_nome,
+                setor_lotacao=setor_destino_nome,
+                responsavel_atual=responsavel_atual,
+                destinatario_direto=responsavel_atual,
+                protocolo=protocolo,
                 content_type=ContentType.objects.get_for_model(peticao),
                 object_id=peticao.id,
                 origem='PORTAL_CIDADAO',
@@ -950,13 +1652,21 @@ class PeticaoJuridicaAPIView(APIView):
                 user_agent=peticao.user_agent
             )
         except Exception as exc:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Erro ao registrar petição na caixa de entrada: {exc}")
             print(f"Erro ao registrar peticao na caixa de entrada: {exc}")
             return None
 
     def _notificar_destino(self, peticao, config, documento_caixa=None):
         """Notifica o setor responsavel sobre a nova peticao"""
         try:
-            setor = (config.get('setor_destino') or '').upper()
+            setor_base = ''
+            if documento_caixa and documento_caixa.setor_destino:
+                setor_base = documento_caixa.setor_destino
+            else:
+                setor_base = config.get('setor_destino') or ''
+            setor = setor_base.upper()
             grupo_keyword = 'juridico'
             if 'JURIDICO' in setor:
                 grupo_keyword = 'juridico'
@@ -1270,13 +1980,7 @@ class ConsultaPublicaAPIView(APIView):
             return self._consultar_peticao(numero, documento_normalizado, request)
 
         if tipo == 'PROCESSO':
-            return Response(
-                {
-                    'encontrado': False,
-                    'detail': 'Consulta publica de processo ainda no est disponvel.'
-                },
-                status=status.HTTP_501_NOT_IMPLEMENTED
-            )
+            return self._consultar_processo(numero, documento_normalizado, request)
 
         if tipo == 'MULTA':
             return Response(
@@ -1455,6 +2159,118 @@ class ConsultaPublicaAPIView(APIView):
         self._registrar_consulta('PETICAO', peticao.numero_peticao, documento_normalizado, resultado, request)
         return Response(resultado, status=status.HTTP_200_OK)
 
+    def _consultar_processo(self, numero, documento_normalizado, request):
+        numero_limpo = numero.strip()
+        numero_normalizado = self._normalize_numero(numero)
+
+        try:
+            from fiscalizacao.models import Processo
+        except Exception:
+            return Response(
+                {
+                    'encontrado': False,
+                    'detail': 'Modulo de processos indisponivel no momento.'
+                },
+                status=status.HTTP_503_SERVICE_UNAVAILABLE
+            )
+
+        processo = Processo.objects.filter(
+            numero_processo__iexact=numero_limpo
+        ).first()
+
+        if not processo and numero_normalizado:
+            candidatos = Processo.objects.filter(
+                numero_processo__icontains=numero_normalizado[-6:]
+            )[:20]
+            for candidato in candidatos:
+                if self._normalize_numero(candidato.numero_processo) == numero_normalizado:
+                    processo = candidato
+                    break
+
+        if not processo:
+            return Response(
+                {
+                    'encontrado': False,
+                    'detail': 'Processo nao encontrado.'
+                },
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        documento_registrado = self._normalize_documento(processo.cnpj)
+        if documento_normalizado and documento_registrado and documento_registrado != documento_normalizado:
+            return Response(
+                {
+                    'encontrado': False,
+                    'detail': 'CPF/CNPJ informado nao esta vinculado a este processo.'
+                },
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        protocolo = None
+        try:
+            protocolo = ProtocoloDocumento.objects.select_related(
+                'setor_atual',
+                'setor_origem',
+                'responsavel_atual',
+                'tipo_documento'
+            ).prefetch_related(
+                'tramitacoes__setor_destino',
+                'tramitacoes__setor_origem'
+            ).filter(processo_fiscalizacao=processo).first()
+        except Exception:
+            protocolo = None
+
+        tramitacoes = []
+        if protocolo:
+            tramitacoes = [
+                {
+                    'acao': tramitacao.get_acao_display(),
+                    'setor_origem': tramitacao.setor_origem.nome,
+                    'setor_destino': tramitacao.setor_destino.nome,
+                    'observacoes': tramitacao.observacoes or tramitacao.motivo,
+                    'data': self._format_datetime(tramitacao.data_tramitacao)
+                }
+                for tramitacao in protocolo.tramitacoes.all().order_by('data_tramitacao')[:20]
+            ]
+
+        resultado = {
+            'encontrado': True,
+            'tipo': 'PROCESSO',
+            'numero_processo': processo.numero_processo,
+            'status': processo.status,
+            'status_display': processo.get_status_display(),
+            'prioridade': processo.prioridade,
+            'prioridade_display': processo.get_prioridade_display(),
+            'autuado': processo.autuado,
+            'cnpj': processo.cnpj,
+            'interessado_nome': processo.autuado,
+            'interessado_documento': processo.cnpj,
+            'assunto': processo.observacoes or f"Processo administrativo {processo.numero_processo}",
+            'descricao': processo.observacoes or '',
+            'data_protocolo': self._format_datetime(processo.criado_em),
+            'data_notificacao': self._format_datetime(processo.data_notificacao),
+            'data_defesa': self._format_datetime(processo.data_defesa),
+            'data_recurso': self._format_datetime(processo.data_recurso),
+            'data_julgamento': self._format_datetime(processo.data_julgamento),
+            'data_finalizacao': self._format_datetime(processo.data_finalizacao),
+            'valor_multa': float(processo.valor_multa) if processo.valor_multa is not None else None,
+            'valor_final': float(processo.valor_final) if processo.valor_final is not None else None,
+            'tramitacoes': tramitacoes,
+        }
+
+        documentos_disponiveis = []
+        if documento_normalizado:
+            documentos_disponiveis = self._listar_documentos_processo(
+                processo,
+                documento_normalizado,
+                request
+            )
+        resultado['documentos_disponiveis'] = documentos_disponiveis
+        resultado['documentos_requer_documento'] = not bool(documento_normalizado)
+
+        self._registrar_consulta('PROCESSO', processo.numero_processo, documento_normalizado, resultado, request)
+        return Response(resultado, status=status.HTTP_200_OK)
+
     def _registrar_consulta(self, tipo, numero, documento, dados, request):
         try:
             ConsultaPublica.objects.create(
@@ -1482,9 +2298,98 @@ class ConsultaPublicaAPIView(APIView):
         somente_digitos = ''.join(ch for ch in texto if ch.isdigit())
         return somente_digitos if somente_digitos else texto.upper()
 
+    def _normalize_texto(self, value):
+        texto = str(value or '')
+        texto = unicodedata.normalize('NFKD', texto).encode('ascii', 'ignore').decode('ascii')
+        return texto.lower().strip()
+
+    def _documento_publico(self, documento):
+        tipo = (getattr(documento, 'tipo', '') or '').lower()
+        if tipo in {'decisao', 'auto_infracao'}:
+            return True
+
+        titulo = self._normalize_texto(getattr(documento, 'titulo', ''))
+        if not titulo:
+            return False
+
+        if 'auto de infracao' in titulo:
+            return True
+        if 'auto de constatacao' in titulo:
+            return True
+        if 'notificacao' in titulo:
+            return True
+        return False
+
+    def _listar_documentos_processo(self, processo, documento_normalizado, request):
+        documentos = []
+
+        try:
+            docs_qs = DocumentoProcesso.objects.filter(processo=processo).order_by('-data_upload')
+            for doc in docs_qs:
+                if not self._documento_publico(doc):
+                    continue
+                query = urlencode(
+                    {
+                        'documento_id': doc.id,
+                        'documento': documento_normalizado,
+                    }
+                )
+                documentos.append(
+                    {
+                        'id': doc.id,
+                        'origem': 'processo',
+                        'tipo': doc.tipo,
+                        'tipo_display': doc.get_tipo_display(),
+                        'titulo': doc.titulo,
+                        'data': self._format_datetime(doc.data_upload),
+                        'download_url': request.build_absolute_uri(
+                            f"/api/portal/api/documentos/processo/{processo.id}/download/?{query}"
+                        ),
+                    }
+                )
+        except Exception:
+            pass
+
+        try:
+            peticoes = PeticaoEletronica.objects.filter(
+                Q(dados_especificos__numero_processo=processo.numero_processo)
+                | Q(protocolo_numero__iexact=processo.numero_processo)
+            )
+            anexos = (
+                AnexoPeticao.objects.filter(peticao__in=peticoes, tipo='DECISAO')
+                .select_related('peticao')
+                .order_by('-data_upload')
+            )
+            for anexo in anexos:
+                query = urlencode(
+                    {
+                        'documento': documento_normalizado,
+                        'numero_processo': processo.numero_processo,
+                    }
+                )
+                documentos.append(
+                    {
+                        'id': anexo.id,
+                        'origem': 'peticao',
+                        'tipo': 'decisao',
+                        'tipo_display': 'Decisao',
+                        'titulo': anexo.titulo,
+                        'data': self._format_datetime(anexo.data_upload),
+                        'download_url': request.build_absolute_uri(
+                            f"/api/portal/api/documentos/peticao/{anexo.id}/download/?{query}"
+                        ),
+                    }
+                )
+        except Exception:
+            pass
+
+        return documentos
+
     def _format_datetime(self, value):
         if not value:
             return None
+        if isinstance(value, date) and not isinstance(value, datetime):
+            return value.isoformat()
         if timezone.is_naive(value):
             value = timezone.make_aware(value, timezone.get_current_timezone())
         return timezone.localtime(value).isoformat()
@@ -1522,8 +2427,178 @@ class AcompanhamentoProcessoAPIView(APIView):
             )
 
         consulta_view = ConsultaPublicaAPIView()
-        return consulta_view._consultar_protocolo(numero, documento_normalizado=None, request=request)
+        tipo = (
+            request.query_params.get('tipo')
+            or request.query_params.get('tipo_consulta')
+            or ''
+        ).strip().upper()
+        documento = (
+            request.query_params.get('documento')
+            or request.query_params.get('documento_consulta')
+            or ''
+        ).strip()
+        documento_normalizado = consulta_view._normalize_documento(documento) if documento else None
 
+        if tipo == 'PROCESSO':
+            return consulta_view._consultar_processo(numero, documento_normalizado, request=request)
+
+        resposta = consulta_view._consultar_protocolo(numero, documento_normalizado=None, request=request)
+        if getattr(resposta, 'status_code', None) == status.HTTP_404_NOT_FOUND:
+            return consulta_view._consultar_processo(numero, documento_normalizado, request=request)
+        return resposta
+
+
+class DocumentoProcessoDownloadAPIView(APIView):
+    """Download publico de documentos permitidos do processo (AC/AI/Notificacao/Decisao)"""
+
+    permission_classes = [AllowAny]
+
+    def _validar_documento(self, processo, documento):
+        consulta_view = ConsultaPublicaAPIView()
+        documento_normalizado = consulta_view._normalize_documento(documento) if documento else None
+        documento_registrado = consulta_view._normalize_documento(processo.cnpj)
+
+        if not documento_normalizado:
+            return False, None
+        if documento_registrado and documento_registrado != documento_normalizado:
+            return False, documento_normalizado
+        return True, documento_normalizado
+
+    def get(self, request, processo_id):
+        documento_id = request.query_params.get('documento_id')
+        documento = (request.query_params.get('documento') or '').strip()
+        numero_processo = (request.query_params.get('numero_processo') or '').strip()
+
+        if not documento_id:
+            return Response(
+                {'detail': 'Informe o documento_id para download.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        processo = Processo.objects.filter(id=processo_id).first()
+        if not processo and numero_processo:
+            processo = _buscar_processo_por_numero(numero_processo)
+
+        if not processo:
+            return Response(
+                {'detail': 'Processo nao encontrado.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        autorizado, documento_normalizado = self._validar_documento(processo, documento)
+        if not autorizado:
+            return Response(
+                {'detail': 'CPF/CNPJ informado nao esta vinculado a este processo.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        doc = DocumentoProcesso.objects.filter(id=documento_id, processo=processo).first()
+        if not doc:
+            return Response(
+                {'detail': 'Documento nao encontrado.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        consulta_view = ConsultaPublicaAPIView()
+        if not consulta_view._documento_publico(doc):
+            return Response(
+                {'detail': 'Documento nao disponivel para consulta publica.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        if not doc.arquivo:
+            return Response(
+                {'detail': 'Arquivo nao localizado.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        try:
+            arquivo = doc.arquivo.open('rb')
+        except Exception:
+            return Response(
+                {'detail': 'Arquivo nao localizado.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        filename = os.path.basename(doc.arquivo.name)
+        return FileResponse(arquivo, as_attachment=True, filename=filename)
+
+
+class DocumentoPeticaoDownloadAPIView(APIView):
+    """Download publico de decisao juridica vinculada a peticao"""
+
+    permission_classes = [AllowAny]
+
+    def _validar_documento(self, processo, documento):
+        consulta_view = ConsultaPublicaAPIView()
+        documento_normalizado = consulta_view._normalize_documento(documento) if documento else None
+        documento_registrado = consulta_view._normalize_documento(processo.cnpj)
+
+        if not documento_normalizado:
+            return False, None
+        if documento_registrado and documento_registrado != documento_normalizado:
+            return False, documento_normalizado
+        return True, documento_normalizado
+
+    def get(self, request, anexo_id):
+        documento = (request.query_params.get('documento') or '').strip()
+        numero_processo = (request.query_params.get('numero_processo') or '').strip()
+
+        anexo = (
+            AnexoPeticao.objects.select_related('peticao')
+            .filter(id=anexo_id, tipo='DECISAO')
+            .first()
+        )
+        if not anexo:
+            return Response(
+                {'detail': 'Documento nao encontrado.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        processo = _buscar_processo_por_numero(numero_processo or anexo.peticao.protocolo_numero)
+        if not processo:
+            return Response(
+                {'detail': 'Processo nao encontrado.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        autorizado, documento_normalizado = self._validar_documento(processo, documento)
+        if not autorizado:
+            return Response(
+                {'detail': 'CPF/CNPJ informado nao esta vinculado a este processo.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        numero_processo_vinculo = (
+            anexo.peticao.dados_especificos.get('numero_processo')
+            if anexo.peticao and isinstance(anexo.peticao.dados_especificos, dict)
+            else ''
+        )
+        if (
+            (anexo.peticao.protocolo_numero or '').strip() != processo.numero_processo
+            and (numero_processo_vinculo or '').strip() != processo.numero_processo
+        ):
+            return Response(
+                {'detail': 'Documento nao vinculado ao processo informado.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        if not anexo.arquivo:
+            return Response(
+                {'detail': 'Arquivo nao localizado.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        try:
+            arquivo = anexo.arquivo.open('rb')
+        except Exception:
+            return Response(
+                {'detail': 'Arquivo nao localizado.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        filename = os.path.basename(anexo.arquivo.name)
+        return FileResponse(arquivo, as_attachment=True, filename=filename)
 
 
 class AvaliacaoServicoAPIView(APIView):
@@ -1564,6 +2639,70 @@ class BuscaAPIView(APIView):
     def get(self, request):
         # Implementar API de busca
         return Response({'status': 'em desenvolvimento'})
+
+
+class HistoricoAtividadesAPIView(APIView):
+    """API para listar histórico de atividades do usuário"""
+    
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        """Retorna o histórico de atividades do usuário autenticado"""
+        try:
+            # Buscar atividades do usuário autenticado
+            # Também buscar atividades que foram criadas antes do login usando email/CPF
+            user_email = request.user.email if request.user.email else ''
+            user_profile = getattr(request.user, 'profile', None)
+            user_cpf = ''
+            if user_profile and hasattr(user_profile, 'cpf'):
+                user_cpf = user_profile.cpf or ''
+            
+            # Query para buscar atividades do usuário ou com identificador correspondente
+            from django.db.models import Q
+            query = Q(usuario=request.user)
+            
+            # Se tiver email ou CPF, buscar também atividades com esses identificadores
+            if user_email:
+                query |= Q(identificador=user_email)
+            if user_cpf:
+                query |= Q(identificador=user_cpf)
+            
+            queryset = HistoricoAtividade.objects.filter(
+                query
+            ).order_by('-criado_em')
+            
+            # Atualizar atividades que ainda não estão associadas ao usuário (em todo o queryset)
+            atividades_sem_usuario = queryset.filter(usuario__isnull=True)
+            if atividades_sem_usuario.exists():
+                atividades_sem_usuario.update(usuario=request.user)
+            
+            atividades = list(queryset[:50])  # Limitar a 50 atividades mais recentes
+            
+            # Formatar dados para o frontend
+            atividades_data = []
+            for atividade in atividades:
+                atividades_data.append({
+                    'id': atividade.id,
+                    'tipo': atividade.tipo,
+                    'titulo': atividade.titulo,
+                    'descricao': atividade.descricao,
+                    'numero_protocolo': atividade.numero_protocolo,
+                    'data': atividade.criado_em.strftime('%d/%m/%Y %H:%M'),
+                    'data_iso': atividade.criado_em.isoformat(),
+                })
+            
+            return Response({
+                'success': True,
+                'atividades': atividades_data,
+                'total': len(atividades_data)
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response({
+                'success': False,
+                'error': str(e),
+                'atividades': []
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 # === FUNCIONALIDADES DE PETICIONAMENTO ===

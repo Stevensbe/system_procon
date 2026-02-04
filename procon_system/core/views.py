@@ -284,6 +284,37 @@ def profile(request):
             'endereco': perfil.endereco,
         }
 
+    permissao_payload = {}
+    if user.is_staff:
+        try:
+            from ti.models import Modulo, PermissaoModulo, PermissaoUsuario, PerfilUsuario  # type: ignore
+
+            tipos = [codigo for codigo, _ in PermissaoModulo.TIPOS_PERMISSAO]
+            modulos = Modulo.objects.all()
+            permissoes_modulos = {
+                str(modulo.nome).lower().replace(" ", "-"): {tipo: False for tipo in tipos}
+                for modulo in modulos
+            }
+            permissoes_usuario = (
+                PermissaoUsuario.objects.filter(user=user, concedida=True)
+                .select_related("permissao__modulo")
+            )
+            for pu in permissoes_usuario:
+                modulo_key = str(pu.permissao.modulo.nome).lower().replace(" ", "-")
+                if modulo_key not in permissoes_modulos:
+                    permissoes_modulos[modulo_key] = {tipo: False for tipo in tipos}
+                permissoes_modulos[modulo_key][pu.permissao.nome] = True
+
+            perfil_ti = getattr(user, 'perfil', None) or getattr(user, 'perfilusuario', None)
+            if not perfil_ti:
+                perfil_ti = PerfilUsuario.objects.filter(user=user).first()
+            if perfil_ti:
+                permissao_payload['setor'] = getattr(perfil_ti, 'setor', '') or getattr(perfil_ti, 'departamento', '')
+
+            permissao_payload['permissoesModulos'] = permissoes_modulos
+        except Exception:
+            permissao_payload = {}
+
     return Response({
         'id': user.id,
         'username': user.username,
@@ -294,6 +325,7 @@ def profile(request):
         'is_superuser': user.is_superuser,
         'date_joined': user.date_joined,
         'profile': perfil_data,
+        **permissao_payload,
     })
 
 @api_view(['PUT', 'PATCH'])

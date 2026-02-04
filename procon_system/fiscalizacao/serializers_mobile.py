@@ -220,13 +220,15 @@ class AutoInfracaoCreateSerializer(serializers.Serializer):
             nome_fantasia=getattr(auto_constatacao, "nome_fantasia", ""),
             atividade=getattr(auto_constatacao, "atividade", ""),
             endereco=getattr(auto_constatacao, "endereco", ""),
+            cep=getattr(auto_constatacao, "cep", ""),
             cnpj=getattr(auto_constatacao, "cnpj", ""),
             relatorio=validated_data["fundamentacao"],
             base_legal_cdc="\n".join(validated_data["dispositivos_legais"]),
-            valor_multa=validated_data.get("valor_multa_estimado") or 0,
+            valor_multa=validated_data.get("valor_multa_estimado"),
             responsavel_nome=getattr(auto_constatacao, "responsavel_nome", ""),
             responsavel_cpf=getattr(auto_constatacao, "responsavel_cpf", ""),
             fiscal_nome=request.user.get_full_name() or request.user.username,
+            auto_constatacao_numero=getattr(auto_constatacao, "numero", ""),
         )
 
         return auto_infracao

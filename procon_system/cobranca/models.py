@@ -1,9 +1,16 @@
 from django.db import models
 from django.utils import timezone
 from django.core.validators import MinValueValidator
-from datetime import timedelta
+from django.conf import settings
+from django.apps import apps
+from django.core.files.base import ContentFile
+from datetime import timedelta, datetime
+from io import BytesIO
 import uuid
 from decimal import Decimal
+from pathlib import Path
+
+from fiscalizacao.models import Processo, AutoInfracao
 
 
 class ConfiguracaoCobranca(models.Model):
@@ -46,6 +53,260 @@ class ConfiguracaoCobranca(models.Model):
     
     def __str__(self):
         return f"Configuração de Cobrança - {self.beneficiario_nome}"
+
+
+class GuiaRecolhimentoMulta(models.Model):
+    """Guia de Recolhimento de Multa (GRM)"""
+
+    processo = models.ForeignKey(
+        Processo,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='grms',
+        verbose_name="Processo"
+    )
+    auto_infracao = models.ForeignKey(
+        AutoInfracao,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='grms',
+        verbose_name="Auto de Infração"
+    )
+    multa = models.ForeignKey(
+        'multas.Multa',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='grms',
+        verbose_name="Multa"
+    )
+
+    # Identificação da guia
+    numero_guia = models.CharField("Número da Guia", max_length=30, unique=True, blank=True)
+    departamento_emissor = models.CharField("Departamento Emissor", max_length=50, default="DAF")
+
+    # Recebedor / Banco
+    recebedor_nome = models.CharField("Recebedor", max_length=255, default="Instituto de Defesa do Consumidor - PROCON AM")
+    recebedor_cnpj = models.CharField("CNPJ Recebedor", max_length=18, blank=True)
+    banco_nome = models.CharField("Banco", max_length=100, blank=True)
+    banco_agencia = models.CharField("Agência", max_length=20, blank=True)
+    banco_conta = models.CharField("Conta", max_length=30, blank=True)
+
+    # Autuado
+    autuado_nome = models.CharField("Autuado", max_length=255, blank=True)
+    autuado_documento = models.CharField("CPF/CNPJ Autuado", max_length=18, blank=True)
+
+    # Referências
+    numero_auto_infracao = models.CharField("Número do Auto de Infração", max_length=30, blank=True)
+    numero_processo = models.CharField("Número do Processo", max_length=50, blank=True)
+
+    # Valores
+    valor_integral = models.DecimalField(
+        "Valor Integral",
+        max_digits=12,
+        decimal_places=2,
+        validators=[MinValueValidator(Decimal('0.01'))],
+        null=True,
+        blank=True
+    )
+    valor_a_vista = models.DecimalField(
+        "Valor à Vista",
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True
+    )
+    valor_parcelado = models.DecimalField(
+        "Valor Parcelado",
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True
+    )
+    quantidade_parcelas = models.IntegerField("Quantidade de Parcelas", null=True, blank=True)
+    valor_parcela = models.DecimalField(
+        "Valor da Parcela",
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True
+    )
+
+    vencimento = models.DateField("Vencimento", null=True, blank=True)
+    observacao_texto = models.TextField("Observação", blank=True)
+
+    arquivo_grm = models.FileField(
+        "Arquivo GRM",
+        upload_to='cobranca/grm/%Y/%m/',
+        blank=True,
+        null=True
+    )
+
+    criado_em = models.DateTimeField("Criado em", auto_now_add=True)
+    atualizado_em = models.DateTimeField("Atualizado em", auto_now=True)
+    criado_por = models.CharField("Criado por", max_length=100, blank=True)
+
+    class Meta:
+        verbose_name = "Guia de Recolhimento de Multa"
+        verbose_name_plural = "Guias de Recolhimento de Multa"
+        ordering = ['-criado_em']
+        indexes = [
+            models.Index(fields=['numero_guia']),
+            models.Index(fields=['numero_processo']),
+            models.Index(fields=['numero_auto_infracao']),
+        ]
+
+    def __str__(self):
+        return f"GRM {self.numero_guia} - {self.autuado_nome or 'Autuado'}"
+
+    def save(self, *args, **kwargs):
+        if not self.numero_guia:
+            self.numero_guia = self.gerar_numero_guia()
+        super().save(*args, **kwargs)
+
+    def gerar_numero_guia(self):
+        """Gera numeração no padrão 001/2026"""
+        ano = timezone.now().year
+        ultimo = GuiaRecolhimentoMulta.objects.filter(
+            numero_guia__endswith=f'/{ano}'
+        ).order_by('-id').first()
+        seq = 1
+        if ultimo:
+            try:
+                seq = int(ultimo.numero_guia.split('/')[0]) + 1
+            except (ValueError, IndexError):
+                seq = 1
+        return f"{seq:03d}/{ano}"
+
+    def _formatar_moeda(self, valor):
+        if valor in (None, ''):
+            return ''
+        try:
+            valor = Decimal(valor)
+        except Exception:
+            return str(valor)
+        texto = f"{valor:,.2f}"
+        return texto.replace(",", "X").replace(".", ",").replace("X", ".")
+
+    def _formatar_data(self, data):
+        if not data:
+            return ''
+        if isinstance(data, datetime):
+            data = data.date()
+        return data.strftime('%d/%m/%Y')
+
+    def gerar_docx(self, salvar=True):
+        """Gera o DOCX da GRM a partir do template oficial."""
+        from docx import Document
+        from datetime import datetime
+
+        template_path = Path(settings.BASE_DIR) / 'cobranca' / 'templates' / 'grm_template.docx'
+        if not template_path.exists():
+            raise FileNotFoundError(f"Template GRM nao encontrado: {template_path}")
+
+        doc = Document(str(template_path))
+
+        valor_integral = self.valor_integral or self.valor_a_vista or self.valor_parcelado
+        valor_integral_txt = self._formatar_moeda(valor_integral)
+        valor_vista_txt = self._formatar_moeda(self.valor_a_vista or valor_integral)
+        valor_parcelado_txt = self._formatar_moeda(self.valor_parcelado) if self.valor_parcelado else ''
+        valor_parcela_txt = self._formatar_moeda(self.valor_parcela) if self.valor_parcela else ''
+
+        replacements = {
+            "02.429.933/0001-24": self.recebedor_cnpj or "",
+            "INSTITUTO DE PROTEÇÃO E DEFESA DO CONSUMIDOR/ PROCON-AM": (self.recebedor_nome or ""),
+            "BANCO BRADESCO": (self.banco_nome or ""),
+            "Agência: 3739-7": f"Agência: {self.banco_agencia or ''}",
+            "Conta: 11512-6": f"Conta: {self.banco_conta or ''}",
+            "R R SOARES VIANA": (self.autuado_nome or ""),
+            "CNPJ 32.508.655/0001-61": f"CNPJ {self.autuado_documento or ''}".strip(),
+            "165202340052025-03": self.numero_guia or "",
+            "DAF": self.departamento_emissor or "",
+            "165/2023": self.numero_auto_infracao or "",
+            "01.03.021202.004005/2025-03": self.numero_processo or "",
+            "R$ 1.064,10": f"R$ {valor_integral_txt}".strip(),
+            "10/10/2025": self._formatar_data(self.vencimento),
+        }
+
+        if self.observacao_texto:
+            replacements["OBSERVAÇÃO:"] = f"OBSERVAÇÃO: {self.observacao_texto}"
+
+        def substituir_texto(paragraph):
+            for chave, valor in replacements.items():
+                if not valor:
+                    continue
+                if chave in paragraph.text:
+                    for run in paragraph.runs:
+                        if chave in run.text:
+                            run.text = run.text.replace(chave, valor)
+
+        for paragraph in doc.paragraphs:
+            substituir_texto(paragraph)
+
+        for table in doc.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    for paragraph in cell.paragraphs:
+                        substituir_texto(paragraph)
+
+        # Ajuste de campos que ficam em linhas específicas
+        for paragraph in doc.paragraphs:
+            if "EM 1 PARCELA" in paragraph.text and valor_vista_txt:
+                paragraph.text = paragraph.text.replace(
+                    "R$ 1.064,10",
+                    f"R$ {valor_vista_txt}"
+                )
+            if "EM PARCELAS" in paragraph.text:
+                if valor_parcelado_txt:
+                    paragraph.text = paragraph.text.replace(
+                        "R$ 1.064,10",
+                        f"R$ {valor_parcelado_txt}"
+                    )
+                if self.quantidade_parcelas:
+                    paragraph.text = paragraph.text.replace("01", f"{int(self.quantidade_parcelas):02d}")
+                if valor_parcela_txt:
+                    paragraph.text = paragraph.text.replace(
+                        "R$ 1.064,10",
+                        f"R$ {valor_parcela_txt}"
+                    )
+
+        buffer = BytesIO()
+        doc.save(buffer)
+        buffer.seek(0)
+
+        if salvar:
+            carimbo = timezone.now().strftime('%Y%m%d_%H%M%S')
+            numero_limpo = (self.numero_guia or 'grm').replace('/', '_')
+            nome_arquivo = f"GRM_{numero_limpo}_{carimbo}.docx"
+            self.arquivo_grm.save(nome_arquivo, ContentFile(buffer.read()), save=True)
+            self._anexar_documento_processo()
+
+        buffer.seek(0)
+        return buffer
+
+    def _anexar_documento_processo(self):
+        if not self.processo_id or not self.arquivo_grm:
+            return
+        DocumentoProcesso = apps.get_model('fiscalizacao', 'DocumentoProcesso')
+        titulo = f"GRM {self.numero_guia} - {self.processo.numero_processo}"
+        descricao = "Guia de recolhimento de multa gerada para cobranca."
+        existe = DocumentoProcesso.objects.filter(
+            processo_id=self.processo_id,
+            tipo='grm',
+            titulo=titulo,
+        ).first()
+        if existe:
+            return
+        DocumentoProcesso.objects.create(
+            processo_id=self.processo_id,
+            tipo='grm',
+            titulo=titulo,
+            descricao=descricao,
+            arquivo=self.arquivo_grm,
+            usuario_upload=self.criado_por or 'sistema',
+        )
 
 
 class BoletoMulta(models.Model):

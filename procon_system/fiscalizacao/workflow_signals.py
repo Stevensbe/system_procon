@@ -4,47 +4,239 @@ Fiscalização → Multas → Cobrança
 
 Este módulo gerencia o fluxo automático desde a criação de um auto de infração
 até a cobrança da multa, passando pelo processo administrativo.
+
+Também gerencia a criação automática de processos após Auto de Constatação.
 """
 
 from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
 from django.contrib.auth.models import User
 from django.utils import timezone
-from .models import AutoInfracao, Processo
+from django.contrib.contenttypes.models import ContentType
+from .models import (
+    AutoInfracao, Processo,
+    AutoBanco, AutoPosto, AutoSupermercado, AutoDiversos
+)
 from multas.models import Multa, Empresa
+import logging
+
+logger = logging.getLogger(__name__)
+
+CRIAR_PROCESSO_APOS_AUTO_CONSTATACAO = False
+
+
+def _auto_infracao_esta_notificada(auto_infracao) -> bool:
+    if getattr(auto_infracao, 'data_notificacao', None):
+        return True
+    status = (getattr(auto_infracao, 'status', '') or '').lower()
+    return status in {'notificado', 'em_defesa', 'em_recurso', 'julgado', 'pago', 'finalizado'}
+
+
+def criar_processo_apos_auto_constatacao(auto_constatacao):
+    """
+    Função auxiliar para criar processo administrativo e protocolo após Auto de Constatação.
+    Esta função é chamada pelos signals de todos os tipos de Auto de Constatação.
+    """
+    if not CRIAR_PROCESSO_APOS_AUTO_CONSTATACAO:
+        logger.info("Processo nao criado a partir de Auto de Constatacao (regra desativada).")
+        return None
+    try:
+        # Verifica se já existe processo para este auto de constatação
+        from django.contrib.contenttypes.models import ContentType
+        content_type = ContentType.objects.get_for_model(auto_constatacao)
+        
+        processo_existente = Processo.objects.filter(
+            auto_constatacao_content_type=content_type,
+            auto_constatacao_id=auto_constatacao.id
+        ).first()
+        
+        if processo_existente:
+            logger.info(f"Processo {processo_existente.numero_processo} já existe para Auto {auto_constatacao.numero}")
+            return processo_existente
+        
+        # Busca setor de origem (Fiscalização) e setor destino inicial
+        from protocolo_tramitacao.models import Setor, ProtocoloDocumento, TipoDocumento
+        
+        setor_fiscalizacao = Setor.objects.filter(sigla__icontains='FISC').first()
+        setor_destino = Setor.objects.filter(sigla__icontains='JUR').first()
+        
+        if not setor_destino:
+            # Se não existe setor jurídico, cria um padrão
+            setor_destino = Setor.objects.create(
+                nome='Setor Jurídico',
+                sigla='JUR',
+                pode_protocolar=True,
+                pode_tramitar=True
+            )
+        
+        if not setor_fiscalizacao:
+            setor_fiscalizacao = setor_destino
+        
+        # Busca usuário do sistema para protocolar
+        usuario_sistema = User.objects.filter(is_staff=True).first()
+        if not usuario_sistema:
+            usuario_sistema = User.objects.filter(is_superuser=True).first()
+        
+        # Cria processo administrativo
+        processo = Processo.objects.create(
+            auto_constatacao_content_type=content_type,
+            auto_constatacao_id=auto_constatacao.id,
+            autuado=auto_constatacao.razao_social,
+            cnpj=auto_constatacao.cnpj,
+            status='aguardando_auto_infracao',
+            prioridade='normal',
+            fiscal_responsavel=getattr(auto_constatacao, 'fiscal_nome_1', '') or getattr(auto_constatacao, 'fiscal_nome', ''),
+            observacoes=f"Processo criado automaticamente após Auto de Constatação {auto_constatacao.numero}"
+        )
+        
+        logger.info(f"✅ Processo {processo.numero_processo} criado automaticamente para Auto de Constatação {auto_constatacao.numero}")
+        
+        # Cria ProtocoloDocumento vinculado ao processo
+        if usuario_sistema:
+            try:
+                tipo_doc, _ = TipoDocumento.objects.get_or_create(
+                    nome="Auto de Constatação",
+                    defaults={
+                        'descricao': 'Auto de constatação para tramitação',
+                        'prazo_resposta_dias': 15,
+                        'requer_assinatura': False
+                    }
+                )
+                
+                protocolo = ProtocoloDocumento.objects.create(
+                    tipo_documento=tipo_doc,
+                    origem='FISCALIZACAO',
+                    assunto=f"Auto de Constatação {auto_constatacao.numero} - {auto_constatacao.razao_social}",
+                    descricao=f"Tramitação do Auto de Constatação {auto_constatacao.numero}",
+                    remetente_nome=auto_constatacao.razao_social,
+                    remetente_documento=auto_constatacao.cnpj,
+                    processo_fiscalizacao=processo,
+                    setor_atual=setor_destino,
+                    setor_origem=setor_fiscalizacao,
+                    protocolado_por=usuario_sistema,
+                    responsavel_atual=setor_destino.responsavel
+                )
+                
+                logger.info(f"✅ Protocolo {protocolo.numero_protocolo} criado para processo {processo.numero_processo}")
+                
+            except Exception as e:
+                logger.error(f"❌ Erro ao criar protocolo para processo {processo.numero_processo}: {e}")
+        
+        return processo
+        
+    except Exception as e:
+        logger.exception(f"❌ Erro ao criar processo para Auto de Constatação {getattr(auto_constatacao, 'numero', '')}: {e}")
+        return None
+
+
+# Signals para criar processo após Auto de Constatação (todos os tipos)
+@receiver(post_save, sender=AutoBanco)
+def criar_processo_auto_banco(sender, instance, created, **kwargs):
+    """Cria processo automaticamente após Auto de Banco"""
+    if created and not hasattr(instance, '_skip_processo') and CRIAR_PROCESSO_APOS_AUTO_CONSTATACAO:
+        criar_processo_apos_auto_constatacao(instance)
+
+
+@receiver(post_save, sender=AutoPosto)
+def criar_processo_auto_posto(sender, instance, created, **kwargs):
+    """Cria processo automaticamente após Auto de Posto"""
+    if created and not hasattr(instance, '_skip_processo') and CRIAR_PROCESSO_APOS_AUTO_CONSTATACAO:
+        criar_processo_apos_auto_constatacao(instance)
+
+
+@receiver(post_save, sender=AutoSupermercado)
+def criar_processo_auto_supermercado(sender, instance, created, **kwargs):
+    """Cria processo automaticamente após Auto de Supermercado"""
+    if created and not hasattr(instance, '_skip_processo') and CRIAR_PROCESSO_APOS_AUTO_CONSTATACAO:
+        criar_processo_apos_auto_constatacao(instance)
+
+
+@receiver(post_save, sender=AutoDiversos)
+def criar_processo_auto_diversos(sender, instance, created, **kwargs):
+    """Cria processo automaticamente após Auto de Diversos"""
+    if created and not hasattr(instance, '_skip_processo') and CRIAR_PROCESSO_APOS_AUTO_CONSTATACAO:
+        criar_processo_apos_auto_constatacao(instance)
 
 
 @receiver(post_save, sender=AutoInfracao)
 def criar_processo_automatico(sender, instance, created, **kwargs):
     """
-    Automaticamente cria processo administrativo quando um Auto de Infração é criado
+    Vincula Auto de Infração ao processo existente (criado após Auto de Constatação)
+    ou cria novo processo se não houver AC relacionado.
     """
-    if created and not hasattr(instance, '_skip_processo'):
+    if not hasattr(instance, '_skip_processo'):
+        if not _auto_infracao_esta_notificada(instance):
+            return
         try:
-            # Verifica se já existe processo para este auto
-            if hasattr(instance, 'processo'):
+            # Verifica se já existe processo vinculado a este auto de infração
+            processo_existente = Processo.objects.filter(auto_infracao=instance).first()
+            if processo_existente:
+                logger.info(f"Processo {processo_existente.numero_processo} já está vinculado ao Auto {instance.numero}")
                 return
             
-            # Cria processo automaticamente
-            processo = Processo.objects.create(
-                auto_infracao=instance,
-                autuado=instance.razao_social,
-                cnpj=instance.cnpj,
-                valor_multa=instance.valor_multa,
-                fiscal_responsavel=instance.fiscal_nome,
-                observacoes=f"Processo criado automaticamente a partir do Auto {instance.numero}"
-            )
+            # Tenta buscar processo existente através do Auto de Constatação relacionado
+            processo = None
+            auto_constatacao = None
             
-            # Calcula prazos baseados na data de notificação (assumindo 7 dias após criação)
-            data_notificacao = timezone.now().date() + timezone.timedelta(days=7)
-            processo.data_notificacao = data_notificacao
-            processo.calcular_prazos()
-            processo.save()
+            # Verifica se o Auto de Infração está relacionado a um Auto de Constatação
+            # através de GenericForeignKey (content_type e object_id)
+            if hasattr(instance, 'content_type') and hasattr(instance, 'object_id'):
+                if instance.content_type and instance.object_id:
+                    auto_constatacao = instance.content_type.get_object_for_this_type(id=instance.object_id)
+                    
+                    # Busca processo relacionado ao auto de constatação
+                    content_type = ContentType.objects.get_for_model(auto_constatacao)
+                    processo = Processo.objects.filter(
+                        auto_constatacao_content_type=content_type,
+                        auto_constatacao_id=auto_constatacao.id
+                    ).first()
             
-            print(f"✅ Processo {processo.numero_processo} criado automaticamente para Auto {instance.numero}")
+            if processo:
+                # Vincula o Auto de Infração ao processo existente e atualiza status
+                processo.auto_infracao = instance
+                processo.valor_multa = instance.valor_multa
+                processo.status = 'aguardando_defesa'
+                
+                # Calcula prazos baseados na data de notificação
+                if instance.data_notificacao:
+                    processo.data_notificacao = instance.data_notificacao
+                    if hasattr(processo, 'calcular_prazos'):
+                        processo.calcular_prazos()
+                else:
+                    # Assume notificação em 7 dias se não especificado
+                    processo.data_notificacao = timezone.now().date() + timezone.timedelta(days=7)
+                
+                processo.observacoes = f"{processo.observacoes}\nAuto de Infração {instance.numero} vinculado ao processo".strip()
+                processo.save()
+                
+                logger.info(f"✅ Auto de Infração {instance.numero} vinculado ao processo existente {processo.numero_processo}")
+            else:
+                # Se não há processo relacionado ao AC, cria novo processo
+                # (caso onde o AI foi criado diretamente sem AC)
+                processo = Processo.objects.create(
+                    auto_infracao=instance,
+                    autuado=instance.razao_social,
+                    cnpj=instance.cnpj,
+                    valor_multa=instance.valor_multa,
+                    fiscal_responsavel=instance.fiscal_nome,
+                    status='aguardando_defesa',
+                    observacoes=f"Processo criado automaticamente a partir do Auto de Infração {instance.numero} (sem AC relacionado)"
+                )
+                
+                # Calcula prazos baseados na data de notificação
+                if instance.data_notificacao:
+                    processo.data_notificacao = instance.data_notificacao
+                else:
+                    processo.data_notificacao = timezone.now().date() + timezone.timedelta(days=7)
+                
+                if hasattr(processo, 'calcular_prazos'):
+                    processo.calcular_prazos()
+                    processo.save()
+                
+                logger.info(f"✅ Novo processo {processo.numero_processo} criado para Auto de Infração {instance.numero} (sem AC)")
             
         except Exception as e:
-            print(f"❌ Erro ao criar processo para Auto {instance.numero}: {e}")
+            logger.exception(f"❌ Erro ao vincular/criar processo para Auto {instance.numero}: {e}")
 
 
 @receiver(post_save, sender=Processo)

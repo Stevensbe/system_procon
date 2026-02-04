@@ -21,7 +21,7 @@ class AnexoAutoInline(GenericTabularInline):
 class AtendimentoCaixaBancoInline(admin.TabularInline):
     model = AtendimentoCaixaBanco
     extra = 1
-    fields = ('letra_senha', 'horario_chegada', 'horario_atendimento', 'tempo_decorrido')
+    fields = ('letra_senha', 'horario_chegada', 'horario_atendimento', 'tempo_decorrido', 'tipo_servico', 'limite_tempo')
     readonly_fields = ('tempo_espera_formatado',)
     
     def tempo_espera_formatado(self, obj):
@@ -69,6 +69,9 @@ class AutoBancoAdmin(admin.ModelAdmin):
         }),
         ('Fiscalização', {
             'fields': ('data_fiscalizacao', 'hora_fiscalizacao', 'origem', 'origem_outros')
+        }),
+        ('Cominacao Legal', {
+            'fields': ('cominacao_legal',)
         }),
         ('Cominação Legal', {
             'fields': ('nada_consta', 'sem_irregularidades')
@@ -229,13 +232,16 @@ class AutoSupermercadoAdmin(admin.ModelAdmin):
     
     fieldsets = (
         ('Identificação', {
-            'fields': ('numero', 'razao_social', 'nome_fantasia', 'atividade')
+            'fields': ('numero', 'razao_social', 'nome_fantasia', 'porte', 'atuacao', 'atividade')
         }),
         ('Endereço e Contato', {
             'fields': ('endereco', 'cep', 'municipio', 'estado', 'cnpj', 'telefone')
         }),
         ('Fiscalização', {
             'fields': ('data_fiscalizacao', 'hora_fiscalizacao', 'origem', 'origem_outros')
+        }),
+        ('Cominacao Legal', {
+            'fields': ('cominacao_legal',)
         }),
         ('Resultado da Fiscalização', {
             'fields': ('nada_consta', 'tem_irregularidades')
@@ -257,14 +263,14 @@ class AutoSupermercadoAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
         ('Prazos e Obrigações', {
-            'fields': ('prazo_cumprimento_dias', 'receita_bruta_notificada')
+            'fields': ('prazo_cumprimento_dias', 'instrucoes_fiscalizado', 'receita_bruta_notificada')
         }),
         ('Narrativa e Outras Informações', {
             'fields': ('outras_irregularidades', 'narrativa_fatos')
         }),
         ('Anexos e Apreensão', {
             'fields': (
-                'possui_anexo', 'auto_apreensao', 'auto_apreensao_numero', 'necessita_pericia'
+                'possui_anexo', 'auto_apreensao', 'auto_apreensao_numero', 'necessita_pericia', 'vicios_aparentes'
             )
         }),
         ('Responsáveis', {
@@ -406,11 +412,16 @@ class AutoInfracaoAdmin(admin.ModelAdmin):
         ('Dados do Estabelecimento', {
             'fields': (
                 'razao_social', 'nome_fantasia', 'atividade', 
-                'endereco', 'cnpj', 'telefone'
+                'endereco', 'cep', 'cnpj', 'telefone'
             )
         }),
-        ('Parecer Prévio', {
-            'fields': ('parecer_numero', 'parecer_origem'),
+        ('Origem do Auto', {
+            'fields': (
+                'auto_constatacao_numero',
+                'notificacao_numero',
+                'parecer_numero',
+                'parecer_origem',
+            ),
             'classes': ('collapse',),
         }),
         ('Relatório e Base Legal', {

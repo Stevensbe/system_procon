@@ -2,6 +2,7 @@ import uuid
 
 from django.db import models
 from django.utils import timezone
+from django.conf import settings
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.core.validators import MinValueValidator, MaxValueValidator
@@ -99,6 +100,7 @@ class AutoConstatacaoBase(AutoNumeracaoMixin, TimestampMixin):
 class AutoBanco(AutoConstatacaoBase):
     porte = models.CharField("Porte", max_length=100, choices=PORTE_CHOICES, blank=True)
     atuacao = models.CharField("Atuação", max_length=100, blank=True)
+    cominacao_legal = models.TextField("Cominacao Legal", blank=True)
     
     # Cominação Legal
     nada_consta = models.BooleanField("Nada Consta", default=False)
@@ -115,6 +117,7 @@ class AutoBanco(AutoConstatacaoBase):
     senha_sem_nome_estabelecimento = models.BooleanField("Senha sem nome do estabelecimento?", default=False)
     senha_sem_horarios = models.BooleanField("Senha sem horários?", default=False)
     senha_sem_rubrica = models.BooleanField("Senha sem rubrica?", default=False)
+    relogio_exposto = models.BooleanField("Relogio exposto em local visivel?", null=True, blank=True)
     
     observacoes = models.TextField("Observações", blank=True)
 
@@ -311,6 +314,10 @@ class AutoPosto(AutoConstatacaoBase):
 
 # --- AUTO DE CONSTATAÇÃO PARA SUPERMERCADOS ---
 class AutoSupermercado(AutoConstatacaoBase):
+    porte = models.CharField("Porte", max_length=100, choices=PORTE_CHOICES, blank=True)
+    atuacao = models.CharField("Atua‡Æo", max_length=100, blank=True)
+
+
     # Irregularidades específicas do formulário de supermercados
     comercializar_produtos_vencidos = models.BooleanField("Comercializar produtos vencidos", default=False)
     comercializar_embalagem_violada = models.BooleanField("Comercializar produtos com embalagem violada", default=False)
@@ -329,8 +336,6 @@ class AutoSupermercado(AutoConstatacaoBase):
     # Campos específicos do formulário
     nada_consta = models.BooleanField("Nada Consta", default=False)
     
-    # Prazo para cumprimento de obrigação
-    prazo_cumprimento_dias = models.IntegerField("Prazo para cumprimento (dias)", null=True, blank=True)
     
     # Campos textuais
     outras_irregularidades = models.TextField("Outras Irregularidades Constatadas/Outras Cominações Legais", blank=True)
@@ -344,6 +349,7 @@ class AutoSupermercado(AutoConstatacaoBase):
     # Perícia
     necessita_pericia = models.BooleanField("Os itens apreendidos necessitam de perícia?", null=True, blank=True)
     justificativa_pericia = models.TextField("Justificativa da Perícia", blank=True)
+    vicios_aparentes = models.BooleanField("Todos os vicios estavam aparentes?", null=True, blank=True)
     
     # Receita bruta (notificação padrão)
     receita_bruta_notificada = models.BooleanField("Receita Bruta Notificada?", default=True)
@@ -457,6 +463,11 @@ class AutoDiversos(AutoConstatacaoBase):
 # --- MODELOS RELACIONADOS ---
 
 class AtendimentoCaixaBanco(models.Model):
+    TIPO_SERVICO_CHOICES = [
+        ('simples', 'Servico de caixa'),
+        ('complexo', 'Servico mais complexo'),
+    ]
+
     auto_banco = models.ForeignKey(AutoBanco, related_name='atendimentos_caixa', on_delete=models.CASCADE)
     letra_senha = models.CharField("Letra da Senha", max_length=10)
     horario_chegada = models.TimeField("Horário de Chegada")
@@ -464,6 +475,13 @@ class AtendimentoCaixaBanco(models.Model):
     tempo_decorrido = models.IntegerField(
         "Tempo Decorrido (minutos)", 
         validators=[MinValueValidator(0), MaxValueValidator(300)]
+    )
+    tipo_servico = models.CharField("Tipo de servico", max_length=20, choices=TIPO_SERVICO_CHOICES, default='simples')
+    limite_tempo = models.IntegerField(
+        "Limite de tempo (minutos)",
+        validators=[MinValueValidator(0), MaxValueValidator(300)],
+        null=True,
+        blank=True
     )
     
     class Meta:
@@ -608,6 +626,7 @@ class AutoInfracao(models.Model):
     nome_fantasia = models.CharField("Nome Fantasia", max_length=255, blank=True)
     atividade = models.CharField("Atividade", max_length=255, default="Não informado")
     endereco = models.CharField("Endereço", max_length=500)
+    cep = models.CharField("CEP", max_length=10, blank=True)
     cnpj = models.CharField("CNPJ", max_length=18)
     telefone = models.CharField("Telefone", max_length=20, blank=True)
     
@@ -616,14 +635,21 @@ class AutoInfracao(models.Model):
                                     help_text="Ex: 152/2025")
     parecer_origem = models.CharField("Origem do Parecer", max_length=100, 
                                     default="FISCALIZAÇÃO/PROCON/AM")
+
+    auto_constatacao_numero = models.CharField("Auto de Constatação Nº", max_length=20, blank=True)
+    notificacao_numero = models.CharField("Notificação Nº", max_length=20, blank=True)
+    texto_origem = models.TextField("Texto de Origem", blank=True)
     
     # === RELATÓRIO DETALHADO ===
     relatorio = models.TextField("Relatório", 
                                 help_text="Narrativa detalhada dos fatos constatados durante a fiscalização")
     
     # === BASE LEGAL E FUNDAMENTAÇÃO ===
-    base_legal_cdc = models.TextField("Base Legal CDC", 
-                                     help_text="Artigos do CDC violados")
+    base_legal_cdc = models.TextField(
+        "Base Legal CDC",
+        blank=True,
+        help_text="Artigos do CDC violados",
+    )
     base_legal_outras = models.TextField("Outras Bases Legais", blank=True,
                                        help_text="Outras leis e decretos aplicáveis")
     
@@ -654,8 +680,14 @@ class AutoInfracao(models.Model):
                                             help_text="Fundamentação jurídica da autuação")
     
     # === VALOR DA MULTA ===
-    valor_multa = models.DecimalField("Valor da Multa (R$)", max_digits=12, decimal_places=2,
-                                    help_text="Valor da multa aplicada")
+    valor_multa = models.DecimalField(
+        "Valor da Multa (R$)",
+        max_digits=12,
+        decimal_places=2,
+        help_text="Valor da multa aplicada",
+        null=True,
+        blank=True,
+    )
     
     # === DADOS DO RESPONSÁVEL ===
     responsavel_nome = models.CharField("Nome do Responsável", max_length=255)
@@ -685,6 +717,29 @@ class AutoInfracao(models.Model):
         ('cancelado', 'Cancelado'),
     ]
     status = models.CharField("Status", max_length=20, choices=STATUS_CHOICES, default='autuado')
+
+    # === VALIDAÇÃO FORMAL ===
+    VALIDACAO_FORMAL_CHOICES = [
+        ('pendente', 'Pendente'),
+        ('valido', 'Válido'),
+        ('erro', 'Erro Formal'),
+    ]
+    validacao_formal_status = models.CharField(
+        "Validação Formal",
+        max_length=20,
+        choices=VALIDACAO_FORMAL_CHOICES,
+        default='pendente',
+    )
+    validacao_formal_motivo = models.TextField("Motivo da Validação Formal", blank=True)
+    validado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='autos_infracao_validados',
+        verbose_name="Validado por",
+    )
+    validado_em = models.DateTimeField("Validado em", null=True, blank=True)
     
     # === OBSERVAÇÕES ===
     observacoes = models.TextField("Observações", blank=True)
@@ -802,6 +857,16 @@ class AutoInfracao(models.Model):
     def status_display(self):
         """Retorna o status formatado"""
         return dict(self.STATUS_CHOICES).get(self.status, self.status)
+
+    @property
+    def auto_origem(self):
+        if self.auto_constatacao_numero:
+            return f"Auto de Constatação {self.auto_constatacao_numero}"
+        if self.parecer_numero:
+            return f"Parecer {self.parecer_numero}"
+        if self.notificacao_numero:
+            return f"Notificação {self.notificacao_numero}"
+        return ""
 
     @property
     def valor_multa_formatado(self):
@@ -936,6 +1001,71 @@ class SequenciaAutosApreensao(models.Model):
         """Retorna quantos autos já foram gerados neste ano"""
         return self.ultimo_numero
 
+
+class SequenciaNotificacaoFiscalizacao(models.Model):
+    """
+    Controla a sequˆncia num‚rica para notificacoes da fiscalizacao.
+    """
+    ano = models.IntegerField("Ano", unique=True)
+    ultimo_numero = models.IntegerField("Ultimo Numero Gerado", default=0)
+    criado_em = models.DateTimeField("Criado em", auto_now_add=True)
+    atualizado_em = models.DateTimeField("Atualizado em", auto_now=True)
+
+    class Meta:
+        verbose_name = "Sequencia de Notificacao Fiscalizacao"
+        verbose_name_plural = "Sequencias de Notificacao Fiscalizacao"
+        ordering = ['-ano']
+
+    def __str__(self):
+        return f"Sequencia Notificacao {self.ano}: proximo {self.ultimo_numero + 1:03d}/{self.ano}"
+
+    @property
+    def proximo_numero(self):
+        return f"{self.ultimo_numero + 1:03d}/{self.ano}"
+
+    @property
+    def total_notificacoes_geradas(self):
+        return self.ultimo_numero
+
+
+class SequenciaProcesso(models.Model):
+    """
+    Controla a sequência numérica para processos administrativos no padrão SEI.
+    
+    Garante que os processos sigam a numeração padrão SEI:
+    - Formato: 00001.012345/2025-49
+    - Onde:
+      * 00001: número sequencial da unidade no ano (5 dígitos)
+      * 012345: número sequencial principal do órgão (6 dígitos)
+      * 2025: ano
+      * 49: dígito verificador (opcional, pode ser implementado depois)
+    """
+    ano = models.IntegerField("Ano", unique=True)
+    ultimo_sequencial_unidade = models.IntegerField("Último Sequencial da Unidade", default=0)
+    ultimo_sequencial_orgao = models.IntegerField("Último Sequencial do Órgão", default=0)
+    
+    # Campos informativos (opcionais)
+    criado_em = models.DateTimeField("Criado em", auto_now_add=True)
+    atualizado_em = models.DateTimeField("Atualizado em", auto_now=True)
+
+    def __str__(self):
+        return f"Sequência Processo {self.ano}: próximo será {self.ultimo_sequencial_unidade + 1:05d}.{(self.ultimo_sequencial_orgao + 1):06d}/{self.ano}"
+
+    class Meta:
+        verbose_name = "Sequência de Processo"
+        verbose_name_plural = "Sequências de Processos"
+        ordering = ['-ano']
+    
+    @property
+    def proximo_numero(self):
+        """Retorna uma prévia do próximo número que será gerado"""
+        return f"{self.ultimo_sequencial_unidade + 1:05d}.{(self.ultimo_sequencial_orgao + 1):06d}/{self.ano}"
+    
+    @property
+    def total_processos_gerados(self):
+        """Retorna quantos processos já foram gerados neste ano"""
+        return self.ultimo_sequencial_unidade
+
 # fiscalizacao/models.py
 # SUBSTITUIR o modelo Processo existente por esta versão melhorada:
 
@@ -943,23 +1073,41 @@ class Processo(models.Model):
     """
     Modelo que representa o Processo Administrativo completo.
     Versão melhorada com mais campos e funcionalidades.
+    
+    O processo pode ser criado após o Auto de Constatação e vinculado
+    posteriormente a um Auto de Infração, se houver infração.
     """
     
-    # Relacionamento com Auto de Infração (um-para-um)
-    auto_infracao = models.OneToOneField(
+    # Relacionamento com Auto de Constatação (genérico para qualquer tipo: Banco, Posto, Supermercado, Diversos)
+    auto_constatacao_content_type = models.ForeignKey(
+        ContentType,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='processos_auto_constatacao',
+        verbose_name="Tipo de Auto de Constatação",
+        limit_choices_to={'model__in': ['autobanco', 'autoposto', 'autosupermercado', 'autodiversos']}
+    )
+    auto_constatacao_id = models.PositiveIntegerField(null=True, blank=True)
+    auto_constatacao = GenericForeignKey('auto_constatacao_content_type', 'auto_constatacao_id')
+    
+    # Relacionamento com Auto de Infração (opcional - pode ser criado depois)
+    auto_infracao = models.ForeignKey(
         AutoInfracao, 
-        on_delete=models.CASCADE, 
-        related_name='processo',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='processos',
         verbose_name="Auto de Infração"
     )
     
     # Dados básicos do processo
     numero_processo = models.CharField(
         "Número do Processo", 
-        max_length=25, 
+        max_length=50, 
         unique=True, 
         blank=True,
-        help_text="Gerado automaticamente no formato PROC-00001/2025"
+        help_text="Gerado automaticamente no padrão SEI: 00001.012345/2025-49"
     )
     
     autuado = models.CharField(
@@ -976,6 +1124,8 @@ class Processo(models.Model):
     
     # Status expandido com mais opções
     STATUS_CHOICES = [
+        ('sem_infracao', 'Sem Infração - Aguardando Arquivamento'),
+        ('aguardando_auto_infracao', 'Aguardando Auto de Infração'),
         ('aguardando_defesa', 'Aguardando Defesa'),
         ('defesa_apresentada', 'Defesa Apresentada'),
         ('em_analise', 'Em Análise'),
@@ -992,7 +1142,7 @@ class Processo(models.Model):
         "Status do Processo", 
         max_length=50, 
         choices=STATUS_CHOICES,
-        default='aguardando_defesa'
+        default='aguardando_auto_infracao'
     )
     
     # Campos de prioridade e urgência
@@ -1133,6 +1283,17 @@ class Processo(models.Model):
             self.valor_multa = self.auto_infracao.valor_multa
             self.fiscal_responsavel = self.auto_infracao.fiscal_responsavel
         
+        # Auto-preenche dados do auto de constatação se não houver auto de infração
+        elif self.auto_constatacao and not self.autuado:
+            auto_const = self.auto_constatacao
+            self.autuado = auto_const.razao_social
+            self.cnpj = auto_const.cnpj
+            # Busca nome do fiscal se disponível
+            if hasattr(auto_const, 'fiscal_nome_1') and auto_const.fiscal_nome_1:
+                self.fiscal_responsavel = auto_const.fiscal_nome_1
+            elif hasattr(auto_const, 'fiscal_nome') and auto_const.fiscal_nome:
+                self.fiscal_responsavel = auto_const.fiscal_nome
+        
         # Atualiza data de finalização se status for finalizado
         if self.status in ['finalizado_procedente', 'finalizado_improcedente', 'arquivado', 'prescrito']:
             if not self.data_finalizacao:
@@ -1141,20 +1302,9 @@ class Processo(models.Model):
         super().save(*args, **kwargs)
 
     def _gerar_numero_processo(self):
-        """Gera número sequencial para o processo"""
-        ano = timezone.now().year
-        ultimo = Processo.objects.filter(
-            numero_processo__endswith=f"/{ano}"
-        ).order_by('-id').first()
-        
-        seq = 1
-        if ultimo and '-' in ultimo.numero_processo:
-            try:
-                seq = int(ultimo.numero_processo.split('/')[0].split('-')[1]) + 1
-            except (ValueError, IndexError):
-                seq = 1
-        
-        return f"PROC-{seq:05d}/{ano}"
+        """Gera número sequencial para o processo no padrão SEI"""
+        from .utils import gerar_proximo_numero_processo_sei
+        return gerar_proximo_numero_processo_sei()
 
     def clean(self):
         """Validações customizadas"""
@@ -1379,10 +1529,12 @@ class DocumentoProcesso(models.Model):
     Armazena documentos relacionados ao processo (defesas, recursos, etc.)
     """
     TIPO_DOCUMENTO_CHOICES = [
+        ('auto_infracao', 'Auto de Infração'),
         ('defesa', 'Defesa'),
         ('recurso', 'Recurso'),
         ('parecer', 'Parecer Técnico'),
         ('decisao', 'Decisão'),
+        ('grm', 'Guia de Recolhimento de Multa (GRM)'),
         ('outros', 'Outros'),
     ]
     
@@ -1431,6 +1583,64 @@ class DocumentoProcesso(models.Model):
 
     def __str__(self):
         return f"{self.processo.numero_processo} - {self.get_tipo_display()}"
+
+
+class ParecerProcesso(models.Model):
+    processo = models.ForeignKey(
+        Processo,
+        on_delete=models.CASCADE,
+        related_name='pareceres'
+    )
+    numero_parecer = models.CharField("Número do Parecer", max_length=20, unique=True, blank=True)
+    sintese_fatica = models.TextField("I - Síntese Fática", blank=True)
+    parecer = models.TextField("II - Parecer")
+    decisao = models.TextField("III - Decisão")
+    elaborado_por = models.ForeignKey(
+        get_user_model(),
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='pareceres_processo'
+    )
+    elaborado_por_nome = models.CharField("Elaborado por", max_length=255, blank=True)
+    cargo_elaborador = models.CharField("Cargo", max_length=100, blank=True)
+    data_emissao = models.DateField("Data", default=timezone.now)
+    criado_em = models.DateTimeField("Criado em", auto_now_add=True)
+    atualizado_em = models.DateTimeField("Atualizado em", auto_now=True)
+
+    class Meta:
+        verbose_name = "Parecer Técnico do Processo"
+        verbose_name_plural = "Pareceres Técnicos do Processo"
+        ordering = ['-criado_em']
+        indexes = [
+            models.Index(fields=['numero_parecer']),
+            models.Index(fields=['processo']),
+        ]
+
+    def __str__(self):
+        return f"Parecer {self.numero_parecer} - {self.processo.numero_processo}"
+
+    def save(self, *args, **kwargs):
+        if not self.numero_parecer:
+            self.numero_parecer = self._gerar_numero_parecer()
+        if isinstance(self.data_emissao, datetime):
+            self.data_emissao = self.data_emissao.date()
+        if not self.elaborado_por_nome and self.elaborado_por:
+            self.elaborado_por_nome = self.elaborado_por.get_full_name() or self.elaborado_por.username
+        super().save(*args, **kwargs)
+
+    def _gerar_numero_parecer(self):
+        ano = (self.data_emissao or timezone.now().date()).year
+        ultimo = ParecerProcesso.objects.filter(
+            numero_parecer__endswith=f'/{ano}'
+        ).order_by('-id').first()
+        seq = 1
+        if ultimo:
+            try:
+                seq = int(ultimo.numero_parecer.split('/')[0]) + 1
+            except (ValueError, IndexError):
+                seq = 1
+        return f"{seq:03d}/{ano}"
 
 # === MODELOS AVANÇADOS PARA FISCALIZAÇÃO ===
 
@@ -1910,6 +2120,7 @@ class AssinaturaDigital(models.Model):
 class NotificacaoEletronica(models.Model):
     TIPO_NOTIFICACAO_CHOICES = [
         ('auto_infracao', 'Auto de Infração'),
+        ('arquivamento', 'Arquivamento'),
         ('prazo_vencendo', 'Prazo Vencendo'),
         ('prazo_vencido', 'Prazo Vencido'),
         ('defesa_apresentada', 'Defesa Apresentada'),
@@ -1929,11 +2140,37 @@ class NotificacaoEletronica(models.Model):
     auto_posto = models.ForeignKey('AutoPosto', on_delete=models.CASCADE, related_name='notificacoes', null=True, blank=True)
     auto_supermercado = models.ForeignKey('AutoSupermercado', on_delete=models.CASCADE, related_name='notificacoes', null=True, blank=True)
     auto_diversos = models.ForeignKey('AutoDiversos', on_delete=models.CASCADE, related_name='notificacoes', null=True, blank=True)
+    auto_infracao = models.ForeignKey(
+        'AutoInfracao',
+        on_delete=models.SET_NULL,
+        related_name='notificacoes',
+        null=True,
+        blank=True,
+        verbose_name="Auto de Infracao"
+    )
+    processo = models.ForeignKey(
+        'Processo',
+        on_delete=models.SET_NULL,
+        related_name='notificacoes',
+        null=True,
+        blank=True,
+        verbose_name="Processo Administrativo"
+    )
+    ppa = models.ForeignKey(
+        'ppa.ProcedimentoPreAdministrativo',
+        on_delete=models.SET_NULL,
+        related_name='notificacoes_fiscalizacao',
+        null=True,
+        blank=True,
+        verbose_name="PPA"
+    )
     
+    numero = models.CharField("Numero da Notificacao", max_length=20, unique=True, blank=True, null=True)
     tipo_notificacao = models.CharField("Tipo de Notificação", max_length=20, choices=TIPO_NOTIFICACAO_CHOICES)
     destinatario_nome = models.CharField("Nome do Destinatário", max_length=255)
     destinatario_email = models.EmailField("Email do Destinatário", blank=True, null=True)
     destinatario_cpf_cnpj = models.CharField("CPF/CNPJ do Destinatário", max_length=18, blank=True, null=True)
+    representante_legal = models.CharField("Representante Legal", max_length=255, blank=True)
     
     assunto = models.CharField("Assunto", max_length=255)
     mensagem = models.TextField("Mensagem")
@@ -1959,7 +2196,16 @@ class NotificacaoEletronica(models.Model):
         ordering = ['-data_envio']
     
     def __str__(self):
-        return f"Notificação {self.tipo_notificacao} - {self.destinatario_nome}"
+        return f"Notificação {self.numero or self.tipo_notificacao} - {self.destinatario_nome}"
+
+    def save(self, *args, **kwargs):
+        if not self.numero:
+            from .utils import gerar_proximo_numero_notificacao_fiscalizacao
+            self.numero = gerar_proximo_numero_notificacao_fiscalizacao()
+            update_fields = kwargs.get('update_fields')
+            if update_fields is not None and 'numero' not in update_fields:
+                kwargs['update_fields'] = list(set(update_fields) | {'numero'})
+        super().save(*args, **kwargs)
 
 
 # --- CONTROLE DE PRAZOS AVANÇADO ---

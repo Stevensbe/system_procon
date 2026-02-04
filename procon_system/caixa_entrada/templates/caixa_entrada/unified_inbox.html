@@ -1,0 +1,207 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Caixa de Entrada Unificada{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0 text-gray-800">
+                <i class="fas fa-inbox me-2 text-primary"></i>Caixa de Entrada
+            </h1>
+            <p class="text-muted small mb-0">Gerencie seus documentos e tramitações</p>
+        </div>
+        <div>
+            {% if user.is_superuser or is_admin %}
+            <span class="badge bg-danger">Modo Administrador</span>
+            {% else %}
+            <span class="badge bg-info text-dark">{{ user.get_full_name|default:user.username }}</span>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm h-100 border-start border-4 border-primary">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-shrink-0 me-3">
+                            <div class="bg-primary bg-opacity-10 p-3 rounded-circle">
+                                <i class="fas fa-file-alt text-primary fa-lg"></i>
+                            </div>
+                        </div>
+                        <div>
+                            <h6 class="card-subtitle text-muted mb-1">Total Documentos</h6>
+                            <h4 class="card-title mb-0">{{ total_documentos }}</h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm h-100 border-start border-4 border-warning">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-shrink-0 me-3">
+                            <div class="bg-warning bg-opacity-10 p-3 rounded-circle">
+                                <i class="fas fa-envelope text-warning fa-lg"></i>
+                            </div>
+                        </div>
+                        <div>
+                            <h6 class="card-subtitle text-muted mb-1">Não Lidos</h6>
+                            <h4 class="card-title mb-0">{{ nao_lidos }}</h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm h-100 border-start border-4 border-danger">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-shrink-0 me-3">
+                            <div class="bg-danger bg-opacity-10 p-3 rounded-circle">
+                                <i class="fas fa-exclamation-circle text-danger fa-lg"></i>
+                            </div>
+                        </div>
+                        <div>
+                            <h6 class="card-subtitle text-muted mb-1">Atrasados</h6>
+                            <h4 class="card-title mb-0">{{ atrasados }}</h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm h-100 border-start border-4 border-success">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-shrink-0 me-3">
+                            <div class="bg-success bg-opacity-10 p-3 rounded-circle">
+                                <i class="fas fa-check-circle text-success fa-lg"></i>
+                            </div>
+                        </div>
+                        <div>
+                            <h6 class="card-subtitle text-muted mb-1">No Prazo</h6>
+                            <h4 class="card-title mb-0">{{ no_prazo|default:"-" }}</h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white border-bottom-0 pt-4 px-4">
+            <ul class="nav nav-tabs card-header-tabs" id="inboxTabs" role="tablist">
+                {% if user.is_superuser or is_admin %}
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="all-tab" data-bs-toggle="tab" data-bs-target="#all"
+                        type="button" role="tab" aria-selected="true">
+                        <i class="fas fa-globe me-2"></i>Todas as Caixas
+                    </button>
+                </li>
+                {% else %}
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="personal-tab" data-bs-toggle="tab" data-bs-target="#personal"
+                        type="button" role="tab" aria-selected="true">
+                        <i class="fas fa-user me-2"></i>Minha Caixa Pessoal
+                        {% if nao_lidos_pessoal > 0 %}
+                        <span class="badge bg-danger rounded-pill ms-2">{{ nao_lidos_pessoal }}</span>
+                        {% endif %}
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="sector-tab" data-bs-toggle="tab" data-bs-target="#sector" type="button"
+                        role="tab" aria-selected="false">
+                        <i class="fas fa-building me-2"></i>Caixa do Setor
+                        {% if nao_lidos_setor > 0 %}
+                        <span class="badge bg-warning text-dark rounded-pill ms-2">{{ nao_lidos_setor }}</span>
+                        {% endif %}
+                    </button>
+                </li>
+                {% endif %}
+            </ul>
+        </div>
+
+        <div class="card-body p-0">
+            <div class="tab-content" id="inboxTabsContent">
+
+                <!-- Admin View: All Documents -->
+                {% if user.is_superuser or is_admin %}
+                <div class="tab-pane fade show active" id="all" role="tabpanel">
+                    {% include "caixa_entrada/includes/document_list.html" with documentos=page_obj type="all" %}
+                </div>
+                {% else %}
+
+                <!-- Personal Inbox -->
+                <div class="tab-pane fade show active" id="personal" role="tabpanel">
+                    {% include "caixa_entrada/includes/document_list.html" with documentos=documentos_pessoal
+                    type="personal" %}
+                </div>
+
+                <!-- Sector Inbox -->
+                <div class="tab-pane fade" id="sector" role="tabpanel">
+                    {% include "caixa_entrada/includes/document_list.html" with documentos=documentos_setor
+                    type="sector" %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Styles for this page -->
+<style>
+    .nav-tabs .nav-link {
+        color: #6c757d;
+        font-weight: 500;
+        border: none;
+        border-bottom: 3px solid transparent;
+        padding-bottom: 1rem;
+    }
+
+    .nav-tabs .nav-link:hover {
+        color: #00529B;
+        border-color: transparent;
+    }
+
+    .nav-tabs .nav-link.active {
+        color: #00529B;
+        border-bottom-color: #00529B;
+        background: none;
+    }
+
+    .table-hover tbody tr:hover {
+        background-color: rgba(0, 82, 155, 0.05);
+        cursor: pointer;
+    }
+</style>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        // Check for tab parameter in URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const tab = urlParams.get('tab');
+
+        if (tab) {
+            let tabId = '';
+            if (tab === 'personal') tabId = '#personal-tab';
+            else if (tab === 'sector') tabId = '#sector-tab';
+            else if (tab === 'all') tabId = '#all-tab';
+
+            if (tabId) {
+                const tabTrigger = document.querySelector(tabId);
+                if (tabTrigger) {
+                    const tabInstance = new bootstrap.Tab(tabTrigger);
+                    tabInstance.show();
+                }
+            }
+        }
+    });
+</script>
+{% endblock %}

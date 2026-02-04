@@ -45,7 +45,7 @@ class ProcedimentoPreAdministrativo(models.Model):
     # === IDENTIFICAÇÃO ===
     uuid = models.UUIDField("UUID", default=uuid.uuid4, editable=False, unique=True)
     numero = models.CharField("Número do PPA", max_length=20, unique=True, blank=True)
-    # Ex: PPA-560/2024
+    # Ex: 001/2026
     
     # === CLASSIFICAÇÃO ===
     sigla = models.CharField("Sigla/Tipo", max_length=50, choices=SIGLA_CHOICES)
@@ -122,20 +122,21 @@ class ProcedimentoPreAdministrativo(models.Model):
         super().save(*args, **kwargs)
     
     def _gerar_numero_ppa(self):
-        """Gera número sequencial para o PPA"""
+        """Gera número sequencial para o PPA (ex: 001/2026)"""
         ano = timezone.now().year
         ultimo = ProcedimentoPreAdministrativo.objects.filter(
             numero__endswith=f'/{ano}'
         ).order_by('-id').first()
-        
+
         seq = 1
         if ultimo:
             try:
-                seq = int(ultimo.numero.split('/')[0].split('-')[1]) + 1
+                bruto = str(ultimo.numero).replace('PPA-', '').replace('PPA', '').strip()
+                seq = int(bruto.split('/')[0]) + 1
             except (ValueError, IndexError):
                 seq = 1
-        
-        return f"PPA-{seq:05d}/{ano}"
+
+        return f"{seq:03d}/{ano}"
     
     @property
     def total_anexos(self):
@@ -358,10 +359,20 @@ class ParecerPPA(models.Model):
     # === PARECER ===
     numero_parecer = models.CharField("Número do Parecer", max_length=50, blank=True)
     titulo = models.CharField("Título", max_length=300)
-    relatorio = models.TextField("Relatório")
+    
+    # Estrutura do parecer conforme modelo institucional
+    sintese_fatica = models.TextField(
+        "I - Síntese Fática",
+        help_text="Relato cronológico completo dos fatos do caso",
+        blank=True
+    )
+    relatorio = models.TextField(
+        "II - Parecer",
+        help_text="Análise jurídica e técnica do caso"
+    )
     fundamentacao = models.TextField("Fundamentação Legal")
     conclusao = models.CharField(
-        "Conclusão",
+        "III - Decisão",
         max_length=30,
         choices=CONCLUSAO_CHOICES
     )
@@ -406,7 +417,7 @@ class ParecerPPA(models.Model):
         super().save(*args, **kwargs)
     
     def _gerar_numero_parecer(self):
-        """Gera número sequencial para o parecer"""
+        """Gera número sequencial para o parecer no formato: PARECER 001/2025"""
         ano = timezone.now().year
         ultimo = ParecerPPA.objects.filter(
             numero_parecer__endswith=f'/{ano}'
@@ -415,9 +426,165 @@ class ParecerPPA(models.Model):
         seq = 1
         if ultimo:
             try:
-                seq = int(ultimo.numero_parecer.split('/')[0].split('-')[1]) + 1
+                # Suporta ambos os formatos: "PARECER 001/2025" e "PAR-00001/2025"
+                numero_limpo = ultimo.numero_parecer.strip()
+                if numero_limpo.startswith('PARECER'):
+                    # Formato novo: "PARECER 001/2025"
+                    seq = int(numero_limpo.split()[1].split('/')[0]) + 1
+                elif numero_limpo.startswith('PAR-'):
+                    # Formato antigo: "PAR-00001/2025"
+                    seq = int(numero_limpo.split('/')[0].split('-')[1]) + 1
+                else:
+                    # Tentar extrair número de qualquer formato
+                    partes = numero_limpo.split('/')
+                    if len(partes) > 0:
+                        seq = int(''.join(filter(str.isdigit, partes[0]))) + 1
             except (ValueError, IndexError):
                 seq = 1
         
-        return f"PAR-{seq:05d}/{ano}"
+        return f"PARECER {seq:03d}/{ano}"
+    
+    def gerar_documento_word(self):
+        """
+        Gera documento Word no formato institucional do parecer
+        
+        Returns:
+            Document: Objeto Document do python-docx
+        """
+        try:
+            from docx import Document
+            from docx.shared import Pt, Inches
+            from docx.enum.text import WD_ALIGN_PARAGRAPH
+            from datetime import datetime
+            import locale
+            
+            # Tentar configurar locale para português
+            try:
+                locale.setlocale(locale.LC_TIME, 'pt_BR.UTF-8')
+            except:
+                try:
+                    locale.setlocale(locale.LC_TIME, 'Portuguese_Brazil.1252')
+                except:
+                    pass
+            
+            doc = Document()
+            
+            # Configurar margens
+            sections = doc.sections
+            for section in sections:
+                section.top_margin = Inches(1)
+                section.bottom_margin = Inches(1)
+                section.left_margin = Inches(0.7)
+                section.right_margin = Inches(0.7)
+            
+            # Cabeçalho
+            heading = doc.add_heading(f'PARECER {self.numero_parecer} - FISCALIZAÇÃO', 0)
+            heading.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            doc.add_paragraph()  # Linha em branco
+            
+            # I - SÍNTESE FÁTICA
+            if self.sintese_fatica:
+                doc.add_heading('I - SÍNTESE FÁTICA', level=1)
+                para = doc.add_paragraph(self.sintese_fatica)
+                para_format = para.paragraph_format
+                para_format.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+                para_format.first_line_indent = Inches(0.5)
+                doc.add_paragraph()  # Linha em branco
+            
+            # II - PARECER
+            doc.add_heading('II - PARECER', level=1)
+            para = doc.add_paragraph(self.relatorio)
+            para_format = para.paragraph_format
+            para_format.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+            para_format.first_line_indent = Inches(0.5)
+            
+            # Adicionar fundamentação se houver
+            if self.fundamentacao:
+                doc.add_paragraph()  # Linha em branco
+                para = doc.add_paragraph(self.fundamentacao)
+                para_format = para.paragraph_format
+                para_format.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+                para_format.first_line_indent = Inches(0.5)
+            
+            doc.add_paragraph()  # Linha em branco
+            
+            # III - DECISÃO
+            doc.add_heading('III - DECISÃO', level=1)
+            
+            # Adicionar conclusão
+            conclusao_texto = self.get_conclusao_display()
+            para = doc.add_paragraph(conclusao_texto)
+            para_format = para.paragraph_format
+            para_format.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+            para_format.first_line_indent = Inches(0.5)
+            
+            # Adicionar recomendações se houver
+            if self.recomendacoes:
+                doc.add_paragraph()  # Linha em branco
+                para = doc.add_paragraph(self.recomendacoes)
+                para_format = para.paragraph_format
+                para_format.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+                para_format.first_line_indent = Inches(0.5)
+            
+            doc.add_paragraph()  # Linha em branco
+            doc.add_paragraph()  # Linha em branco
+            
+            # Data e assinatura
+            data_atual = timezone.now()
+            try:
+                meses = {
+                    1: 'Janeiro', 2: 'Fevereiro', 3: 'Março', 4: 'Abril',
+                    5: 'Maio', 6: 'Junho', 7: 'Julho', 8: 'Agosto',
+                    9: 'Setembro', 10: 'Outubro', 11: 'Novembro', 12: 'Dezembro'
+                }
+                data_formatada = f"Manaus, {data_atual.day:02d} de {meses[data_atual.month]} de {data_atual.year}."
+            except:
+                data_formatada = f"Manaus, {data_atual.strftime('%d de %B de %Y')}."
+            
+            doc.add_paragraph(data_formatada)
+            doc.add_paragraph()  # Linha em branco
+            doc.add_paragraph()  # Linha em branco
+            
+            # Assinatura
+            if self.elaborado_por:
+                nome_completo = self.elaborado_por.get_full_name() or self.elaborado_por.username
+                doc.add_paragraph(nome_completo)
+            
+            if self.cargo_elaborador:
+                doc.add_paragraph(self.cargo_elaborador)
+            
+            return doc
+            
+        except ImportError:
+            raise ImportError(
+                "python-docx não está instalado. "
+                "Instale com: pip install python-docx"
+            )
+        except Exception as e:
+            raise Exception(f"Erro ao gerar documento Word: {str(e)}")
+    
+    def salvar_documento_word(self, caminho_arquivo=None):
+        """
+        Salva o documento Word em um arquivo
+        
+        Args:
+            caminho_arquivo: Caminho completo do arquivo. Se None, gera automaticamente.
+        
+        Returns:
+            str: Caminho do arquivo salvo
+        """
+        import os
+        from django.conf import settings
+        
+        doc = self.gerar_documento_word()
+        
+        if not caminho_arquivo:
+            # Gerar caminho automático
+            nome_arquivo = f"Parecer_{self.numero_parecer.replace('/', '_')}.docx"
+            diretorio = os.path.join(settings.MEDIA_ROOT, 'ppa', 'pareceres', str(timezone.now().year))
+            os.makedirs(diretorio, exist_ok=True)
+            caminho_arquivo = os.path.join(diretorio, nome_arquivo)
+        
+        doc.save(caminho_arquivo)
+        return caminho_arquivo
 

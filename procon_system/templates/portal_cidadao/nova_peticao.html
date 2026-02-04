@@ -528,16 +528,26 @@
                                 
                                 <div class="col-md-4">
                                     <div class="form-floating">
-                                        <input type="text" class="form-control" id="cnpjEmpresa" 
+                                        <input type="text" class="form-control" id="cnpjEmpresa"
                                                name="cnpj_empresa" placeholder="CNPJ da empresa" maxlength="20">
                                         <label for="cnpjEmpresa">CNPJ da Empresa</label>
                                     </div>
                                 </div>
-                                
+
+                                <div class="col-md-6">
+                                    <div class="form-floating">
+                                        <input type="text" class="form-control" id="numeroProcesso"
+                                               name="numero_processo" placeholder="Numero do processo" required>
+                                        <label for="numeroProcesso">
+                                            Numero do processo <span class="required-indicator">*</span>
+                                        </label>
+                                    </div>
+                                </div>
+
                                 <div class="col-12">
                                     <div class="form-floating">
-                                        <input type="text" class="form-control" id="assunto" 
-                                               name="assunto" placeholder="Assunto da petição" 
+                                        <input type="text" class="form-control" id="assunto"
+                                               name="assunto" placeholder="Assunto da petição"
                                                required maxlength="150">
                                         <label for="assunto">
                                             Assunto <span class="required-indicator">*</span>
@@ -957,6 +967,10 @@ document.addEventListener('DOMContentLoaded', function() {
             <div class="summary-item">
                 <span class="summary-label">E-mail:</span>
                 <span class="summary-value">${formData.get('email') || ''}</span>
+            </div>
+            <div class="summary-item">
+                <span class="summary-label">Numero do processo:</span>
+                <span class="summary-value">${formData.get('numero_processo') || ''}</span>
             </div>
             <div class="summary-item">
                 <span class="summary-label">Assunto:</span>

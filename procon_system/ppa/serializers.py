@@ -82,6 +82,7 @@ class ParecerPPASerializer(serializers.ModelSerializer):
             'ppa',
             'numero_parecer',
             'titulo',
+            'sintese_fatica',
             'relatorio',
             'fundamentacao',
             'conclusao',
@@ -96,7 +97,7 @@ class ParecerPPASerializer(serializers.ModelSerializer):
             'criado_em',
             'atualizado_em',
         ]
-        read_only_fields = ['numero_parecer', 'criado_em', 'atualizado_em']
+        read_only_fields = ['numero_parecer', 'criado_em', 'atualizado_em', 'ppa', 'elaborado_por']
 
 
 class ProcedimentoPreAdministrativoListSerializer(serializers.ModelSerializer):

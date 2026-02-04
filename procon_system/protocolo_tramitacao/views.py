@@ -28,9 +28,53 @@ from .serializers import (
     AnexoProtocoloSerializer,
     ProtocolarDocumentoSerializer,
     TramitarProtocoloSerializer,
+    ReceberTramitacaoSerializer,
 )
 from .services import workflow_service
 
+
+# === Helpers de filtragem ===
+
+def _obter_setores_usuario(usuario):
+    setores_ids = set(
+        Setor.objects.filter(responsavel=usuario, ativo=True).values_list('id', flat=True)
+    )
+
+    nomes = []
+    perfil = getattr(usuario, 'perfil', None)
+    if perfil and getattr(perfil, 'setor', None):
+        nomes.append(perfil.setor)
+
+    nomes.extend(list(usuario.groups.values_list('name', flat=True)))
+
+    q = Q()
+    for nome in nomes:
+        valor = str(nome or '').strip()
+        if not valor:
+            continue
+        q |= Q(nome__icontains=valor) | Q(sigla__iexact=valor)
+
+    if q.children:
+        setores_ids.update(
+            Setor.objects.filter(ativo=True).filter(q).values_list('id', flat=True)
+        )
+
+    return setores_ids
+
+
+def _filtrar_tramitacoes_pendentes(queryset, usuario):
+    if usuario.is_superuser or usuario.is_staff:
+        return queryset
+
+    setor_ids = _obter_setores_usuario(usuario)
+    filtros = Q(protocolo__responsavel_atual=usuario) | Q(setor_destino__responsavel=usuario)
+    if setor_ids:
+        filtros |= Q(setor_destino_id__in=setor_ids)
+
+    if not filtros.children:
+        return queryset.none()
+
+    return queryset.filter(filtros)
 
 # === VIEWS PRINCIPAIS ===
 
@@ -454,10 +498,27 @@ class TramitacaoDocumentoViewSet(viewsets.ModelViewSet):
     
     @action(detail=False)
     def pendentes(self, request):
-        """Tramitações pendentes de recebimento"""
+        """Tramitacoes pendentes de recebimento"""
         pendentes = self.queryset.filter(data_recebimento__isnull=True)
+        pendentes = _filtrar_tramitacoes_pendentes(pendentes, request.user)
         serializer = self.get_serializer(pendentes, many=True)
         return Response(serializer.data)
+
+    @action(detail=True, methods=['post'])
+    def receber(self, request, pk=None):
+        """Marca a tramitacao como recebida"""
+        tramitacao = self.get_object()
+        serializer = ReceberTramitacaoSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        observacoes = serializer.validated_data.get('observacoes', '')
+        tramitacao = workflow_service.receber(
+            tramitacao,
+            usuario=request.user,
+            observacoes=observacoes,
+        )
+
+        return Response(TramitacaoDocumentoSerializer(tramitacao).data)
 
 
 class AnexoProtocoloViewSet(viewsets.ModelViewSet):
@@ -527,7 +588,8 @@ class TramitacoesPendentesAPIView(APIView):
             data_recebimento__isnull=True
         ).select_related(
             'protocolo', 'setor_origem', 'setor_destino'
-        ).order_by('-data_tramitacao')[:10]
+        ).order_by('-data_tramitacao')
+        tramitacoes = _filtrar_tramitacoes_pendentes(tramitacoes, request.user)[:10]
         
         data = []
         for t in tramitacoes:
