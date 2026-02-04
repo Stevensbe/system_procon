@@ -62,15 +62,23 @@ def _get_public_key(jwks_url: str, kid: str):
     return jwt.algorithms.RSAAlgorithm.from_jwk(json.dumps(jwk))
 
 
-def _is_supabase_token(token: str, iss: Optional[str]) -> bool:
-    if not iss:
-        return False
+def _get_token_issuer(token: str) -> Optional[str]:
     try:
         payload = jwt.decode(token, options={"verify_signature": False})
+        return payload.get("iss")
     except Exception:
+        return None
+
+
+def _is_supabase_token(token: str, supabase_url: Optional[str], iss: Optional[str]) -> bool:
+    token_iss = _get_token_issuer(token)
+    if not token_iss:
         return False
-    token_iss = payload.get("iss")
-    return token_iss == iss or token_iss == f"{iss}/"
+    if supabase_url and token_iss.startswith(supabase_url):
+        return True
+    if iss and (token_iss == iss or token_iss == f"{iss}/" or token_iss.startswith(iss)):
+        return True
+    return False
 
 
 def _get_or_create_user(payload: dict):
@@ -155,7 +163,8 @@ class SupabaseJWTAuthentication(authentication.BaseAuthentication):
             # Supabase nao configurado; deixa outras auths tentarem
             return None
 
-        if not _is_supabase_token(token, iss):
+        token_iss = _get_token_issuer(token)
+        if not _is_supabase_token(token, supabase_url, iss):
             return None
 
         try:
@@ -166,13 +175,19 @@ class SupabaseJWTAuthentication(authentication.BaseAuthentication):
 
             public_key = _get_public_key(jwks_url, kid)
 
-            options = {"verify_aud": bool(aud), "verify_iss": bool(iss)}
+            issuer = None
+            if token_iss and supabase_url and token_iss.startswith(supabase_url):
+                issuer = token_iss
+            elif iss:
+                issuer = iss
+
+            options = {"verify_aud": bool(aud), "verify_iss": bool(issuer)}
             payload = jwt.decode(
                 token,
                 public_key,
                 algorithms=["RS256"],
                 audience=aud if aud else None,
-                issuer=iss if iss else None,
+                issuer=issuer if issuer else None,
                 options=options,
             )
         except exceptions.AuthenticationFailed:

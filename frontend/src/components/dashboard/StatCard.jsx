@@ -1,5 +1,5 @@
 import { TrendingUp, TrendingDown } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/Card";
+import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 export function StatCard({
@@ -34,7 +34,7 @@ export function StatCard({
             <Icon className="h-6 w-6" />
           </div>
         </div>
-        
+
         {trend && (
           <div className="mt-4 flex items-center">
             {trend.isPositive ? (

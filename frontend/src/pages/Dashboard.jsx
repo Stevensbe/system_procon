@@ -11,8 +11,8 @@ import {
   TrendingUp,
   Activity,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -203,7 +203,7 @@ const Dashboard = () => {
             fiscalizacao: AlertTriangle,
             relatorio: BarChart3,
           };
-          
+
           // Mapear campos do serviço (português) para o formato do componente (inglês)
           return {
             id: atividade.id,
@@ -292,8 +292,8 @@ const Dashboard = () => {
       {data.alertas.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {data.alertas.map((alerta) => (
-            <AlertCard 
-              key={alerta.id} 
+            <AlertCard
+              key={alerta.id}
               type={alerta.type || alerta.tipo}
               title={alerta.title || alerta.titulo}
               message={alerta.message || alerta.mensagem}
@@ -428,7 +428,7 @@ const Dashboard = () => {
                       key={`cell-${index}`}
                       fill={
                         Object.values(CHART_COLORS)[
-                          index % Object.values(CHART_COLORS).length
+                        index % Object.values(CHART_COLORS).length
                         ]
                       }
                     />
