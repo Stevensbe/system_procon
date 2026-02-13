@@ -6,8 +6,7 @@ import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { Toaster } from 'sonner';
 
 // Providers
-// import { AuthProvider } from './context/AuthContext'; // Django Auth (desativado)
-import { AuthProvider } from './context/SupabaseAuthContext'; // Supabase Auth (ATIVO)
+import { AuthProvider } from './context/AuthContext'; // Django Auth (Supabase desativado)
 import { NotificationProvider } from './context/NotificationContext';
 import { ThemeProvider } from './context/ThemeContext';
 

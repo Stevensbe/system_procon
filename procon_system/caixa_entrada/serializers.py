@@ -78,6 +78,9 @@ class CaixaEntradaSerializer(serializers.ModelSerializer):
     ultima_tramitacao = serializers.SerializerMethodField()
     processo_id = serializers.SerializerMethodField()
     processo_numero = serializers.SerializerMethodField()
+    documento_relacionado_tipo = serializers.SerializerMethodField()
+    documento_relacionado_id = serializers.SerializerMethodField()
+    denuncia_id = serializers.SerializerMethodField()
     
     class Meta:
         model = CaixaEntrada
@@ -89,7 +92,8 @@ class CaixaEntradaSerializer(serializers.ModelSerializer):
             'destinatario_direto', 'destinatario_direto_nome', 'notificado_dte',
             'bloqueado', 'bloqueado_por', 'bloqueado_por_nome', 'bloqueado_em', 'motivo_bloqueio',
             'pode_bloquear', 'data_entrada', 'prazo_resposta', 'versao',
-            'ultima_tramitacao', 'processo_id', 'processo_numero'
+            'ultima_tramitacao', 'processo_id', 'processo_numero',
+            'documento_relacionado_tipo', 'documento_relacionado_id', 'denuncia_id'
         ]
         read_only_fields = ['id', 'numero_protocolo', 'data_entrada', 'versao', 'protocolo',
                              'responsavel_atual_nome', 'destinatario_direto', 'destinatario_direto_nome',
@@ -119,6 +123,21 @@ class CaixaEntradaSerializer(serializers.ModelSerializer):
             return None
         return getattr(processo, 'numero_processo', None)
 
+    def get_documento_relacionado_tipo(self, obj):
+        if not obj.content_type:
+            return None
+        return f"{obj.content_type.app_label}.{obj.content_type.model}"
+
+    def get_documento_relacionado_id(self, obj):
+        return obj.object_id
+
+    def get_denuncia_id(self, obj):
+        if not obj.content_type:
+            return None
+        if obj.content_type.app_label == 'portal_cidadao' and obj.content_type.model == 'denunciacidadao':
+            return obj.object_id
+        return None
+
 
 class CaixaEntradaDetailSerializer(serializers.ModelSerializer):
     """Serializer detalhado para caixa de entrada"""
@@ -134,6 +153,9 @@ class CaixaEntradaDetailSerializer(serializers.ModelSerializer):
     tramitacoes = serializers.SerializerMethodField()
     processo_id = serializers.SerializerMethodField()
     processo_numero = serializers.SerializerMethodField()
+    documento_relacionado_tipo = serializers.SerializerMethodField()
+    documento_relacionado_id = serializers.SerializerMethodField()
+    denuncia_id = serializers.SerializerMethodField()
     
     class Meta:
         model = CaixaEntrada
@@ -149,7 +171,8 @@ class CaixaEntradaDetailSerializer(serializers.ModelSerializer):
             'data_atualizacao', 'versao',
             'dias_para_vencimento', 'esta_atrasado',
             'ultima_tramitacao', 'tramitacoes',
-            'processo_id', 'processo_numero'
+            'processo_id', 'processo_numero',
+            'documento_relacionado_tipo', 'documento_relacionado_id', 'denuncia_id'
         ]
         read_only_fields = [
             'id', 'numero_protocolo', 'data_entrada', 'data_atualizacao',
@@ -195,6 +218,21 @@ class CaixaEntradaDetailSerializer(serializers.ModelSerializer):
         if not processo:
             return None
         return getattr(processo, 'numero_processo', None)
+
+    def get_documento_relacionado_tipo(self, obj):
+        if not obj.content_type:
+            return None
+        return f"{obj.content_type.app_label}.{obj.content_type.model}"
+
+    def get_documento_relacionado_id(self, obj):
+        return obj.object_id
+
+    def get_denuncia_id(self, obj):
+        if not obj.content_type:
+            return None
+        if obj.content_type.app_label == 'portal_cidadao' and obj.content_type.model == 'denunciacidadao':
+            return obj.object_id
+        return None
 
 
 class AnexoCaixaEntradaSerializer(serializers.ModelSerializer):

@@ -100,9 +100,29 @@ const PortalCidadao = () => {
     return value.replace(/\D/g, '');
   };
 
+  const renderLoginRequired = (titulo, descricao) => (
+    <div className="bg-white rounded-lg shadow-lg p-8">
+      <h3 className="text-2xl font-bold mb-4">{titulo}</h3>
+      <p className="text-gray-600 mb-6">{descricao}</p>
+      <button
+        type="button"
+        onClick={() => setShowLoginModal(true)}
+        className="bg-blue-600 text-white px-5 py-2 rounded-md hover:bg-blue-700 transition-colors"
+      >
+        Fazer login
+      </button>
+    </div>
+  );
+
   // === CONSULTA PÚBLICA ===
   const handleConsultaSubmit = async (e) => {
     e.preventDefault();
+
+    if (!isAuthenticated) {
+      showWarning('Login necessario', 'Faca login para consultar seus protocolos.');
+      setShowLoginModal(true);
+      return;
+    }
     setLoading(true);
     setConsultaResult(null);
 
@@ -859,7 +879,7 @@ const PortalCidadao = () => {
           {/* Tabs */}
           <div className="flex flex-wrap gap-2 mb-8 justify-center">
             {[
-              { id: 'consulta', label: 'Consulta Pública', icon: MagnifyingGlassIcon },
+              { id: 'consulta', label: 'Consulta', icon: MagnifyingGlassIcon },
               { id: 'acompanhamento', label: 'Acompanhar Processo', icon: ClockIcon },
               { id: 'denuncia-resposta', label: 'Resposta da Denuncia', icon: ChatBubbleLeftRightIcon },
               { id: 'denuncia', label: 'Nova Denúncia', icon: ExclamationTriangleIcon },
@@ -893,10 +913,11 @@ const PortalCidadao = () => {
             
             {/* CONSULTA PÚBLICA */}
             {activeTab === 'consulta' && (
-              <div className="bg-white rounded-lg shadow-lg p-8">
+              isAuthenticated ? (
+                <div className="bg-white rounded-lg shadow-lg p-8">
                 <h3 className="text-2xl font-bold mb-6 flex items-center">
                   <MagnifyingGlassIcon className="h-8 w-8 mr-3 text-blue-600" />
-                  Consulta Pública
+                  Consulta
                 </h3>
                 
                 <form onSubmit={handleConsultaSubmit} className="space-y-6">
@@ -982,22 +1003,33 @@ const PortalCidadao = () => {
                   </div>
                 )}
               </div>
+              ) : (
+                renderLoginRequired('Consulta', 'Faca login para consultar protocolos e processos.')
+              )
             )}
             
             {/* ACOMPANHAMENTO DE PROCESSO */}
             {activeTab === 'acompanhamento' && (
-              <AcompanhamentoProcesso
-                onSuccess={() => showSuccess('Processo encontrado', 'Dados do processo carregados com sucesso!')}
-                onError={(mensagem) => showError('Erro ao buscar processo', mensagem)}
-              />
+              isAuthenticated ? (
+                <AcompanhamentoProcesso
+                  onSuccess={() => showSuccess('Processo encontrado', 'Dados do processo carregados com sucesso!')}
+                  onError={(mensagem) => showError('Erro ao buscar processo', mensagem)}
+                />
+              ) : (
+                renderLoginRequired('Acompanhar processo', 'Faca login para acompanhar o andamento do processo.')
+              )
             )}
 
             {/* RESPOSTA DA DENUNCIA */}
             {activeTab === 'denuncia-resposta' && (
-              <AcompanhamentoDenuncia
-                onSuccess={() => showSuccess('Resposta encontrada', 'Resposta da denuncia carregada com sucesso!')}
-                onError={(mensagem) => showError('Erro ao buscar denuncia', mensagem)}
-              />
+              isAuthenticated ? (
+                <AcompanhamentoDenuncia
+                  onSuccess={() => showSuccess('Resposta encontrada', 'Resposta da denuncia carregada com sucesso!')}
+                  onError={(mensagem) => showError('Erro ao buscar denuncia', mensagem)}
+                />
+              ) : (
+                renderLoginRequired('Resposta da denuncia', 'Faca login para consultar a resposta da denuncia.')
+              )
             )}
 
             {/* NOVA DENÚNCIA */}

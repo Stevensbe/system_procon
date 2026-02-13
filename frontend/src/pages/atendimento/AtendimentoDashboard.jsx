@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   ChartBarIcon, 
   UserGroupIcon, 
@@ -13,6 +14,7 @@ import api from '../../services/api';
 import { useNotification } from '../../hooks/useNotifications';
 
 const AtendimentoDashboard = () => {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [estatisticas, setEstatisticas] = useState({
     atendimentosHoje: 0,
@@ -29,6 +31,11 @@ const AtendimentoDashboard = () => {
 
   const { showError } = useNotification();
 
+  const handleOpenReclamacao = (id) => {
+    if (!id) return;
+    navigate(`/atendimento/reclamacoes/${id}`);
+  };
+
   useEffect(() => {
     carregarDados();
   }, []);
@@ -37,7 +44,7 @@ const AtendimentoDashboard = () => {
     try {
       setLoading(true);
       
-      const { data } = await api.get('/atendimento/dashboard/');
+      const { data } = await api.get('atendimento/api/dashboard/');
 
       setEstatisticas({
         atendimentosHoje: data.atendimentos_hoje,
@@ -339,10 +346,18 @@ const AtendimentoDashboard = () => {
                     {new Date(reclamacao.data).toLocaleDateString('pt-BR')}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <button className="text-blue-600 hover:text-blue-900 mr-3">
+                    <button
+                      type="button"
+                      onClick={() => handleOpenReclamacao(reclamacao.id)}
+                      className="text-blue-600 hover:text-blue-900 mr-3"
+                    >
                       Ver
                     </button>
-                    <button className="text-green-600 hover:text-green-900">
+                    <button
+                      type="button"
+                      onClick={() => handleOpenReclamacao(reclamacao.id)}
+                      className="text-green-600 hover:text-green-900"
+                    >
                       Editar
                     </button>
                   </td>

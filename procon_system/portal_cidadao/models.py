@@ -438,6 +438,11 @@ class EstatisticaPortal(models.Model):
 
 class DenunciaCidadao(models.Model):
     """Modelo para armazenar denúncias recebidas via Portal do Cidadão"""
+
+    DESTINO_CHOICES = [
+        ('FISCALIZACAO', 'Fiscalização'),
+        ('ATENDIMENTO', 'Atendimento'),
+    ]
     
     # Número único da denúncia
     numero_denuncia = models.CharField("Número da Denúncia", max_length=20, unique=True, blank=True)
@@ -475,6 +480,12 @@ class DenunciaCidadao(models.Model):
     ]
     status = models.CharField("Status", max_length=20, choices=STATUS_CHOICES, default='denuncia_recebida')
     origem_denuncia = models.CharField("Origem da Denúncia", max_length=20, default='PORTAL_CIDADAO')
+    destino_denuncia = models.CharField(
+        "Destino da Denúncia",
+        max_length=20,
+        choices=DESTINO_CHOICES,
+        default='FISCALIZACAO',
+    )
 
     # Resposta ao denunciante
     competencia_procon = models.BooleanField("Competencia do PROCON", null=True, blank=True)

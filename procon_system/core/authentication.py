@@ -83,6 +83,7 @@ def _is_supabase_token(token: str, supabase_url: Optional[str], iss: Optional[st
 
 def _get_or_create_user(payload: dict):
     User = get_user_model()
+    from django.contrib.auth.models import Group
 
     email = payload.get("email")
     sub = payload.get("sub")
@@ -128,13 +129,60 @@ def _get_or_create_user(payload: dict):
         user.first_name = parts[0]
         user.last_name = " ".join(parts[1:]) if len(parts) > 1 else ""
 
+    # Mapeamento de roles para grupos Django
+    ROLE_GROUPS = {
+        'admin': ['Administradores', 'Gestores'],
+        'staff': ['Gestores'],
+        'fiscal': ['Fiscalização'],
+        'fiscalizacao': ['Fiscalização'],
+        'fiscalizacao_denuncias': ['Fiscalização', 'Fiscalização - Denúncias'],
+        'fiscal_denuncias': ['Fiscalização', 'Fiscalização - Denúncias'],
+        'juridico': ['Jurídico'],
+        'juridico_1': ['Jurídico', 'Jurídico 1'],
+        'juridico_2': ['Jurídico', 'Jurídico 2'],
+        'analista': ['Analistas', 'Jurídico'],
+        'analista_juridico': ['Analistas', 'Jurídico'],
+        'atendimento': ['Atendimento', 'Protocolo'],
+        'protocolo': ['Atendimento', 'Protocolo'],
+        'cobranca': ['Cobrança'],
+        'financeiro': ['Financeiro'],
+        'diretoria': ['Diretoria', 'Gestores'],
+        'gerente': ['Gestores'],
+        'user': [],
+    }
+
     # Define flags de staff/superuser com base no role customizado (se existir)
-    role = app_metadata.get("role") or user_metadata.get("role")
-    if role == "admin":
+    role = app_metadata.get("role") or user_metadata.get("role") or ""
+    role_lower = role.lower().replace(' ', '_').replace('-', '_') if role else ""
+    
+    if role_lower in ['admin', 'administrador']:
         user.is_staff = True
         user.is_superuser = True
-    elif role in {"staff", "gerente", "manager"}:
+    elif role_lower in ['staff', 'gerente', 'manager', 'diretoria', 'gestor']:
         user.is_staff = True
+        user.is_superuser = False
+    elif role_lower in ['fiscal', 'fiscalizacao', 'juridico', 'analista', 'analista_juridico']:
+        user.is_staff = True  # Permite acesso ao admin
+        user.is_superuser = False
+    else:
+        user.is_staff = False
+        user.is_superuser = False
+    
+    # Limpa grupos gerenciados para evitar acúmulo de permissões
+    managed_group_names = {name for names in ROLE_GROUPS.values() for name in names}
+    if managed_group_names:
+        managed_groups = Group.objects.filter(name__in=managed_group_names)
+        if managed_groups.exists():
+            user.groups.remove(*managed_groups)
+
+    # Atribui grupos do Django baseado no role
+    if role_lower in ROLE_GROUPS:
+        for group_name in ROLE_GROUPS[role_lower]:
+            group, _ = Group.objects.get_or_create(name=group_name)
+            user.groups.add(group)
+    
+    # Log para debug
+    print(f"[SupabaseAuth] Usuário {email} autenticado com role '{role}', grupos: {list(user.groups.values_list('name', flat=True))}")
 
     user.save(update_fields=["email", "first_name", "last_name", "is_staff", "is_superuser"])
     return user

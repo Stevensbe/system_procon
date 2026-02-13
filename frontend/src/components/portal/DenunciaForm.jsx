@@ -16,6 +16,7 @@ import portalCidadaoService from '../../services/portalCidadaoService';
 const DenunciaForm = ({ onSubmit, loading }) => {
   const [formData, setFormData] = useState({
     tipo_denuncia: 'GERAL',
+    destino_denuncia: 'FISCALIZACAO',
     denuncia_anonima: false,
     nome_denunciante: '',
     email: '',
@@ -195,9 +196,10 @@ const DenunciaForm = ({ onSubmit, loading }) => {
       
       // Limpar formulário após sucesso
       setTimeout(() => {
-        setFormData({
-          tipo_denuncia: 'GERAL',
-          denuncia_anonima: false,
+      setFormData({
+        tipo_denuncia: 'GERAL',
+        destino_denuncia: 'FISCALIZACAO',
+        denuncia_anonima: false,
           nome_denunciante: '',
           email: '',
           telefone: '',
@@ -338,6 +340,25 @@ const DenunciaForm = ({ onSubmit, loading }) => {
             <option value="VAREJO">Comércio Varejista</option>
             <option value="OUTROS">Outros</option>
           </select>
+        </div>
+
+        {/* Destino da Denúncia */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Destino da Denúncia *
+          </label>
+          <select
+            name="destino_denuncia"
+            value={formData.destino_denuncia}
+            onChange={handleInputChange}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white transition-colors duration-300"
+          >
+            <option value="FISCALIZACAO">Fiscalização</option>
+            <option value="ATENDIMENTO">Atendimento</option>
+          </select>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            Selecione Fiscalização para triagem dos fiscais ou Atendimento para análise pelo setor de atendimento.
+          </p>
         </div>
 
         {/* Opção de Denúncia Anônima */}

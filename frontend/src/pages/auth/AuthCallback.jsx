@@ -7,8 +7,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Loader2, CheckCircle2, AlertCircle, Shield } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { supabase } from '../../lib/supabase';
-import { useAuth } from '../../context/SupabaseAuthContext';
+import { useAuth } from '../../context/AuthContext';
 
 export default function AuthCallback() {
     const navigate = useNavigate();
@@ -21,59 +20,15 @@ export default function AuthCallback() {
     useEffect(() => {
         const handleCallback = async () => {
             try {
-                // Verifica se há parâmetros de erro na URL
-                const errorDescription = searchParams.get('error_description');
-                if (errorDescription) {
-                    throw new Error(errorDescription);
-                }
-
-                // Obtém o tipo de callback
-                const type = searchParams.get('type');
-
-                // Verifica se é um callback de recovery (reset de senha)
-                if (type === 'recovery') {
-                    setStatus('success');
-                    setMessage('Redirecionando para redefinição de senha...');
-                    setTimeout(() => navigate('/auth/reset-password'), 1500);
-                    return;
-                }
-
-                // Verifica se é um callback de signup (confirmação de email)
-                if (type === 'signup') {
-                    setStatus('success');
-                    setMessage('Email confirmado com sucesso! Redirecionando...');
-                    setTimeout(() => navigate('/auth/login'), 2000);
-                    return;
-                }
-
-                // Para outros tipos, verifica a sessão
-                const { data: { session }, error } = await supabase.auth.getSession();
-
-                if (error) {
-                    throw error;
-                }
-
-                if (session) {
-                    setStatus('success');
-                    setMessage('Autenticação bem-sucedida! Redirecionando...');
-
-                    // Aguarda um pouco para o contexto atualizar
-                    setTimeout(() => {
-                        const redirectPath = getRedirectPath(profile);
-                        navigate(redirectPath);
-                    }, 1500);
-                } else {
-                    // Sem sessão, manda de volta para login
-                    setStatus('error');
-                    setMessage('Sessão não encontrada. Redirecionando para login...');
-                    setTimeout(() => navigate('/auth/login'), 2000);
-                }
+                setStatus('error');
+                setMessage('Callback de autenticação desativado. Redirecionando para login...');
+                setTimeout(() => navigate('/login'), 1500);
 
             } catch (error) {
                 console.error('[AuthCallback] Erro:', error);
                 setStatus('error');
                 setMessage(error.message || 'Erro ao processar autenticação');
-                setTimeout(() => navigate('/auth/login'), 3000);
+                setTimeout(() => navigate('/login'), 3000);
             }
         };
 

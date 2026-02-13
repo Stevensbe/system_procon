@@ -3,6 +3,7 @@ from django.http import JsonResponse, HttpResponse, FileResponse
 from django.db.models import Count, Q
 from django.utils import timezone
 from django.core.paginator import Paginator
+from django.core.mail import send_mail
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_exempt
 from django.conf import settings
@@ -768,7 +769,7 @@ def preparar_tipospeticao_portal():
     return tipos
 
 class DenunciaCidadaoAPIView(APIView):
-    """API para receber denuncias do cidadao - vai direto para FISCALIZACAO"""
+    """API para receber denuncias do cidadao com destino Fiscalizacao ou Atendimento"""
     permission_classes = [AllowAny]
     
     def post(self, request):
@@ -781,6 +782,11 @@ class DenunciaCidadaoAPIView(APIView):
             
             # Gerar numero nico da denuncia
             numero_denuncia = self._gerar_numero_denuncia()
+
+            destino_raw = (dados.get('destino_denuncia') or dados.get('destino') or 'FISCALIZACAO').strip()
+            destino_norm = unicodedata.normalize('NFKD', destino_raw).encode('ascii', 'ignore').decode('ascii').upper()
+            if destino_norm not in {'FISCALIZACAO', 'ATENDIMENTO'}:
+                destino_norm = 'FISCALIZACAO'
             
             # Verificar se  denuncia anonima (converter string para bool)
             denuncia_anonima_raw = dados.get('denuncia_anonima', False)
@@ -806,7 +812,7 @@ class DenunciaCidadaoAPIView(APIView):
                 # Dados da infrao
                 descricao_fatos=dados.get('descricao_fatos', ''),
                 data_ocorrencia=datetime.strptime(dados.get('data_ocorrencia'), '%Y-%m-%d').date() if dados.get('data_ocorrencia') else None,
-                tipo_infracao=(dados.get('tipo_infracao') or 'outros'),
+                tipo_infracao=(dados.get('tipo_infracao') or dados.get('tipo_denuncia') or 'outros'),
                 
                 # Dados do denunciante
                 nome_denunciante=nome_denunciante,
@@ -821,6 +827,7 @@ class DenunciaCidadaoAPIView(APIView):
                 # Status inicial
                 status='denuncia_recebida',
                 origem_denuncia='PORTAL_CIDADAO',
+                destino_denuncia=destino_norm,
                 
                 # Metadados
                 ip_origem=request.META.get('REMOTE_ADDR'),
@@ -839,11 +846,27 @@ class DenunciaCidadaoAPIView(APIView):
                     descricao=f'Anexo da denuncia - {anexo.name}'
                 )
             
-            # Registrar na Caixa de Entrada
-            documento_caixa = self._registrar_caixa_entrada(denuncia)
+            # Registrar na Caixa de Entrada (destino escolhido pelo cidadao)
+            if destino_norm == 'ATENDIMENTO':
+                config_caixa = {
+                    'tipo_caixa': 'DENUNCIA',
+                    'nome': 'Denuncia Portal do Cidadao',
+                    'prioridade': 'NORMAL',
+                    'setor_destino': 'ATENDIMENTO',
+                }
+            else:
+                config_caixa = {
+                    'tipo_caixa': 'DENUNCIA',
+                    'nome': 'Denuncia Portal do Cidadao',
+                    'prioridade': 'ALTA',
+                    'setor_destino': 'FISCALIZACAO_DENUNCIAS',
+                }
 
-            # NOTIFICAR FISCAIS
-            self._notificar_fiscais(denuncia, documento_caixa=documento_caixa)
+            documento_caixa = self._registrar_caixa_entrada(denuncia, config=config_caixa)
+
+            # NOTIFICAR FISCAIS apenas quando o destino for Fiscalizacao
+            if destino_norm == 'FISCALIZACAO':
+                self._notificar_fiscais(denuncia, documento_caixa=documento_caixa)
 
             # Registrar atividade no histórico
             self._registrar_atividade_historico(
@@ -877,12 +900,18 @@ class DenunciaCidadaoAPIView(APIView):
                         'sigla': triagem_relacionada.ppa.sigla,
                     }
 
+            mensagem_destino = (
+                'Denuncia recebida com sucesso! Sera analisada por nossos fiscais.'
+                if destino_norm == 'FISCALIZACAO'
+                else 'Denuncia recebida com sucesso! Encaminhada para o atendimento.'
+            )
+
             return Response({
                 'success': True,
                 'numero_denuncia': denuncia.numero_denuncia,
                 'triagem': triagem_payload,
                 'ppa': ppa_payload,
-                'message': 'Denuncia recebida com sucesso! Ser analisada por nossos fiscais.'
+                'message': mensagem_destino
             }, status=status.HTTP_201_CREATED)
             
         except Exception as e:
@@ -1121,12 +1150,37 @@ class DenunciaCidadaoAPIView(APIView):
         }
         self._notificar_destino(denuncia, config, documento_caixa=documento_caixa)
 
+        # Envio direto para o e-mail da fiscalização (requisito)
+        try:
+            destinatario = 'fiscal@procon.gov.br'
+            protocolo_caixa = documento_caixa.numero_protocolo if documento_caixa else ''
+            assunto = f"Nova denúncia recebida - {denuncia.numero_denuncia}"
+            corpo = (
+                "Uma nova denúncia foi registrada no Portal do Cidadão.\n\n"
+                f"Denúncia: {denuncia.numero_denuncia}\n"
+                f"Empresa: {denuncia.empresa_denunciada}\n"
+                f"Tipo de infração: {denuncia.tipo_infracao}\n"
+                f"Protocolo na caixa: {protocolo_caixa}\n\n"
+                "Acesse a Caixa de Entrada da Fiscalização para triagem."
+            )
+            from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', '') or 'no-reply@procon.gov.br'
+            send_mail(
+                assunto,
+                corpo,
+                from_email,
+                [destinatario],
+                fail_silently=True,
+            )
+        except Exception:
+            # Não falhar o fluxo por erro de e-mail
+            pass
+
 
 
 class DenunciaCidadaoConsultaAPIView(APIView):
-    """Consulta publica da resposta da denuncia."""
+    """Consulta da resposta da denuncia (somente logado)."""
 
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def post(self, request):
         data = getattr(request, 'data', None) or request.POST
@@ -1182,6 +1236,7 @@ class DenunciaCidadaoConsultaAPIView(APIView):
             'status_display': denuncia.get_status_display(),
             'empresa_denunciada': denuncia.empresa_denunciada,
             'tipo_infracao': denuncia.tipo_infracao,
+            'destino_denuncia': getattr(denuncia, 'destino_denuncia', None),
             'descricao_fatos': denuncia.descricao_fatos,
             'data_ocorrencia': denuncia.data_ocorrencia.isoformat() if denuncia.data_ocorrencia else None,
             'denuncia_anonima': denuncia.denuncia_anonima,
@@ -1937,7 +1992,7 @@ Sitemap: {}/sitemap.xml
 class ConsultaPublicaAPIView(APIView):
     """API para consulta publica de protocolos e peties"""
 
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def post(self, request):
         data = getattr(request, 'data', None) or request.POST
@@ -2413,7 +2468,7 @@ class ConsultaPublicaAPIView(APIView):
 class AcompanhamentoProcessoAPIView(APIView):
     """Consulta rapida de processo/protocolo sem CPF/CNPJ"""
 
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         numero = (request.query_params.get('numero_protocolo') or '').strip()
@@ -2451,7 +2506,7 @@ class AcompanhamentoProcessoAPIView(APIView):
 class DocumentoProcessoDownloadAPIView(APIView):
     """Download publico de documentos permitidos do processo (AC/AI/Notificacao/Decisao)"""
 
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def _validar_documento(self, processo, documento):
         consulta_view = ConsultaPublicaAPIView()
@@ -2527,7 +2582,7 @@ class DocumentoProcessoDownloadAPIView(APIView):
 class DocumentoPeticaoDownloadAPIView(APIView):
     """Download publico de decisao juridica vinculada a peticao"""
 
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def _validar_documento(self, processo, documento):
         consulta_view = ConsultaPublicaAPIView()

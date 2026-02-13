@@ -30,7 +30,7 @@ const AtendimentoLgpdDashboard = () => {
     setLoading(true);
     setError(null);
     try {
-      const { data } = await api.get('/atendimento/api/relatorios-detalhados/');
+      const { data } = await api.get('atendimento/api/relatorios-detalhados/');
       setDados(data);
     } catch (err) {
       const mensagem = err?.response?.data?.erro || err?.message || 'Não foi possível carregar as métricas.';

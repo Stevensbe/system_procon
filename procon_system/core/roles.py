@@ -48,7 +48,17 @@ def _has_perfil_cidadao(usuario) -> bool:
         return False
 
 
-ROLE_PRIORITY = ("admin", "staff", "empresa", "consumer", "guest")
+ROLE_PRIORITY = ("admin", "staff", "atendimento", "protocolo", "empresa", "consumer", "guest")
+
+
+def _has_grupo(usuario, nomes: Iterable[str]) -> bool:
+    if not usuario or not hasattr(usuario, "groups"):
+        return False
+    try:
+        grupos = set(usuario.groups.values_list("name", flat=True))
+    except Exception:
+        return False
+    return bool(grupos.intersection({str(nome) for nome in nomes}))
 
 
 def get_user_roles(usuario) -> List[str]:
@@ -62,6 +72,12 @@ def get_user_roles(usuario) -> List[str]:
 
     if usuario.is_staff and "staff" not in roles:
         roles.append("staff")
+
+    if _has_grupo(usuario, ("Atendimento", "Protocolo")) and "atendimento" not in roles:
+        roles.append("atendimento")
+
+    if _has_grupo(usuario, ("Protocolo",)) and "protocolo" not in roles:
+        roles.append("protocolo")
 
     if _extract_empresas(usuario):
         roles.append("empresa")
@@ -87,6 +103,8 @@ def get_redirect_for_role(role_or_user) -> str:
     role_map = {
         "admin": "/dashboard",
         "staff": "/dashboard",
+        "atendimento": "/atendimento/dashboard",
+        "protocolo": "/atendimento/dashboard",
         "empresa": "/portal-empresa",
         "consumer": "/portal-consumidor",
         "guest": "/dashboard",

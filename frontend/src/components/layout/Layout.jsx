@@ -14,7 +14,7 @@ function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
-  const { logout, user, profile, role } = useAuth();
+  const { logout, user, profile, role, getRedirectPath } = useAuth();
 
   // Debug: verificar o que está sendo recebido
   useEffect(() => {
@@ -134,7 +134,7 @@ function Layout() {
               </p>
               <button
                 type="button"
-                onClick={() => navigate('/dashboard')}
+                onClick={() => navigate(getRedirectPath(role || profile || user))}
                 className="mt-4 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
               >
                 Voltar ao Dashboard

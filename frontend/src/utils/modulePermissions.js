@@ -44,6 +44,8 @@ const PATH_MODULE_MAP = [
   { prefix: '/produtos', key: 'configuracoes' },
   { prefix: '/portal-empresa', key: 'portal-empresa' },
   { prefix: '/portal-consumidor', key: 'portal-consumidor' },
+  { prefix: '/atendimento', key: 'atendimento' },
+  { prefix: '/painel-atendimento', key: 'atendimento' },
 ];
 
 export const getModuleKeyForPath = (path) => {
@@ -78,15 +80,16 @@ export const canAccessModule = (user, moduleKey, action = 'visualizar') => {
     user.app_metadata?.role ||
     user.user_metadata?.role ||
     null;
+  const roleKey = String(userRole || '').toLowerCase();
 
   console.debug('[modulePermissions] Role detectado:', userRole, 'para módulo:', moduleKey);
 
   // Admins e staff têm acesso total
-  if (userRole === 'admin') {
+  if (roleKey === 'admin') {
     console.debug('[modulePermissions] Role admin, liberando todos os módulos');
     return true;
   }
-  if (userRole === 'staff') {
+  if (roleKey === 'staff') {
     console.debug('[modulePermissions] Role staff, liberando todos os módulos');
     return true;
   }
@@ -94,6 +97,11 @@ export const canAccessModule = (user, moduleKey, action = 'visualizar') => {
   // Verifica permissões específicas por módulo
   const perms = normalizePermissoesModulos(user);
   if (!perms || !hasAnyPermission(perms)) {
+    if (roleKey === 'atendimento' || roleKey === 'protocolo') {
+      const hasAccess = moduleKey === 'atendimento';
+      console.debug('[modulePermissions] Role atendimento/protocolo, acesso restrito:', hasAccess);
+      return hasAccess;
+    }
     // Modo rígido com mínimo: libera Dashboard e Caixa de Entrada/Processos
     const hasAccess = moduleKey === 'dashboard' || moduleKey === 'processos';
     console.debug('[modulePermissions] Sem permissões definidas, acesso básico:', hasAccess);

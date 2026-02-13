@@ -48,10 +48,13 @@ const baseMenuItems = [
   { path: '/tramitacao', name: 'Tramitacao', icon: 'fa-random', type: 'processos' },
 
   // Atendimento
-  { path: '/atendimento/filas', name: 'Fila de Atendimento', icon: 'fa-ticket', type: 'atendimento' },
-  { path: '/atendimento/dashboard-lgpd', name: 'Painel LGPD', icon: 'fa-user-shield', type: 'atendimento' },
-  { path: '/atendimento/configuracoes', name: 'Configurar Prazos', icon: 'fa-clock', type: 'atendimento' },
-  { path: '/atendimento/regras-distribuicao', name: 'Regras de Distribuição', icon: 'fa-random', type: 'atendimento' },
+  { path: '/atendimento/dashboard', name: 'Dashboard Atendimento', icon: 'fa-chart-bar', type: 'atendimento', roles: ['admin', 'staff', 'atendimento', 'protocolo'] },
+  { path: '/atendimento/reclamacoes', name: 'Lista de Reclamacoes', icon: 'fa-list', type: 'atendimento', roles: ['admin', 'staff', 'atendimento', 'protocolo'] },
+  { path: '/atendimento/reclamacoes/nova', name: 'Nova Reclamacao', icon: 'fa-plus-circle', type: 'atendimento', roles: ['admin', 'staff', 'atendimento', 'protocolo'] },
+  { path: '/atendimento/filas', name: 'Fila de Atendimento', icon: 'fa-ticket', type: 'atendimento', roles: ['admin', 'staff', 'atendimento', 'protocolo'] },
+  { path: '/atendimento/dashboard-lgpd', name: 'Painel LGPD', icon: 'fa-user-shield', type: 'atendimento', roles: ['admin', 'staff', 'atendimento', 'protocolo'] },
+  { path: '/atendimento/configuracoes', name: 'Configurar Prazos', icon: 'fa-clock', type: 'atendimento', roles: ['admin', 'staff', 'atendimento', 'protocolo'] },
+  { path: '/atendimento/regras-distribuicao', name: 'Regras de Distribuição', icon: 'fa-random', type: 'atendimento', roles: ['admin', 'staff', 'atendimento', 'protocolo'] },
 
   // Relatórios
   { path: '/relatorios', name: 'Relatórios', icon: 'fa-bar-chart', type: 'relatorios' },

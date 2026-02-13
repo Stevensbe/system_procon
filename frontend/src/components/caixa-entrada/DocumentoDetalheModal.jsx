@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   XMarkIcon,
   DocumentTextIcon,
@@ -13,6 +13,7 @@ import {
 import LoadingSpinner from '../ui/LoadingSpinner';
 import { formatDateTime } from '../../utils/formatters';
 import caixaEntradaService from '../../services/caixaEntradaService';
+import triagemService from '../../services/triagemService';
 
 const formatarValor = (valor) => {
   if (!valor && valor !== 0) {
@@ -35,6 +36,15 @@ const DocumentoDetalheModal = ({
   onErroLimpar,
 }) => {
   const [downloadEmProgresso, setDownloadEmProgresso] = useState(null);
+  const [triagemLoading, setTriagemLoading] = useState(false);
+  const [triagemSalvando, setTriagemSalvando] = useState(false);
+  const [triagemErro, setTriagemErro] = useState('');
+  const [triagemStatus, setTriagemStatus] = useState(null);
+  const [triagem, setTriagem] = useState({
+    competencia_procon: '',
+    orientacao_destino: '',
+    resposta_fiscal: '',
+  });
 
   const tramitacoesList = useMemo(() => {
     if (documento?.tramitacoes?.length) {
@@ -84,6 +94,94 @@ const DocumentoDetalheModal = ({
       { rotulo: 'Setor Lotação', valor: documento.setor_lotacao },
     ];
   }, [documento]);
+
+  const isDenunciaFiscalizacao = useMemo(() => {
+    if (!documento?.denuncia_id) {
+      return false;
+    }
+    const setor = (documento.setor_destino || '').toLowerCase();
+    return setor.includes('fiscal');
+  }, [documento]);
+
+  useEffect(() => {
+    if (!aberto || !documento?.denuncia_id) {
+      return;
+    }
+
+    setTriagemLoading(true);
+    setTriagemErro('');
+
+    triagemService
+      .obterRespostaDenuncia(documento.denuncia_id)
+      .then((payload) => {
+        setTriagemStatus(payload?.status || null);
+        const competenciaValue =
+          payload?.competencia_procon === true ? 'true' : payload?.competencia_procon === false ? 'false' : '';
+        setTriagem({
+          competencia_procon: competenciaValue,
+          orientacao_destino: payload?.orientacao_destino || '',
+          resposta_fiscal: payload?.resposta_fiscal || '',
+        });
+      })
+      .catch((error) => {
+        console.error('Erro ao carregar triagem da denuncia:', error);
+        setTriagemErro('Nao foi possivel carregar a triagem da denuncia.');
+      })
+      .finally(() => {
+        setTriagemLoading(false);
+      });
+  }, [aberto, documento?.denuncia_id]);
+
+  const handleTriagemChange = (event) => {
+    const { name, value } = event.target;
+    setTriagem((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
+
+  const handleSalvarTriagem = async () => {
+    if (!documento?.denuncia_id) {
+      return;
+    }
+
+    const payload = {};
+    if (triagem.competencia_procon !== '') {
+      payload.competencia_procon = triagem.competencia_procon === 'true';
+    }
+    if (triagem.orientacao_destino.trim()) {
+      payload.orientacao_destino = triagem.orientacao_destino.trim();
+    }
+    if (triagem.resposta_fiscal.trim()) {
+      payload.resposta_fiscal = triagem.resposta_fiscal.trim();
+    }
+
+    if (!Object.keys(payload).length) {
+      setTriagemErro('Preencha pelo menos um campo para salvar a triagem.');
+      return;
+    }
+
+    setTriagemErro('');
+    setTriagemSalvando(true);
+
+    try {
+      const resposta = await triagemService.responderDenuncia(documento.denuncia_id, payload);
+      const competenciaValue =
+        resposta?.competencia_procon === true ? 'true' : resposta?.competencia_procon === false ? 'false' : '';
+      setTriagemStatus(resposta?.status || triagemStatus);
+      setTriagem({
+        competencia_procon: competenciaValue,
+        orientacao_destino: resposta?.orientacao_destino || triagem.orientacao_destino,
+        resposta_fiscal: resposta?.resposta_fiscal || triagem.resposta_fiscal,
+      });
+    } catch (error) {
+      console.error('Erro ao salvar triagem:', error);
+      setTriagemErro('Nao foi possivel salvar a triagem.');
+    } finally {
+      setTriagemSalvando(false);
+    }
+  };
+
 
   const handleDownloadAnexo = async (anexo) => {
     if (!anexo || !anexo.id) {
@@ -238,6 +336,89 @@ const DocumentoDetalheModal = ({
                 </div>
               </section>
 
+              {isDenunciaFiscalizacao && (
+                <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                  <div className="mb-4 flex items-center justify-between">
+                    <div className="flex items-center">
+                      <CheckCircleIcon className="mr-2 h-5 w-5 text-emerald-500" />
+                      <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                        Triagem da Denuncia (Fiscalizacao)
+                      </h3>
+                    </div>
+                    {triagemStatus && (
+                      <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-600">
+                        Status: {triagemStatus}
+                      </span>
+                    )}
+                  </div>
+
+                  {triagemLoading ? (
+                    <div className="flex items-center justify-center py-6">
+                      <LoadingSpinner />
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-xs font-medium uppercase tracking-wide text-gray-500">
+                          Competencia do PROCON
+                        </label>
+                        <select
+                          name="competencia_procon"
+                          value={triagem.competencia_procon}
+                          onChange={handleTriagemChange}
+                          className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        >
+                          <option value="">Em analise</option>
+                          <option value="true">Sim, dentro do ambito</option>
+                          <option value="false">Nao, fora do ambito</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-medium uppercase tracking-wide text-gray-500">
+                          Orientacao ao cidadao
+                        </label>
+                        <textarea
+                          name="orientacao_destino"
+                          value={triagem.orientacao_destino}
+                          onChange={handleTriagemChange}
+                          rows={3}
+                          className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          placeholder="Informe a orientacao caso a denuncia esteja fora do ambito."
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-medium uppercase tracking-wide text-gray-500">
+                          Resposta do fiscal
+                        </label>
+                        <textarea
+                          name="resposta_fiscal"
+                          value={triagem.resposta_fiscal}
+                          onChange={handleTriagemChange}
+                          rows={4}
+                          className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          placeholder="Digite a resposta que sera enviada ao cidadao."
+                        />
+                      </div>
+
+                      {triagemErro && (
+                        <p className="text-sm text-red-600">{triagemErro}</p>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={handleSalvarTriagem}
+                        disabled={triagemSalvando}
+                        className="inline-flex items-center rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {triagemSalvando ? 'Salvando...' : 'Salvar triagem'}
+                      </button>
+                    </div>
+                  )}
+                </section>
+              )}
+
               <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
                 <h3 className="mb-3 flex items-center text-sm font-semibold text-gray-900 dark:text-gray-100">
                   <ClockIcon className="mr-2 h-5 w-5 text-amber-500 dark:text-amber-300" />
@@ -292,6 +473,7 @@ const DocumentoDetalheModal = ({
                 )}
               </section>
 
+              
               <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
                 <h3 className="mb-3 flex items-center text-sm font-semibold text-gray-900 dark:text-gray-100">
                   <PaperClipIcon className="mr-2 h-5 w-5 text-fuchsia-500 dark:text-fuchsia-300" />

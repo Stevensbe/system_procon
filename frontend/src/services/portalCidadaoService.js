@@ -32,11 +32,13 @@ const portalCidadaoService = {
       console.error('Erro na consulta pÃºblica:', error);
 
       const statusCode = error?.response?.status;
-      if (statusCode && [400, 404, 501].includes(statusCode)) {
+      if (statusCode && [400, 401, 404, 501].includes(statusCode)) {
         const payload = error.response?.data || {};
         const fallbackMessage =
           statusCode === 404
             ? 'Nenhum resultado encontrado para os dados informados.'
+            : statusCode === 401
+              ? 'Login necessario para consultar.'
             : statusCode === 400
               ? 'Dados informados estÃ£o incompletos ou invÃ¡lidos.'
               : 'Consulta ainda nÃ£o disponÃ­vel para este tipo.';
@@ -123,10 +125,17 @@ const portalCidadaoService = {
 
   consultarDenuncia: async (dados) => {
     try {
-      const response = await portalPublicApi.post('/portal/api/denuncia/consulta/', dados);
+      const response = await api.post('/portal/api/denuncia/consulta/', dados);
       return response.data;
     } catch (error) {
       console.error('Erro ao consultar denuncia:', error);
+      if (error.response?.status === 401) {
+        return {
+          encontrado: false,
+          detail: 'Login necessario para consultar a denuncia.',
+          statusCode: 401,
+        };
+      }
       if (error.response?.data) {
         return {
           encontrado: false,
@@ -411,7 +420,7 @@ const portalCidadaoService = {
 
   verifyToken: async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = getToken();
       if (!token) throw new Error('Token nÃƒÂ£o encontrado');
       
       const response = await api.get('/auth/profile/', {
@@ -437,3 +446,6 @@ const portalCidadaoService = {
 };
 
 export default portalCidadaoService;
+
+
+

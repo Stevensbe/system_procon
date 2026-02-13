@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import api from '../../services/api';
 import atendimentoService from '../../services/atendimentoService';
 import { useNavigate } from 'react-router-dom';
 import { 
@@ -161,9 +160,7 @@ const NovaReclamacao = () => {
     setCnpjMessage(null);
 
     try {
-      const { data } = await api.get('/atendimento/consultar-cnpj/', {
-        params: { cnpj: sanitizedCnpj }
-      });
+      const data = await atendimentoService.consultarCnpj(sanitizedCnpj);
 
       if (data.sucesso) {
         setEmpresaData(data);
@@ -244,7 +241,7 @@ const NovaReclamacao = () => {
         cep: quickCompanyForm.cep,
       };
 
-      const { data } = await api.post('/atendimento/empresas/cadastro-rapido/', payload);
+      const data = await atendimentoService.solicitarCadastroRapidoEmpresa(payload);
       const mensagem = data?.mensagem || 'Solicitacao de cadastro enviada para analise.';
       showSuccess(mensagem);
       setCnpjMessage({ type: 'info', text: mensagem });
@@ -309,9 +306,12 @@ const NovaReclamacao = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!formData.consumidor_nome || !formData.consumidor_cpf ||
+    if (!formData.consumidor_nome || !formData.consumidor_cpf || !formData.consumidor_email ||
+        !formData.consumidor_endereco || !formData.consumidor_cep ||
+        !formData.consumidor_cidade || !formData.consumidor_uf ||
         !formData.empresa_razao_social || !formData.empresa_cnpj ||
-        !formData.descricao_fatos || !formData.data_ocorrencia) {
+        !formData.empresa_endereco || !formData.descricao_fatos ||
+        !formData.data_ocorrencia) {
       showError('Preencha todos os campos obrigatorios');
       return;
     }
@@ -340,7 +340,12 @@ const NovaReclamacao = () => {
       setCnpjMessage(null);
       setConsentimentoAviso(false);
       setStep(1);
-      navigate('/atendimento/reclamacoes/');
+      const reclamacaoId = resultado?.reclamacao?.id;
+      if (reclamacaoId) {
+        navigate(`/atendimento/reclamacoes/${reclamacaoId}`);
+      } else {
+        navigate('/atendimento/dashboard');
+      }
     } catch (error) {
       const resposta = error?.response?.data;
       let mensagem = 'Erro ao registrar atendimento';
@@ -472,6 +477,7 @@ const NovaReclamacao = () => {
           value={formData.consumidor_endereco}
           onChange={handleInputChange}
           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          required
         />
       </div>
       <div>
@@ -488,6 +494,7 @@ const NovaReclamacao = () => {
           }}
           maxLength="9"
           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          required
         />
       </div>
       <div>
@@ -500,6 +507,7 @@ const NovaReclamacao = () => {
           value={formData.consumidor_cidade}
           onChange={handleInputChange}
           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          required
         />
       </div>
       <div>
@@ -511,6 +519,7 @@ const NovaReclamacao = () => {
           value={formData.consumidor_uf}
           onChange={handleInputChange}
           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          required
         >
           <option value="">Selecione</option>
           <option value="AC">AC</option>
@@ -627,6 +636,7 @@ const NovaReclamacao = () => {
           value={formData.empresa_endereco}
           onChange={handleInputChange}
           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          required
         />
       </div>
       <div>

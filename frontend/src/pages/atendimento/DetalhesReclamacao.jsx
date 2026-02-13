@@ -37,7 +37,7 @@ const DetalhesReclamacao = () => {
     try {
       setLoading(true);
       
-      const { data } = await api.get(`/atendimento/reclamacoes/${id}/`);
+      const { data } = await api.get(`atendimento/api/reclamacoes/${id}/`);
 
       setReclamacao(data);
       setHistorico(data.historico || []);

@@ -18,8 +18,7 @@ import ErrorFallback from './components/common/ErrorFallback';
 import GlobalErrorBoundary from './components/common/GlobalErrorBoundary';
 
 // ✅ CORREÇÃO: ProtectedRoute integrado diretamente
-// import { useAuth, AuthState } from './context/AuthContext'; // Django Auth (desativado)
-import { useAuth, AuthState } from './context/SupabaseAuthContext'; // Supabase Auth (ATIVO)
+import { useAuth, AuthState } from './context/AuthContext'; // Django Auth (Supabase desativado)
 
 // ✅ COMPONENTES DE CONTROLE DE ROTAS
 function ProtectedRoute({ children, allowedRoles }) {
@@ -211,6 +210,7 @@ const AtendimentoFilaGuiche = lazyLoad(() => import('./pages/atendimento/FilaGui
 const AtendimentoPainelTv = lazyLoad(() => import('./pages/atendimento/PainelTv'));
 const NovaReclamacao = lazyLoad(() => import('./pages/atendimento/NovaReclamacao'));
 const DetalhesReclamacao = lazyLoad(() => import('./pages/atendimento/DetalhesReclamacao'));
+const ListaReclamacoes = lazyLoad(() => import('./pages/atendimento/ListaReclamacoes'));
 
 // --- Módulo de Cobrança (Novo) ---
 const CobrancaDashboard = React.lazy(() => import('./pages/cobranca/CobrancaDashboard'));
@@ -419,7 +419,7 @@ function App() {
             <Route
               path="/painel-atendimento/:balcaoId"
               element={
-                <ProtectedRoute allowedRoles={['admin', 'staff']}>
+                <ProtectedRoute allowedRoles={['admin', 'staff', 'atendimento', 'protocolo']}>
                   <AtendimentoPainelTv />
                 </ProtectedRoute>
               }
@@ -437,7 +437,7 @@ function App() {
             <Route
               path="/"
               element={
-                <ProtectedRoute allowedRoles={['admin', 'staff']}>
+                <ProtectedRoute allowedRoles={['admin', 'staff', 'atendimento', 'protocolo']}>
                   <Layout />
                 </ProtectedRoute>
               }
@@ -558,11 +558,12 @@ function App() {
               <Route
                 path="atendimento/filas"
                 element={
-                  <ProtectedRoute allowedRoles={['admin', 'staff']}>
+                  <ProtectedRoute allowedRoles={['admin', 'staff', 'atendimento', 'protocolo']}>
                     <AtendimentoFilaGuiche />
                   </ProtectedRoute>
                 }
               />
+              <Route path="atendimento/reclamacoes" element={<ListaReclamacoes />} />
               <Route path="atendimento/reclamacoes/nova" element={<NovaReclamacao />} />
               <Route path="atendimento/reclamacoes/:id" element={<DetalhesReclamacao />} />
 

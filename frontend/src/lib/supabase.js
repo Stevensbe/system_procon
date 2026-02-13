@@ -204,19 +204,64 @@ export const updateUser = async (userData) => {
 // =========================================================================
 
 /**
- * Obtém o perfil do usuário
+ * Obtém o perfil do usuário (cria automaticamente se não existir)
  * @param {string} userId - ID do usuário
  * @returns {Promise<Object>} Perfil do usuário
  */
 export const getProfile = async (userId) => {
+    // Primeiro tenta buscar o perfil
     const { data, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', userId)
+        .maybeSingle();  // Usa maybeSingle para não dar erro se não encontrar
+
+    // Se encontrou, retorna
+    if (data) {
+        return data;
+    }
+
+    // Se não encontrou (e não foi erro de conexão), cria o perfil
+    if (error && error.code !== 'PGRST116') {
+        console.error('[Supabase] Erro ao buscar perfil:', error);
+        throw error;
+    }
+
+    // Busca dados do usuário autenticado para criar o perfil
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+        throw new Error('Usuário não autenticado');
+    }
+
+    console.log('[Supabase] Criando perfil automaticamente para:', user.email);
+
+    // Cria o perfil com dados do auth
+    const newProfile = {
+        id: userId,
+        email: user.email,
+        full_name: user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || 'Usuário',
+        role: user.app_metadata?.role || user.user_metadata?.role || 'user',
+        phone: user.user_metadata?.phone || '',
+        is_active: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+    };
+
+    const { data: createdProfile, error: createError } = await supabase
+        .from('profiles')
+        .upsert(newProfile)
+        .select()
         .single();
 
-    if (error) throw error;
-    return data;
+    if (createError) {
+        console.error('[Supabase] Erro ao criar perfil:', createError);
+        // Retorna perfil básico mesmo com erro para não quebrar a aplicação
+        return newProfile;
+    }
+
+    console.log('[Supabase] Perfil criado com sucesso:', createdProfile);
+    return createdProfile;
 };
 
 /**
